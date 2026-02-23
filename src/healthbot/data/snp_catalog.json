@@ -1,0 +1,952 @@
+[
+  {
+    "rsid": "rs1800562",
+    "gene": "HFE",
+    "variant_name": "C282Y",
+    "risk_genotypes": {"AA": "elevated", "AG": "carrier"},
+    "condition": "Hereditary hemochromatosis (HFE C282Y)",
+    "clinical_notes": {
+      "elevated": [
+        "Homozygous C282Y — high risk for iron overload",
+        "Monitor ferritin and transferrin saturation regularly",
+        "Consider genetic counseling"
+      ],
+      "carrier": [
+        "Heterozygous C282Y carrier — low risk alone",
+        "Monitor ferritin if compound heterozygous with H63D"
+      ]
+    },
+    "affected_labs": ["ferritin", "iron", "transferrin_saturation", "tibc"],
+    "research_keywords": ["HFE C282Y", "hereditary hemochromatosis"],
+    "confidence_level": "strong",
+    "pathway": "iron_homeostasis"
+  },
+  {
+    "rsid": "rs1799945",
+    "gene": "HFE",
+    "variant_name": "H63D",
+    "risk_genotypes": {"GG": "moderate", "CG": "carrier"},
+    "condition": "Hereditary hemochromatosis (HFE H63D)",
+    "clinical_notes": {
+      "moderate": [
+        "Homozygous H63D — moderate iron overload risk",
+        "Higher risk if also C282Y carrier (compound heterozygote)"
+      ],
+      "carrier": [
+        "Heterozygous H63D — minimal risk alone",
+        "Check C282Y status for compound heterozygosity"
+      ]
+    },
+    "affected_labs": ["ferritin", "iron", "transferrin_saturation"],
+    "research_keywords": ["HFE H63D", "iron overload"],
+    "confidence_level": "strong",
+    "pathway": "iron_homeostasis"
+  },
+  {
+    "rsid": "rs1801133",
+    "gene": "MTHFR",
+    "variant_name": "C677T",
+    "risk_genotypes": {"AA": "elevated", "AG": "moderate"},
+    "condition": "MTHFR C677T — reduced folate metabolism",
+    "clinical_notes": {
+      "elevated": [
+        "Homozygous C677T — ~70% reduced MTHFR enzyme activity",
+        "Consider methylfolate supplementation over folic acid",
+        "Monitor homocysteine levels"
+      ],
+      "moderate": [
+        "Heterozygous C677T — ~35% reduced MTHFR activity",
+        "Monitor homocysteine, especially if B12/folate low"
+      ]
+    },
+    "affected_labs": ["homocysteine", "folate", "vitamin_b12"],
+    "research_keywords": ["MTHFR C677T", "methylfolate", "homocysteine"],
+    "confidence_level": "strong",
+    "pathway": "methylation"
+  },
+  {
+    "rsid": "rs1801131",
+    "gene": "MTHFR",
+    "variant_name": "A1298C",
+    "risk_genotypes": {"CC": "moderate", "AC": "carrier"},
+    "condition": "MTHFR A1298C — mildly reduced folate metabolism",
+    "clinical_notes": {
+      "moderate": [
+        "Homozygous A1298C — mild MTHFR reduction",
+        "Greater impact if also C677T heterozygous (compound)"
+      ],
+      "carrier": [
+        "Heterozygous A1298C — minimal impact alone"
+      ]
+    },
+    "affected_labs": ["homocysteine", "folate"],
+    "research_keywords": ["MTHFR A1298C"],
+    "confidence_level": "strong",
+    "pathway": "methylation"
+  },
+  {
+    "rsid": "rs429358",
+    "gene": "APOE",
+    "variant_name": "APOE-e4 (rs429358)",
+    "risk_genotypes": {"CC": "elevated", "CT": "moderate"},
+    "condition": "APOE e4 — cardiovascular and Alzheimer risk",
+    "clinical_notes": {
+      "elevated": [
+        "APOE e4/e4 homozygous — significantly elevated Alzheimer risk",
+        "Higher LDL cholesterol response to dietary fat",
+        "Consider aggressive cardiovascular risk management"
+      ],
+      "moderate": [
+        "APOE e4 heterozygous — moderately elevated risk",
+        "Monitor lipid panel closely"
+      ]
+    },
+    "affected_labs": ["ldl", "total_cholesterol", "apob", "lpa"],
+    "research_keywords": ["APOE e4", "Alzheimer risk", "cardiovascular"],
+    "confidence_level": "strong",
+    "pathway": "cardiovascular"
+  },
+  {
+    "rsid": "rs6025",
+    "gene": "F5",
+    "variant_name": "Factor V Leiden",
+    "risk_genotypes": {"AA": "elevated", "AG": "moderate"},
+    "condition": "Factor V Leiden — thrombophilia",
+    "clinical_notes": {
+      "elevated": [
+        "Homozygous Factor V Leiden — high VTE risk",
+        "Avoid oral contraceptives, discuss anticoagulation",
+        "DVT/PE risk significantly elevated"
+      ],
+      "moderate": [
+        "Heterozygous Factor V Leiden — moderate VTE risk",
+        "Discuss with hematologist before surgery or immobilization"
+      ]
+    },
+    "affected_labs": ["d_dimer", "pt", "ptt", "inr"],
+    "research_keywords": ["Factor V Leiden", "thrombophilia", "VTE risk"],
+    "confidence_level": "strong",
+    "pathway": "cardiovascular"
+  },
+  {
+    "rsid": "rs762551",
+    "gene": "CYP1A2",
+    "variant_name": "CYP1A2*1F",
+    "risk_genotypes": {"CC": "moderate", "AC": "moderate"},
+    "condition": "Slow caffeine metabolism",
+    "clinical_notes": {
+      "moderate": [
+        "Slow caffeine metabolizer — caffeine stays in system longer",
+        "Higher cardiovascular risk from heavy coffee consumption",
+        "Consider limiting caffeine intake"
+      ]
+    },
+    "affected_labs": [],
+    "research_keywords": ["CYP1A2", "caffeine metabolism"],
+    "confidence_level": "strong",
+    "pathway": "detoxification"
+  },
+  {
+    "rsid": "rs2228570",
+    "gene": "VDR",
+    "variant_name": "VDR FokI",
+    "risk_genotypes": {"AA": "moderate", "AG": "carrier"},
+    "condition": "VDR FokI — altered vitamin D receptor",
+    "clinical_notes": {
+      "moderate": [
+        "VDR variant — may need higher vitamin D levels for same effect",
+        "Monitor 25-OH vitamin D more closely"
+      ],
+      "carrier": [
+        "VDR heterozygous — minor impact on vitamin D signaling"
+      ]
+    },
+    "affected_labs": ["vitamin_d", "calcium", "pth"],
+    "research_keywords": ["VDR FokI", "vitamin D receptor"],
+    "confidence_level": "strong",
+    "pathway": "nutrient_metabolism"
+  },
+  {
+    "rsid": "rs3892097",
+    "gene": "CYP2D6",
+    "variant_name": "CYP2D6*4",
+    "risk_genotypes": {"AA": "elevated", "AG": "moderate"},
+    "condition": "CYP2D6 poor metabolizer",
+    "clinical_notes": {
+      "elevated": [
+        "CYP2D6 poor metabolizer — many drugs metabolized slowly",
+        "Affects: codeine, tramadol, tamoxifen, some antidepressants",
+        "Codeine will NOT convert to morphine — ineffective for pain"
+      ],
+      "moderate": [
+        "CYP2D6 intermediate metabolizer — some drugs affected",
+        "Discuss with pharmacist before starting CYP2D6 substrates"
+      ]
+    },
+    "affected_labs": [],
+    "research_keywords": ["CYP2D6", "pharmacogenomics", "poor metabolizer"],
+    "confidence_level": "strong",
+    "pathway": "pharmacogenomics"
+  },
+  {
+    "rsid": "rs4244285",
+    "gene": "CYP2C19",
+    "variant_name": "CYP2C19*2",
+    "risk_genotypes": {"AA": "elevated", "AG": "moderate"},
+    "condition": "CYP2C19 poor metabolizer",
+    "clinical_notes": {
+      "elevated": [
+        "CYP2C19 poor metabolizer — clopidogrel (Plavix) may be ineffective",
+        "Also affects PPIs, some antidepressants, and antifungals",
+        "Consider alternative antiplatelet if prescribed clopidogrel"
+      ],
+      "moderate": [
+        "CYP2C19 intermediate metabolizer — reduced clopidogrel activation"
+      ]
+    },
+    "affected_labs": [],
+    "research_keywords": ["CYP2C19", "clopidogrel", "pharmacogenomics"],
+    "confidence_level": "strong",
+    "pathway": "pharmacogenomics"
+  },
+  {
+    "rsid": "rs4988235",
+    "gene": "MCM6/LCT",
+    "variant_name": "LCT-13910",
+    "risk_genotypes": {"CC": "moderate"},
+    "condition": "Lactose intolerance (genetic predisposition)",
+    "clinical_notes": {
+      "moderate": [
+        "Genetically predisposed to lactose intolerance",
+        "Lactase production typically declines in adulthood",
+        "Consider lactase supplements or dairy alternatives"
+      ]
+    },
+    "affected_labs": [],
+    "research_keywords": ["lactose intolerance", "LCT gene"],
+    "confidence_level": "strong",
+    "pathway": "nutrient_metabolism"
+  },
+  {
+    "rsid": "rs1799853",
+    "gene": "CYP2C9",
+    "variant_name": "CYP2C9*2",
+    "risk_genotypes": {"TT": "elevated", "CT": "moderate"},
+    "condition": "CYP2C9 reduced metabolism — warfarin sensitivity",
+    "clinical_notes": {
+      "elevated": [
+        "Homozygous CYP2C9*2 — significantly reduced warfarin metabolism",
+        "Requires substantial warfarin dose reduction (per CPIC guidelines)",
+        "Higher bleeding risk at standard doses — monitor INR closely"
+      ],
+      "moderate": [
+        "Heterozygous CYP2C9*2 — moderately reduced warfarin metabolism",
+        "May require ~20% warfarin dose reduction per CPIC"
+      ]
+    },
+    "affected_labs": ["inr", "pt"],
+    "research_keywords": ["CYP2C9*2", "warfarin sensitivity", "pharmacogenomics"],
+    "confidence_level": "strong",
+    "pathway": "pharmacogenomics"
+  },
+  {
+    "rsid": "rs1057910",
+    "gene": "CYP2C9",
+    "variant_name": "CYP2C9*3",
+    "risk_genotypes": {"CC": "elevated", "AC": "moderate"},
+    "condition": "CYP2C9 poor metabolism — warfarin sensitivity, NSAID metabolism",
+    "clinical_notes": {
+      "elevated": [
+        "Homozygous CYP2C9*3 — severely reduced CYP2C9 activity (~5% residual)",
+        "Major warfarin dose reduction required per CPIC guidelines",
+        "Prolonged NSAID exposure — increased GI bleeding risk"
+      ],
+      "moderate": [
+        "Heterozygous CYP2C9*3 — reduced warfarin and NSAID metabolism",
+        "Warfarin dose adjustment recommended per CPIC"
+      ]
+    },
+    "affected_labs": ["inr", "pt"],
+    "research_keywords": ["CYP2C9*3", "warfarin", "NSAID metabolism", "CPIC"],
+    "confidence_level": "strong",
+    "pathway": "pharmacogenomics"
+  },
+  {
+    "rsid": "rs9923231",
+    "gene": "VKORC1",
+    "variant_name": "VKORC1 -1639G>A",
+    "risk_genotypes": {"AA": "elevated", "AG": "moderate"},
+    "condition": "VKORC1 variant — reduced warfarin dose requirement",
+    "clinical_notes": {
+      "elevated": [
+        "Homozygous VKORC1 -1639A — low-dose warfarin required",
+        "Standard doses cause supratherapeutic INR and bleeding risk",
+        "CPIC recommends 50-60% dose reduction from standard"
+      ],
+      "moderate": [
+        "Heterozygous VKORC1 -1639G>A — intermediate warfarin sensitivity",
+        "CPIC recommends 25-50% dose reduction from standard"
+      ]
+    },
+    "affected_labs": ["inr", "pt"],
+    "research_keywords": ["VKORC1", "warfarin dose", "CPIC", "anticoagulation"],
+    "confidence_level": "strong",
+    "pathway": "pharmacogenomics"
+  },
+  {
+    "rsid": "rs4149056",
+    "gene": "SLCO1B1",
+    "variant_name": "SLCO1B1*5",
+    "risk_genotypes": {"CC": "elevated", "CT": "moderate"},
+    "condition": "SLCO1B1 reduced transport — statin myopathy risk",
+    "clinical_notes": {
+      "elevated": [
+        "Homozygous SLCO1B1*5 — high risk for statin-induced myopathy",
+        "Avoid simvastatin >20mg; consider rosuvastatin or pravastatin (CPIC)",
+        "Monitor CK levels if on any statin therapy"
+      ],
+      "moderate": [
+        "Heterozygous SLCO1B1*5 — moderate statin myopathy risk",
+        "Avoid high-dose simvastatin; lower-risk statins preferred"
+      ]
+    },
+    "affected_labs": ["cholesterol_total", "ldl", "alt", "ast"],
+    "research_keywords": ["SLCO1B1", "statin myopathy", "simvastatin", "CPIC"],
+    "confidence_level": "strong",
+    "pathway": "pharmacogenomics"
+  },
+  {
+    "rsid": "rs3918290",
+    "gene": "DPYD",
+    "variant_name": "DPYD*2A",
+    "risk_genotypes": {"AA": "elevated", "AG": "moderate"},
+    "condition": "DPYD deficiency — fluoropyrimidine toxicity risk",
+    "clinical_notes": {
+      "elevated": [
+        "Homozygous DPYD*2A — complete DPD deficiency",
+        "Fluoropyrimidines (5-FU, capecitabine) are CONTRAINDICATED (CPIC)",
+        "Life-threatening toxicity risk — use alternative chemotherapy"
+      ],
+      "moderate": [
+        "Heterozygous DPYD*2A — partial DPD deficiency",
+        "Reduce fluoropyrimidine dose by at least 50% per CPIC guidelines"
+      ]
+    },
+    "affected_labs": [],
+    "research_keywords": ["DPYD", "DPD deficiency", "5-fluorouracil", "capecitabine", "CPIC"],
+    "confidence_level": "strong",
+    "pathway": "pharmacogenomics"
+  },
+  {
+    "rsid": "rs8175347",
+    "gene": "UGT1A1",
+    "variant_name": "UGT1A1*28",
+    "risk_genotypes": {"7/7": "elevated", "6/7": "moderate"},
+    "condition": "UGT1A1*28 — Gilbert syndrome, irinotecan toxicity risk",
+    "clinical_notes": {
+      "elevated": [
+        "Homozygous UGT1A1*28 (7/7 TA repeats) — Gilbert syndrome",
+        "Elevated unconjugated bilirubin; usually benign",
+        "Irinotecan dose reduction required — risk of severe neutropenia (CPIC)"
+      ],
+      "moderate": [
+        "Heterozygous UGT1A1*28 (6/7) — mildly reduced glucuronidation",
+        "Possible mild bilirubin elevation; intermediate irinotecan toxicity risk"
+      ]
+    },
+    "affected_labs": ["bilirubin"],
+    "research_keywords": ["UGT1A1*28", "Gilbert syndrome", "irinotecan", "CPIC"],
+    "confidence_level": "strong",
+    "pathway": "pharmacogenomics"
+  },
+  {
+    "rsid": "rs1801280",
+    "gene": "NAT2",
+    "variant_name": "NAT2*5",
+    "risk_genotypes": {"AA": "elevated", "AG": "moderate"},
+    "condition": "NAT2 slow acetylator — isoniazid toxicity risk",
+    "clinical_notes": {
+      "elevated": [
+        "Homozygous NAT2 slow acetylator — high risk for isoniazid hepatotoxicity",
+        "Slow acetylation of aromatic amines and hydrazine drugs",
+        "Monitor liver function closely on isoniazid, sulfasalazine, or dapsone"
+      ],
+      "moderate": [
+        "Heterozygous NAT2 — intermediate acetylator",
+        "Moderate isoniazid hepatotoxicity risk; monitor ALT/AST"
+      ]
+    },
+    "affected_labs": ["alt", "ast"],
+    "research_keywords": ["NAT2", "slow acetylator", "isoniazid", "pharmacogenomics"],
+    "confidence_level": "strong",
+    "pathway": "pharmacogenomics"
+  },
+  {
+    "rsid": "rs1800460",
+    "gene": "TPMT",
+    "variant_name": "TPMT*3B",
+    "risk_genotypes": {"AA": "elevated", "AG": "moderate"},
+    "condition": "TPMT deficiency — thiopurine toxicity risk",
+    "clinical_notes": {
+      "elevated": [
+        "Homozygous TPMT*3B — negligible TPMT activity",
+        "Thiopurines (azathioprine, 6-MP, thioguanine) at standard doses cause severe myelosuppression",
+        "CPIC: reduce dose to ~10% of standard or use alternative agent"
+      ],
+      "moderate": [
+        "Heterozygous TPMT*3B — intermediate TPMT activity",
+        "CPIC: reduce thiopurine dose by 30-70% and monitor CBC closely"
+      ]
+    },
+    "affected_labs": [],
+    "research_keywords": ["TPMT", "thiopurine", "azathioprine", "myelosuppression", "CPIC"],
+    "confidence_level": "strong",
+    "pathway": "pharmacogenomics"
+  },
+  {
+    "rsid": "rs35599367",
+    "gene": "CYP3A4",
+    "variant_name": "CYP3A4*22",
+    "risk_genotypes": {"TT": "elevated", "CT": "moderate"},
+    "condition": "CYP3A4 reduced activity — altered drug metabolism",
+    "clinical_notes": {
+      "elevated": [
+        "Homozygous CYP3A4*22 — significantly reduced CYP3A4 expression",
+        "Affects metabolism of tacrolimus, statins, many chemotherapeutics",
+        "Lower starting doses recommended for CYP3A4 substrates"
+      ],
+      "moderate": [
+        "Heterozygous CYP3A4*22 — moderately reduced CYP3A4 activity",
+        "Consider dose adjustments for narrow therapeutic index CYP3A4 substrates"
+      ]
+    },
+    "affected_labs": [],
+    "research_keywords": ["CYP3A4*22", "drug metabolism", "tacrolimus", "pharmacogenomics"],
+    "confidence_level": "strong",
+    "pathway": "pharmacogenomics"
+  },
+  {
+    "rsid": "rs4680",
+    "gene": "COMT",
+    "variant_name": "Val158Met",
+    "risk_genotypes": {"AA": "elevated", "AG": "moderate"},
+    "condition": "COMT Val158Met — slow catecholamine metabolism",
+    "clinical_notes": {
+      "elevated": [
+        "Homozygous Met/Met — 3-4x reduced COMT enzyme activity",
+        "Slower dopamine/norepinephrine/estrogen catechol clearance",
+        "May benefit from reduced methyl donor supplementation; sensitive to stress"
+      ],
+      "moderate": [
+        "Heterozygous Val/Met — intermediate COMT activity",
+        "Moderate impact on catecholamine and estrogen catechol metabolism"
+      ]
+    },
+    "affected_labs": ["homocysteine"],
+    "research_keywords": ["COMT Val158Met", "catecholamine metabolism", "estrogen clearance"],
+    "confidence_level": "strong",
+    "pathway": "methylation"
+  },
+  {
+    "rsid": "rs1805087",
+    "gene": "MTR",
+    "variant_name": "MTR A2756G",
+    "risk_genotypes": {"GG": "elevated", "AG": "moderate"},
+    "condition": "MTR A2756G — altered methionine synthase activity",
+    "clinical_notes": {
+      "elevated": [
+        "Homozygous MTR 2756GG — upregulated methionine synthase",
+        "Increased B12 utilization; may deplete B12 stores faster",
+        "Monitor B12 and homocysteine levels regularly"
+      ],
+      "moderate": [
+        "Heterozygous MTR A2756G — mildly increased B12 demand",
+        "Ensure adequate B12 intake, especially if vegetarian/vegan"
+      ]
+    },
+    "affected_labs": ["vitamin_b12", "homocysteine"],
+    "research_keywords": ["MTR A2756G", "methionine synthase", "vitamin B12"],
+    "confidence_level": "strong",
+    "pathway": "methylation"
+  },
+  {
+    "rsid": "rs1801394",
+    "gene": "MTRR",
+    "variant_name": "MTRR A66G",
+    "risk_genotypes": {"GG": "elevated", "AG": "moderate"},
+    "condition": "MTRR A66G — reduced methionine synthase reductase",
+    "clinical_notes": {
+      "elevated": [
+        "Homozygous MTRR 66GG — reduced regeneration of methylcobalamin",
+        "Impaired B12 recycling may elevate homocysteine",
+        "Combined risk with MTHFR variants; ensure adequate B12 and folate"
+      ],
+      "moderate": [
+        "Heterozygous MTRR A66G — mildly reduced B12 recycling",
+        "Monitor homocysteine if combined with other methylation variants"
+      ]
+    },
+    "affected_labs": ["vitamin_b12", "homocysteine", "folate"],
+    "research_keywords": ["MTRR A66G", "methionine synthase reductase", "methylcobalamin"],
+    "confidence_level": "strong",
+    "pathway": "methylation"
+  },
+  {
+    "rsid": "rs234706",
+    "gene": "CBS",
+    "variant_name": "CBS C699T",
+    "risk_genotypes": {"AA": "elevated", "AG": "moderate"},
+    "condition": "CBS C699T — upregulated transsulfuration pathway",
+    "clinical_notes": {
+      "elevated": [
+        "Homozygous CBS C699T — upregulated CBS enzyme activity",
+        "Faster homocysteine-to-cystathionine conversion; may lower homocysteine",
+        "Increased ammonia and sulfite production; may deplete B6 faster"
+      ],
+      "moderate": [
+        "Heterozygous CBS C699T — mildly upregulated transsulfuration",
+        "Monitor homocysteine and B6 status in context of other methylation variants"
+      ]
+    },
+    "affected_labs": ["homocysteine"],
+    "research_keywords": ["CBS C699T", "transsulfuration", "homocysteine", "cystathionine"],
+    "confidence_level": "strong",
+    "pathway": "methylation"
+  },
+  {
+    "rsid": "rs3733890",
+    "gene": "BHMT",
+    "variant_name": "BHMT R239Q",
+    "risk_genotypes": {"AA": "elevated", "AG": "moderate"},
+    "condition": "BHMT R239Q — altered betaine-homocysteine methyltransferase",
+    "clinical_notes": {
+      "elevated": [
+        "Homozygous BHMT R239Q — reduced betaine-dependent homocysteine remethylation",
+        "May contribute to elevated homocysteine via the betaine shortcut pathway",
+        "Consider betaine (TMG) supplementation and monitor homocysteine"
+      ],
+      "moderate": [
+        "Heterozygous BHMT R239Q — mildly reduced betaine pathway activity",
+        "Monitor homocysteine if combined with MTHFR or MTR variants"
+      ]
+    },
+    "affected_labs": ["homocysteine"],
+    "research_keywords": ["BHMT", "betaine-homocysteine methyltransferase", "homocysteine"],
+    "confidence_level": "strong",
+    "pathway": "methylation"
+  },
+  {
+    "rsid": "rs10455872",
+    "gene": "LPA",
+    "variant_name": "LPA intron-25 variant",
+    "risk_genotypes": {"GG": "elevated", "AG": "moderate"},
+    "condition": "LPA variant — elevated lipoprotein(a), CVD risk",
+    "clinical_notes": {
+      "elevated": [
+        "Homozygous LPA risk allele — substantially elevated Lp(a) levels",
+        "Strong independent risk factor for atherosclerotic CVD and aortic stenosis",
+        "No approved Lp(a)-lowering therapy; aggressive LDL management recommended"
+      ],
+      "moderate": [
+        "Heterozygous LPA variant — moderately elevated Lp(a)",
+        "Measure Lp(a) level directly; optimize other cardiovascular risk factors"
+      ]
+    },
+    "affected_labs": ["ldl", "cholesterol_total", "apob"],
+    "research_keywords": ["lipoprotein(a)", "Lp(a)", "LPA gene", "cardiovascular risk"],
+    "confidence_level": "strong",
+    "pathway": "cardiovascular"
+  },
+  {
+    "rsid": "rs11591147",
+    "gene": "PCSK9",
+    "variant_name": "PCSK9 R46L",
+    "risk_genotypes": {"TT": "protective", "GT": "protective"},
+    "condition": "PCSK9 R46L — loss-of-function, lower LDL, cardioprotective",
+    "clinical_notes": {
+      "protective": [
+        "PCSK9 R46L loss-of-function variant — lifelong lower LDL cholesterol",
+        "Associated with ~30-40% reduction in coronary heart disease risk",
+        "Phenocopied by PCSK9 inhibitor medications (evolocumab, alirocumab)"
+      ]
+    },
+    "affected_labs": ["ldl", "cholesterol_total", "apob"],
+    "research_keywords": ["PCSK9 R46L", "loss-of-function", "LDL reduction", "cardioprotective"],
+    "confidence_level": "strong",
+    "pathway": "cardiovascular"
+  },
+  {
+    "rsid": "rs1333049",
+    "gene": "CDKN2B-AS1",
+    "variant_name": "9p21.3 risk variant",
+    "risk_genotypes": {"CC": "elevated", "CG": "moderate"},
+    "condition": "9p21.3 variant — coronary artery disease risk",
+    "clinical_notes": {
+      "elevated": [
+        "Homozygous 9p21.3 risk allele — ~1.6x increased CAD risk",
+        "One of the strongest common genetic risk factors for coronary artery disease",
+        "Aggressive lipid management and cardiovascular prevention recommended"
+      ],
+      "moderate": [
+        "Heterozygous 9p21.3 risk allele — ~1.3x increased CAD risk",
+        "Optimize modifiable risk factors: lipids, blood pressure, smoking, exercise"
+      ]
+    },
+    "affected_labs": ["ldl", "cholesterol_total", "hs_crp", "triglycerides"],
+    "research_keywords": ["9p21", "CDKN2B-AS1", "coronary artery disease", "GWAS"],
+    "confidence_level": "strong",
+    "pathway": "cardiovascular"
+  },
+  {
+    "rsid": "rs708272",
+    "gene": "CETP",
+    "variant_name": "CETP TaqIB (B2 allele)",
+    "risk_genotypes": {"AA": "elevated", "AG": "moderate"},
+    "condition": "CETP TaqIB — altered HDL metabolism",
+    "clinical_notes": {
+      "elevated": [
+        "Homozygous CETP TaqIB B2/B2 — reduced CETP activity, higher HDL",
+        "Higher HDL levels but clinical CVD benefit is context-dependent",
+        "Interpret HDL values with genetic context; focus on LDL and triglycerides"
+      ],
+      "moderate": [
+        "Heterozygous CETP TaqIB — moderately reduced CETP activity",
+        "May have higher HDL; evaluate full lipid panel for cardiovascular risk"
+      ]
+    },
+    "affected_labs": ["hdl", "cholesterol_total", "triglycerides"],
+    "research_keywords": ["CETP TaqIB", "HDL metabolism", "cholesteryl ester transfer protein"],
+    "confidence_level": "strong",
+    "pathway": "cardiovascular"
+  },
+  {
+    "rsid": "rs4646994",
+    "gene": "ACE",
+    "variant_name": "ACE I/D",
+    "risk_genotypes": {"DD": "elevated", "ID": "moderate"},
+    "condition": "ACE insertion/deletion — ACE activity and hypertension risk",
+    "clinical_notes": {
+      "elevated": [
+        "Homozygous ACE D/D — elevated ACE levels and angiotensin II activity",
+        "Associated with increased hypertension and left ventricular hypertrophy risk",
+        "May have enhanced response to ACE inhibitors"
+      ],
+      "moderate": [
+        "Heterozygous ACE I/D — intermediate ACE levels",
+        "Monitor blood pressure regularly; consider ACE inhibitor response"
+      ]
+    },
+    "affected_labs": ["glucose", "crp"],
+    "research_keywords": ["ACE insertion deletion", "ACE I/D", "hypertension", "RAAS"],
+    "confidence_level": "strong",
+    "pathway": "cardiovascular"
+  },
+  {
+    "rsid": "rs699",
+    "gene": "AGT",
+    "variant_name": "AGT M235T",
+    "risk_genotypes": {"TT": "elevated", "CT": "moderate"},
+    "condition": "AGT M235T — elevated angiotensinogen, hypertension risk",
+    "clinical_notes": {
+      "elevated": [
+        "Homozygous AGT 235T — elevated plasma angiotensinogen levels",
+        "Associated with increased essential hypertension and preeclampsia risk",
+        "Sodium-sensitive blood pressure response; consider dietary sodium restriction"
+      ],
+      "moderate": [
+        "Heterozygous AGT M235T — moderately elevated angiotensinogen",
+        "Monitor blood pressure; dietary sodium moderation advised"
+      ]
+    },
+    "affected_labs": ["glucose", "crp"],
+    "research_keywords": ["AGT M235T", "angiotensinogen", "hypertension", "RAAS"],
+    "confidence_level": "strong",
+    "pathway": "cardiovascular"
+  },
+  {
+    "rsid": "rs1799983",
+    "gene": "NOS3",
+    "variant_name": "NOS3 Glu298Asp",
+    "risk_genotypes": {"TT": "elevated", "GT": "moderate"},
+    "condition": "NOS3 Glu298Asp — reduced endothelial nitric oxide",
+    "clinical_notes": {
+      "elevated": [
+        "Homozygous NOS3 298Asp — reduced endothelial nitric oxide production",
+        "Associated with endothelial dysfunction, hypertension, and coronary spasm",
+        "May benefit from L-arginine, L-citrulline, or nitrate-rich diet"
+      ],
+      "moderate": [
+        "Heterozygous NOS3 Glu298Asp — mildly reduced NO bioavailability",
+        "Monitor blood pressure and cardiovascular risk factors"
+      ]
+    },
+    "affected_labs": ["cholesterol_total", "ldl", "hs_crp"],
+    "research_keywords": ["NOS3 Glu298Asp", "eNOS", "nitric oxide", "endothelial dysfunction"],
+    "confidence_level": "strong",
+    "pathway": "cardiovascular"
+  },
+  {
+    "rsid": "rs1800629",
+    "gene": "TNF",
+    "variant_name": "TNF-alpha -308G>A",
+    "risk_genotypes": {"AA": "elevated", "AG": "moderate"},
+    "condition": "TNF-alpha -308G>A — enhanced inflammatory response",
+    "clinical_notes": {
+      "elevated": [
+        "Homozygous TNF-alpha -308A — significantly elevated TNF-alpha production",
+        "Associated with increased susceptibility to autoimmune and inflammatory conditions",
+        "Monitor inflammatory markers; anti-inflammatory dietary strategies may help"
+      ],
+      "moderate": [
+        "Heterozygous TNF-alpha -308G>A — moderately elevated TNF-alpha",
+        "Monitor CRP and inflammatory markers during illness or flares"
+      ]
+    },
+    "affected_labs": ["crp", "hs_crp"],
+    "research_keywords": ["TNF-alpha", "TNF -308", "inflammatory response", "cytokine"],
+    "confidence_level": "strong",
+    "pathway": "inflammation"
+  },
+  {
+    "rsid": "rs1800795",
+    "gene": "IL6",
+    "variant_name": "IL-6 -174G>C",
+    "risk_genotypes": {"CC": "elevated", "GC": "moderate"},
+    "condition": "IL-6 -174G>C — altered inflammatory cytokine production",
+    "clinical_notes": {
+      "elevated": [
+        "Homozygous IL-6 -174CC — altered IL-6 regulation with age-dependent effects",
+        "Associated with higher baseline inflammatory state in older adults",
+        "Monitor hs-CRP; omega-3 and anti-inflammatory strategies recommended"
+      ],
+      "moderate": [
+        "Heterozygous IL-6 -174G>C — intermediate IL-6 production",
+        "Context-dependent inflammatory risk; monitor hs-CRP as baseline"
+      ]
+    },
+    "affected_labs": ["crp", "hs_crp"],
+    "research_keywords": ["IL-6", "interleukin-6", "-174G>C", "inflammatory cytokine"],
+    "confidence_level": "strong",
+    "pathway": "inflammation"
+  },
+  {
+    "rsid": "rs2187668",
+    "gene": "HLA-DQA1",
+    "variant_name": "HLA-DQ2.5",
+    "risk_genotypes": {"TT": "elevated", "CT": "moderate"},
+    "condition": "HLA-DQ2.5 — celiac disease genetic susceptibility",
+    "clinical_notes": {
+      "elevated": [
+        "Homozygous HLA-DQ2.5 — highest genetic risk for celiac disease",
+        "~95% of celiac patients carry HLA-DQ2; necessary but not sufficient",
+        "Screen with tTG-IgA if symptomatic; do NOT start gluten-free diet before testing"
+      ],
+      "moderate": [
+        "Heterozygous HLA-DQ2.5 — celiac disease susceptibility present",
+        "Consider tTG-IgA screening if GI symptoms, iron deficiency, or family history"
+      ]
+    },
+    "affected_labs": ["ferritin", "iron", "folate", "vitamin_d"],
+    "research_keywords": ["HLA-DQ2.5", "celiac disease", "gluten sensitivity"],
+    "confidence_level": "strong",
+    "pathway": "inflammation"
+  },
+  {
+    "rsid": "rs7454108",
+    "gene": "HLA-DQB1",
+    "variant_name": "HLA-DQ8",
+    "risk_genotypes": {"TT": "elevated", "CT": "moderate"},
+    "condition": "HLA-DQ8 — celiac disease and type 1 diabetes risk",
+    "clinical_notes": {
+      "elevated": [
+        "Homozygous HLA-DQ8 — elevated risk for celiac disease and type 1 diabetes",
+        "Present in ~5-10% of celiac patients who are DQ2-negative",
+        "Screen with tTG-IgA and monitor glucose/HbA1c for T1D"
+      ],
+      "moderate": [
+        "Heterozygous HLA-DQ8 — genetic susceptibility to celiac and T1D",
+        "Monitor for celiac symptoms and glycemic markers"
+      ]
+    },
+    "affected_labs": ["glucose", "hba1c", "ferritin", "iron", "folate"],
+    "research_keywords": ["HLA-DQ8", "celiac disease", "type 1 diabetes"],
+    "confidence_level": "strong",
+    "pathway": "inflammation"
+  },
+  {
+    "rsid": "rs9939609",
+    "gene": "FTO",
+    "variant_name": "FTO rs9939609",
+    "risk_genotypes": {"AA": "elevated", "AT": "moderate"},
+    "condition": "FTO variant — obesity risk and appetite regulation",
+    "clinical_notes": {
+      "elevated": [
+        "Homozygous FTO risk allele — ~1.7x increased obesity risk",
+        "Associated with increased hunger, reduced satiety signaling, and higher BMI",
+        "Responds well to structured physical activity — exercise attenuates genetic effect"
+      ],
+      "moderate": [
+        "Heterozygous FTO variant — ~1.3x increased obesity risk",
+        "Moderate impact on appetite regulation; lifestyle interventions effective"
+      ]
+    },
+    "affected_labs": ["glucose", "hba1c", "triglycerides", "cholesterol_total"],
+    "research_keywords": ["FTO", "obesity risk", "appetite regulation", "BMI"],
+    "confidence_level": "strong",
+    "pathway": "nutrient_metabolism"
+  },
+  {
+    "rsid": "rs174547",
+    "gene": "FADS1",
+    "variant_name": "FADS1 rs174547",
+    "risk_genotypes": {"CC": "elevated", "CT": "moderate"},
+    "condition": "FADS1 variant — altered omega-3/6 fatty acid conversion",
+    "clinical_notes": {
+      "elevated": [
+        "Homozygous FADS1 low-activity allele — reduced delta-5 desaturase activity",
+        "Impaired conversion of ALA to EPA/DHA and LA to arachidonic acid",
+        "May require preformed EPA/DHA supplementation (fish oil or algal oil)"
+      ],
+      "moderate": [
+        "Heterozygous FADS1 variant — moderately reduced fatty acid conversion",
+        "Consider increasing dietary EPA/DHA from marine sources"
+      ]
+    },
+    "affected_labs": ["triglycerides", "cholesterol_total", "hdl"],
+    "research_keywords": ["FADS1", "fatty acid desaturase", "omega-3", "EPA", "DHA"],
+    "confidence_level": "strong",
+    "pathway": "nutrient_metabolism"
+  },
+  {
+    "rsid": "rs12934922",
+    "gene": "BCMO1",
+    "variant_name": "BCMO1 A379V",
+    "risk_genotypes": {"TT": "elevated", "AT": "moderate"},
+    "condition": "BCMO1 variant — reduced beta-carotene to vitamin A conversion",
+    "clinical_notes": {
+      "elevated": [
+        "Homozygous BCMO1 379V — ~70% reduced beta-carotene cleavage activity",
+        "Plant-based beta-carotene is poorly converted to retinol",
+        "Preformed vitamin A (retinol) from animal sources or supplements recommended"
+      ],
+      "moderate": [
+        "Heterozygous BCMO1 A379V — ~30-40% reduced beta-carotene conversion",
+        "Include both preformed retinol and beta-carotene dietary sources"
+      ]
+    },
+    "affected_labs": [],
+    "research_keywords": ["BCMO1", "beta-carotene", "vitamin A conversion", "retinol"],
+    "confidence_level": "strong",
+    "pathway": "nutrient_metabolism"
+  },
+  {
+    "rsid": "rs4880",
+    "gene": "SOD2",
+    "variant_name": "SOD2 Ala16Val",
+    "risk_genotypes": {"TT": "elevated", "CT": "moderate"},
+    "condition": "SOD2 Ala16Val — altered mitochondrial antioxidant defense",
+    "clinical_notes": {
+      "elevated": [
+        "Homozygous SOD2 16Val — reduced mitochondrial superoxide dismutase activity",
+        "Increased mitochondrial oxidative stress and ROS accumulation",
+        "Ensure adequate manganese, CoQ10, and antioxidant intake"
+      ],
+      "moderate": [
+        "Heterozygous SOD2 Ala16Val — moderately reduced MnSOD activity",
+        "Support antioxidant defenses; avoid excessive iron supplementation"
+      ]
+    },
+    "affected_labs": ["ferritin", "iron"],
+    "research_keywords": ["SOD2 Ala16Val", "MnSOD", "mitochondrial oxidative stress", "antioxidant"],
+    "confidence_level": "strong",
+    "pathway": "detoxification"
+  },
+  {
+    "rsid": "rs1050450",
+    "gene": "GPX1",
+    "variant_name": "GPX1 Pro198Leu",
+    "risk_genotypes": {"TT": "elevated", "CT": "moderate"},
+    "condition": "GPX1 Pro198Leu — reduced glutathione peroxidase activity",
+    "clinical_notes": {
+      "elevated": [
+        "Homozygous GPX1 198Leu — significantly reduced glutathione peroxidase 1",
+        "Impaired hydrogen peroxide detoxification; increased oxidative damage risk",
+        "Ensure adequate selenium intake — GPX1 is selenium-dependent"
+      ],
+      "moderate": [
+        "Heterozygous GPX1 Pro198Leu — moderately reduced GPX1 activity",
+        "Optimize selenium status; support glutathione production"
+      ]
+    },
+    "affected_labs": [],
+    "research_keywords": ["GPX1 Pro198Leu", "glutathione peroxidase", "selenium", "oxidative stress"],
+    "confidence_level": "strong",
+    "pathway": "detoxification"
+  },
+  {
+    "rsid": "rs1695",
+    "gene": "GSTP1",
+    "variant_name": "GSTP1 Ile105Val",
+    "risk_genotypes": {"GG": "elevated", "AG": "moderate"},
+    "condition": "GSTP1 Ile105Val — altered phase II detoxification",
+    "clinical_notes": {
+      "elevated": [
+        "Homozygous GSTP1 105Val — altered substrate specificity for glutathione conjugation",
+        "Reduced detoxification of some carcinogens and environmental toxins",
+        "Support glutathione with cruciferous vegetables, NAC, and glycine"
+      ],
+      "moderate": [
+        "Heterozygous GSTP1 Ile105Val — intermediate phase II detox capacity",
+        "Support phase II detoxification with sulfur-rich foods and antioxidants"
+      ]
+    },
+    "affected_labs": ["alt", "ast", "ggt"],
+    "research_keywords": ["GSTP1 Ile105Val", "glutathione S-transferase", "phase II detoxification"],
+    "confidence_level": "strong",
+    "pathway": "detoxification"
+  },
+  {
+    "rsid": "rs671",
+    "gene": "ALDH2",
+    "variant_name": "ALDH2*2",
+    "risk_genotypes": {"AA": "elevated", "AG": "moderate"},
+    "condition": "ALDH2*2 — acetaldehyde accumulation, alcohol intolerance",
+    "clinical_notes": {
+      "elevated": [
+        "Homozygous ALDH2*2 — near-complete loss of aldehyde dehydrogenase 2 activity",
+        "Severe alcohol intolerance (flushing, nausea, tachycardia)",
+        "Significantly elevated esophageal cancer risk with any alcohol consumption"
+      ],
+      "moderate": [
+        "Heterozygous ALDH2*2 — reduced acetaldehyde clearance (Asian flush)",
+        "Increased esophageal and head/neck cancer risk with alcohol use"
+      ]
+    },
+    "affected_labs": ["alt", "ast", "ggt"],
+    "research_keywords": ["ALDH2*2", "acetaldehyde", "alcohol flush", "esophageal cancer"],
+    "confidence_level": "strong",
+    "pathway": "detoxification"
+  },
+  {
+    "rsid": "rs1229984",
+    "gene": "ADH1B",
+    "variant_name": "ADH1B*2 (Arg48His)",
+    "risk_genotypes": {"TT": "elevated", "CT": "moderate"},
+    "condition": "ADH1B*2 — rapid alcohol to acetaldehyde conversion",
+    "clinical_notes": {
+      "elevated": [
+        "Homozygous ADH1B*2 — ~40x faster ethanol-to-acetaldehyde conversion",
+        "Rapid acetaldehyde accumulation causes flushing and discomfort",
+        "Protective against alcoholism but increases acetaldehyde exposure per drink"
+      ],
+      "moderate": [
+        "Heterozygous ADH1B*2 — faster alcohol oxidation than typical",
+        "Reduced alcoholism risk; higher acetaldehyde exposure per drink"
+      ]
+    },
+    "affected_labs": ["alt", "ast", "ggt"],
+    "research_keywords": ["ADH1B", "alcohol dehydrogenase", "Arg48His", "alcohol metabolism"],
+    "confidence_level": "strong",
+    "pathway": "detoxification"
+  }
+]

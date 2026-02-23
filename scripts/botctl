@@ -1,0 +1,248 @@
+#!/bin/bash
+# botctl — HealthBot process management (via launchd)
+#
+# Usage:
+#   botctl start     Start the bot via launchd
+#   botctl stop      Stop the bot via launchd
+#   botctl restart   Stop + start
+#   botctl status    PID, uptime, memory, version, health
+#   botctl version   Show code version and git hash
+#   botctl logs      Tail recent log output
+#   botctl health    Quick check: running + responsive + not frozen
+
+set -euo pipefail
+
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+VENV="$REPO_ROOT/.venv"
+PYTHON="$VENV/bin/python"
+VAULT_HOME="$HOME/.healthbot"
+LOG_DIR="$VAULT_HOME/logs"
+BOT_LOG="$LOG_DIR/bot.out"
+LABEL="com.healthbot"
+
+_pid() {
+    local pid
+    pid=$(launchctl list "$LABEL" 2>/dev/null | awk -F'= ' '/"PID"/{gsub(/;/,"",$2); print $2}')
+    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+        echo "$pid"
+        return 0
+    fi
+    return 1
+}
+
+_version_info() {
+    "$PYTHON" -c "
+import sys
+from healthbot._version import __version__, __build_date__
+import subprocess
+r = subprocess.run(['git','rev-parse','--short','HEAD'],
+    capture_output=True, text=True, cwd=sys.argv[1])
+h = r.stdout.strip() if r.returncode == 0 else 'unknown'
+print(f'v{__version__}  built {__build_date__}  commit {h}')
+" "$REPO_ROOT" 2>/dev/null
+}
+
+cmd_start() {
+    if pid=$(_pid); then
+        echo "Already running (PID $pid)"
+        return 1
+    fi
+
+    mkdir -p "$LOG_DIR"
+    echo "Starting HealthBot..."
+    launchctl start "$LABEL"
+
+    # Wait for process to appear
+    local waited=0
+    while ! _pid >/dev/null 2>&1 && [ "$waited" -lt 10 ]; do
+        sleep 0.5
+        waited=$((waited + 1))
+    done
+
+    if pid=$(_pid); then
+        echo "Started (PID $pid)"
+        _version_info
+    else
+        echo "Failed to start. Check: $BOT_LOG"
+        tail -5 "$BOT_LOG" 2>/dev/null
+        return 1
+    fi
+}
+
+cmd_stop() {
+    if ! pid=$(_pid); then
+        echo "Not running."
+        return 0
+    fi
+    echo "Stopping PID $pid..."
+    launchctl stop "$LABEL"
+
+    # Wait up to 10s for shutdown
+    for i in $(seq 1 20); do
+        if ! kill -0 "$pid" 2>/dev/null; then
+            echo "Stopped."
+            return 0
+        fi
+        sleep 0.5
+    done
+    echo "Still running after 10s. Force stop:"
+    echo "  launchctl bootout gui/\$(id -u) ~/Library/LaunchAgents/$LABEL.plist"
+}
+
+cmd_restart() {
+    cmd_stop
+    sleep 1
+    cmd_start
+}
+
+cmd_status() {
+    if ! pid=$(_pid); then
+        echo "Status: STOPPED"
+        echo "Service: $LABEL (launchd)"
+        echo ""
+        echo "Code version:"
+        _version_info
+        return 1
+    fi
+
+    echo "Status: RUNNING"
+    echo "Service: $LABEL (launchd, auto-restart on crash)"
+    echo "PID:    $pid"
+
+    # Uptime
+    local etime
+    etime=$(ps -o etime= -p "$pid" 2>/dev/null | xargs)
+    [ -n "$etime" ] && echo "Uptime: $etime"
+
+    # Memory
+    local rss
+    rss=$(ps -o rss= -p "$pid" 2>/dev/null | xargs)
+    [ -n "$rss" ] && echo "Memory: $((rss / 1024)) MB"
+
+    # CPU state
+    local state
+    state=$(ps -o state= -p "$pid" 2>/dev/null | xargs)
+    echo "State:  $state"
+
+    # Version
+    echo ""
+    echo "Code version:"
+    _version_info
+
+    # Health
+    echo ""
+    cmd_health
+}
+
+cmd_version() {
+    _version_info
+}
+
+cmd_logs() {
+    local lines="${1:-50}"
+    if [ -f "$BOT_LOG" ]; then
+        tail -n "$lines" "$BOT_LOG"
+    else
+        # Fall back to healthbot log
+        local hlog
+        hlog=$(ls -t "$LOG_DIR"/healthbot*.log 2>/dev/null | head -1)
+        if [ -n "$hlog" ]; then
+            tail -n "$lines" "$hlog"
+        else
+            echo "No log files found in $LOG_DIR"
+        fi
+    fi
+}
+
+cmd_health() {
+    if ! pid=$(_pid); then
+        echo "Health: DOWN (not running)"
+        return 1
+    fi
+
+    local issues=0
+
+    # 1. Process alive
+    if kill -0 "$pid" 2>/dev/null; then
+        echo "Process:  alive"
+    else
+        echo "Process:  DEAD"
+        issues=$((issues + 1))
+    fi
+
+    # 2. Check for zombie/stopped state
+    local state
+    state=$(ps -o state= -p "$pid" 2>/dev/null | head -c1)
+    case "$state" in
+        Z) echo "State:    ZOMBIE"; issues=$((issues + 1)) ;;
+        T) echo "State:    STOPPED/FROZEN"; issues=$((issues + 1)) ;;
+        *) echo "State:    ok ($state)" ;;
+    esac
+
+    # 3. Log freshness — check if healthbot log was written recently
+    local hlog
+    hlog=$(ls -t "$LOG_DIR"/healthbot*.log 2>/dev/null | head -1)
+    if [ -n "$hlog" ]; then
+        local now log_mod age_sec
+        now=$(date +%s)
+        log_mod=$(stat -f %m "$hlog" 2>/dev/null || echo "$now")
+        age_sec=$((now - log_mod))
+        if [ "$age_sec" -gt 3600 ]; then
+            echo "Last log: ${age_sec}s ago (>1h — may be idle or frozen)"
+        else
+            echo "Last log: ${age_sec}s ago"
+        fi
+    else
+        echo "Last log: no log files"
+    fi
+
+    # 4. CPU usage (polling bot should be <5%, high = stuck loop)
+    local cpu
+    cpu=$(ps -o %cpu= -p "$pid" 2>/dev/null | xargs)
+    if [ -n "$cpu" ]; then
+        local cpu_int=${cpu%%.*}
+        if [ "${cpu_int:-0}" -gt 25 ]; then
+            echo "CPU:      ${cpu}% (HIGH — possible stuck loop)"
+            issues=$((issues + 1))
+        else
+            echo "CPU:      ${cpu}%"
+        fi
+    fi
+
+    echo ""
+    if [ "$issues" -gt 0 ]; then
+        echo "Health: UNHEALTHY ($issues issue(s))"
+        return 1
+    else
+        echo "Health: OK"
+        return 0
+    fi
+}
+
+# --- Main dispatch ---
+
+case "${1:-help}" in
+    start)   cmd_start ;;
+    stop)    cmd_stop ;;
+    restart) cmd_restart ;;
+    status)  cmd_status ;;
+    version) cmd_version ;;
+    logs)    cmd_logs "${2:-50}" ;;
+    health)  cmd_health ;;
+    *)
+        echo "botctl — HealthBot process management (launchd)"
+        echo ""
+        echo "Usage: botctl <command>"
+        echo ""
+        echo "Commands:"
+        echo "  start     Start the bot"
+        echo "  stop      Stop the bot"
+        echo "  restart   Stop + start"
+        echo "  status    Full status (PID, uptime, memory, version, health)"
+        echo "  version   Show code version and git hash"
+        echo "  health    Quick health check"
+        echo "  logs [n]  Tail last n lines of log (default 50)"
+        echo ""
+        echo "Service: $LABEL (RunAtLoad + auto-restart on crash)"
+        ;;
+esac

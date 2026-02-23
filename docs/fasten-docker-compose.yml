@@ -1,0 +1,21 @@
+# Fasten Health — self-hosted medical record aggregator
+# https://github.com/fastenhealth/fasten-onprem
+#
+# Usage:
+#   docker compose -f docs/fasten-docker-compose.yml up -d
+#
+# Then open http://localhost:9090 to connect your providers.
+
+services:
+  fasten:
+    image: ghcr.io/fastenhealth/fasten-onprem:latest
+    ports:
+      - "9090:8080"
+    volumes:
+      - fasten_data:/opt/fasten/db
+    environment:
+      - FASTEN_ENV=sandbox  # Change to 'prod' for real providers
+    restart: unless-stopped
+
+volumes:
+  fasten_data:

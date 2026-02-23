@@ -1,0 +1,2331 @@
+{
+  "timing_rules": [
+    {
+      "substance": "levothyroxine",
+      "advice": "Take on an empty stomach, 30-60 min before breakfast.",
+      "reason": "Food reduces absorption by up to 80%."
+    },
+    {
+      "substance": "statin",
+      "advice": "Take simvastatin/lovastatin in the evening. Atorvastatin/rosuvastatin can be taken any time.",
+      "reason": "Short-acting statins are more effective when taken at night (cholesterol synthesis peaks overnight)."
+    },
+    {
+      "substance": "iron",
+      "advice": "Take on an empty stomach with vitamin C for best absorption. If GI upset, take with a small amount of food.",
+      "reason": "Vitamin C converts ferric to ferrous iron, increasing absorption."
+    },
+    {
+      "substance": "calcium",
+      "advice": "Take with meals. Split into 500mg doses (max absorption per dose).",
+      "reason": "Stomach acid from meals aids calcium carbonate absorption."
+    },
+    {
+      "substance": "magnesium",
+      "advice": "Take in the evening. Magnesium glycinate preferred for sleep.",
+      "reason": "May promote relaxation and sleep. Oxide form can cause GI issues."
+    },
+    {
+      "substance": "vitamin_d",
+      "advice": "Take with a fat-containing meal for better absorption.",
+      "reason": "Vitamin D is fat-soluble \u2014 absorption improves 50% with dietary fat."
+    },
+    {
+      "substance": "fish_oil",
+      "advice": "Take with meals to reduce GI side effects.",
+      "reason": "Taking with food improves absorption and reduces fishy burps."
+    },
+    {
+      "substance": "coq10",
+      "advice": "Take with a fat-containing meal. Ubiquinol form is better absorbed.",
+      "reason": "CoQ10 is fat-soluble. Ubiquinol is the reduced (active) form."
+    },
+    {
+      "substance": "zinc",
+      "advice": "Take on an empty stomach for best absorption. If nausea, take with a small meal (not dairy).",
+      "reason": "Food (especially phytates and dairy) reduces zinc absorption."
+    },
+    {
+      "substance": "ppi",
+      "advice": "Take 30-60 minutes before the first meal of the day.",
+      "reason": "PPIs block acid pumps activated by eating. Must be taken before food."
+    },
+    {
+      "substance": "metformin",
+      "advice": "Take with meals to reduce GI side effects.",
+      "reason": "Food slows absorption and reduces nausea/diarrhea."
+    },
+    {
+      "substance": "ace_inhibitor",
+      "advice": "Take at the same time daily. Can be morning or evening.",
+      "reason": "Consistency matters more than specific time of day."
+    },
+    {
+      "substance": "beta_blocker",
+      "advice": "Take at the same time daily. Some evidence for evening dosing.",
+      "reason": "Evening dosing may better control overnight/morning BP surge."
+    },
+    {
+      "substance": "doac",
+      "advice": "Rivaroxaban: take with food (increases absorption 40%). Apixaban/dabigatran: with or without food.",
+      "reason": "Rivaroxaban bioavailability drops significantly without food."
+    },
+    {
+      "substance": "fluoroquinolone",
+      "advice": "Take 2 hours before or 6 hours after antacids, iron, calcium, magnesium, or zinc. Avoid dairy within 2 hours.",
+      "reason": "Divalent/trivalent cations form insoluble chelates reducing absorption by 90%."
+    },
+    {
+      "substance": "tetracycline",
+      "advice": "Take on empty stomach, 1 hour before or 2 hours after meals. Avoid dairy, antacids, iron for 2-3 hours.",
+      "reason": "Chelation with Ca\u00b2\u207a, Mg\u00b2\u207a, Fe\u00b2\u207a, Al\u00b3\u207a dramatically reduces absorption."
+    },
+    {
+      "substance": "melatonin",
+      "advice": "Take 30-60 minutes before bedtime. Start with 0.5-1mg.",
+      "reason": "Mimics endogenous melatonin timing. Higher doses are not more effective."
+    },
+    {
+      "substance": "berberine",
+      "advice": "Take with meals, 500mg 2-3x/day. Space doses throughout the day.",
+      "reason": "Short half-life (~5 hours). Taking with food reduces GI side effects."
+    },
+    {
+      "substance": "probiotics",
+      "advice": "Take with meals or 30 minutes before eating.",
+      "reason": "Meal-buffered stomach acid improves probiotic survival to intestines."
+    },
+    {
+      "substance": "nac",
+      "advice": "Take on an empty stomach for best absorption, or with meals if GI upset.",
+      "reason": "N-acetylcysteine absorption is reduced by food."
+    },
+    {
+      "substance": "glp1_agonist",
+      "advice": "Weekly injectables (semaglutide, dulaglutide): same day each week. Eat slowly and stop when full \u2014 delayed gastric emptying.",
+      "reason": "GLP-1 agonists slow gastric emptying. Eating too fast increases nausea."
+    },
+    {
+      "substance": "sglt2i",
+      "advice": "Take in the morning. Stay hydrated throughout the day.",
+      "reason": "SGLT2 inhibitors increase urinary glucose and fluid loss. Morning dosing avoids nighttime urination."
+    }
+  ],
+  "substance_aliases": {
+    "atorvastatin": "statin",
+    "rosuvastatin": "statin",
+    "simvastatin": "statin",
+    "lovastatin": "statin",
+    "pravastatin": "statin",
+    "pitavastatin": "statin",
+    "fluvastatin": "statin",
+    "lipitor": "statin",
+    "crestor": "statin",
+    "zocor": "statin",
+    "warfarin": "warfarin",
+    "coumadin": "warfarin",
+    "jantoven": "warfarin",
+    "levothyroxine": "levothyroxine",
+    "synthroid": "levothyroxine",
+    "levoxyl": "levothyroxine",
+    "tirosint": "levothyroxine",
+    "metformin": "metformin",
+    "glucophage": "metformin",
+    "lisinopril": "ace_inhibitor",
+    "enalapril": "ace_inhibitor",
+    "ramipril": "ace_inhibitor",
+    "benazepril": "ace_inhibitor",
+    "captopril": "ace_inhibitor",
+    "fosinopril": "ace_inhibitor",
+    "quinapril": "ace_inhibitor",
+    "losartan": "arb",
+    "valsartan": "arb",
+    "irbesartan": "arb",
+    "olmesartan": "arb",
+    "telmisartan": "arb",
+    "candesartan": "arb",
+    "amlodipine": "calcium_channel_blocker",
+    "nifedipine": "calcium_channel_blocker",
+    "diltiazem": "calcium_channel_blocker",
+    "verapamil": "calcium_channel_blocker",
+    "norvasc": "calcium_channel_blocker",
+    "omeprazole": "ppi",
+    "pantoprazole": "ppi",
+    "esomeprazole": "ppi",
+    "lansoprazole": "ppi",
+    "rabeprazole": "ppi",
+    "prilosec": "ppi",
+    "nexium": "ppi",
+    "sertraline": "ssri",
+    "fluoxetine": "ssri",
+    "paroxetine": "ssri",
+    "citalopram": "ssri",
+    "escitalopram": "ssri",
+    "zoloft": "ssri",
+    "prozac": "ssri",
+    "lexapro": "ssri",
+    "ibuprofen": "nsaid",
+    "naproxen": "nsaid",
+    "meloxicam": "nsaid",
+    "diclofenac": "nsaid",
+    "celecoxib": "nsaid",
+    "advil": "nsaid",
+    "aleve": "nsaid",
+    "motrin": "nsaid",
+    "aspirin": "aspirin",
+    "fish oil": "fish_oil",
+    "omega 3": "fish_oil",
+    "omega-3": "fish_oil",
+    "vitamin d": "vitamin_d",
+    "vitamin d3": "vitamin_d",
+    "cholecalciferol": "vitamin_d",
+    "vitamin k": "vitamin_k",
+    "phytonadione": "vitamin_k",
+    "calcium": "calcium",
+    "calcium carbonate": "calcium",
+    "calcium citrate": "calcium",
+    "iron": "iron",
+    "ferrous sulfate": "iron",
+    "ferrous fumarate": "iron",
+    "magnesium": "magnesium",
+    "magnesium oxide": "magnesium",
+    "magnesium citrate": "magnesium",
+    "magnesium glycinate": "magnesium",
+    "potassium": "potassium",
+    "potassium chloride": "potassium",
+    "zinc": "zinc",
+    "zinc sulfate": "zinc",
+    "zinc gluconate": "zinc",
+    "turmeric": "turmeric",
+    "curcumin": "turmeric",
+    "ginkgo": "ginkgo",
+    "ginkgo biloba": "ginkgo",
+    "st john's wort": "st_johns_wort",
+    "st johns wort": "st_johns_wort",
+    "st. john's wort": "st_johns_wort",
+    "coq10": "coq10",
+    "ubiquinone": "coq10",
+    "grapefruit": "grapefruit",
+    "grapefruit juice": "grapefruit",
+    "alcohol": "alcohol",
+    "ethanol": "alcohol",
+    "digoxin": "digoxin",
+    "lanoxin": "digoxin",
+    "lithium": "lithium",
+    "lithobid": "lithium",
+    "methotrexate": "methotrexate",
+    "metoprolol": "beta_blocker",
+    "atenolol": "beta_blocker",
+    "propranolol": "beta_blocker",
+    "carvedilol": "beta_blocker",
+    "nebivolol": "beta_blocker",
+    "hydrochlorothiazide": "thiazide",
+    "hctz": "thiazide",
+    "chlorthalidone": "thiazide",
+    "indapamide": "thiazide",
+    "metolazone": "thiazide",
+    "prednisone": "corticosteroid",
+    "prednisolone": "corticosteroid",
+    "dexamethasone": "corticosteroid",
+    "methylprednisolone": "corticosteroid",
+    "hydrocortisone": "corticosteroid",
+    "budesonide": "corticosteroid",
+    "trexall": "methotrexate",
+    "apixaban": "doac",
+    "eliquis": "doac",
+    "rivaroxaban": "doac",
+    "xarelto": "doac",
+    "dabigatran": "doac",
+    "pradaxa": "doac",
+    "edoxaban": "doac",
+    "savaysa": "doac",
+    "venlafaxine": "snri",
+    "effexor": "snri",
+    "duloxetine": "snri",
+    "cymbalta": "snri",
+    "desvenlafaxine": "snri",
+    "pristiq": "snri",
+    "milnacipran": "snri",
+    "savella": "snri",
+    "semaglutide": "glp1_agonist",
+    "ozempic": "glp1_agonist",
+    "wegovy": "glp1_agonist",
+    "liraglutide": "glp1_agonist",
+    "victoza": "glp1_agonist",
+    "saxenda": "glp1_agonist",
+    "tirzepatide": "glp1_agonist",
+    "mounjaro": "glp1_agonist",
+    "zepbound": "glp1_agonist",
+    "dulaglutide": "glp1_agonist",
+    "trulicity": "glp1_agonist",
+    "empagliflozin": "sglt2i",
+    "jardiance": "sglt2i",
+    "dapagliflozin": "sglt2i",
+    "farxiga": "sglt2i",
+    "canagliflozin": "sglt2i",
+    "invokana": "sglt2i",
+    "ertugliflozin": "sglt2i",
+    "steglatro": "sglt2i",
+    "ciprofloxacin": "fluoroquinolone",
+    "cipro": "fluoroquinolone",
+    "levofloxacin": "fluoroquinolone",
+    "levaquin": "fluoroquinolone",
+    "moxifloxacin": "fluoroquinolone",
+    "avelox": "fluoroquinolone",
+    "azithromycin": "macrolide",
+    "zithromax": "macrolide",
+    "z-pack": "macrolide",
+    "z pack": "macrolide",
+    "clarithromycin": "macrolide",
+    "biaxin": "macrolide",
+    "erythromycin": "macrolide",
+    "doxycycline": "tetracycline",
+    "minocycline": "tetracycline",
+    "tetracycline": "tetracycline",
+    "fluconazole": "azole_antifungal",
+    "diflucan": "azole_antifungal",
+    "itraconazole": "azole_antifungal",
+    "sporanox": "azole_antifungal",
+    "ketoconazole": "azole_antifungal",
+    "voriconazole": "azole_antifungal",
+    "phenelzine": "maoi",
+    "nardil": "maoi",
+    "tranylcypromine": "maoi",
+    "parnate": "maoi",
+    "selegiline": "maoi",
+    "emsam": "maoi",
+    "isocarboxazid": "maoi",
+    "marplan": "maoi",
+    "melatonin": "melatonin",
+    "berberine": "berberine",
+    "cbd": "cbd",
+    "cannabidiol": "cbd",
+    "cbd oil": "cbd",
+    "nac": "nac",
+    "n-acetylcysteine": "nac",
+    "n-acetyl cysteine": "nac",
+    "same": "same",
+    "s-adenosylmethionine": "same",
+    "5-htp": "five_htp",
+    "5 htp": "five_htp",
+    "5htp": "five_htp",
+    "ashwagandha": "ashwagandha",
+    "withania somnifera": "ashwagandha",
+    "valerian": "valerian",
+    "valerian root": "valerian",
+    "probiotics": "probiotics",
+    "probiotic": "probiotics",
+    "milk thistle": "milk_thistle",
+    "silymarin": "milk_thistle",
+    "oxycodone": "opioid",
+    "hydrocodone": "opioid",
+    "morphine": "opioid",
+    "codeine": "opioid",
+    "fentanyl": "opioid",
+    "tramadol": "opioid",
+    "oxycontin": "opioid",
+    "percocet": "opioid",
+    "vicodin": "opioid",
+    "norco": "opioid",
+    "alprazolam": "benzodiazepine",
+    "xanax": "benzodiazepine",
+    "diazepam": "benzodiazepine",
+    "valium": "benzodiazepine",
+    "lorazepam": "benzodiazepine",
+    "ativan": "benzodiazepine",
+    "clonazepam": "benzodiazepine",
+    "klonopin": "benzodiazepine",
+    "glipizide": "sulfonylurea",
+    "glucotrol": "sulfonylurea",
+    "glyburide": "sulfonylurea",
+    "glimepiride": "sulfonylurea",
+    "cyclosporine": "cyclosporine",
+    "sandimmune": "cyclosporine",
+    "neoral": "cyclosporine",
+    "tacrolimus": "tacrolimus",
+    "prograf": "tacrolimus",
+    "insulin": "insulin",
+    "insulin glargine": "insulin",
+    "lantus": "insulin",
+    "basaglar": "insulin",
+    "insulin lispro": "insulin",
+    "humalog": "insulin",
+    "novolog": "insulin",
+    "tyramine": "tyramine_foods",
+    "aged cheese": "tyramine_foods",
+    "soy": "soy",
+    "soy milk": "soy",
+    "tofu": "soy",
+    "dairy": "dairy",
+    "milk": "dairy"
+  },
+  "interactions": [
+    {
+      "substance_a": "statin",
+      "substance_b": "grapefruit",
+      "severity": "major",
+      "mechanism": "Grapefruit inhibits CYP3A4, dramatically increasing statin blood levels and risk of rhabdomyolysis.",
+      "recommendation": "Avoid grapefruit/grapefruit juice with CYP3A4-metabolized statins (simvastatin, lovastatin, atorvastatin).",
+      "evidence": "established",
+      "citations": [
+        "Lilja JJ et al. Clin Pharmacol Ther. 1998;64(5):477-483."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "statin",
+      "substance_b": "coq10",
+      "severity": "minor",
+      "mechanism": "Statins may reduce endogenous CoQ10 synthesis via HMG-CoA reductase inhibition.",
+      "recommendation": "CoQ10 supplementation is generally safe. Consider if experiencing muscle symptoms.",
+      "evidence": "probable",
+      "citations": [
+        "Caso G et al. Am J Cardiol. 2007;99(10):1409-1412."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "statin",
+      "substance_b": "st_johns_wort",
+      "severity": "moderate",
+      "mechanism": "St. John's Wort induces CYP3A4, potentially reducing statin efficacy.",
+      "recommendation": "Avoid combining. Monitor lipid levels if already taking both.",
+      "evidence": "established",
+      "citations": [
+        "Sugimoto K et al. Clin Pharmacol Ther. 2001;70(6):518-524."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "warfarin",
+      "substance_b": "vitamin_k",
+      "severity": "major",
+      "mechanism": "Vitamin K directly antagonizes warfarin by providing substrate for clotting factor synthesis.",
+      "recommendation": "Maintain consistent vitamin K intake. Do not start/stop supplements without INR monitoring.",
+      "evidence": "established",
+      "citations": [
+        "Booth SL et al. J Thromb Haemost. 2004;2(10):1808-1813."
+      ],
+      "timing_advice": "Keep daily vitamin K intake consistent (same foods, same amounts). Don't suddenly eat large amounts of leafy greens or stop eating them."
+    },
+    {
+      "substance_a": "warfarin",
+      "substance_b": "aspirin",
+      "severity": "major",
+      "mechanism": "Additive anticoagulant and antiplatelet effects significantly increase bleeding risk.",
+      "recommendation": "Avoid unless specifically prescribed together. Monitor for signs of bleeding.",
+      "evidence": "established",
+      "citations": [
+        "Lopes RD et al. JAMA. 2018;319(7):686-692."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "warfarin",
+      "substance_b": "nsaid",
+      "severity": "major",
+      "mechanism": "NSAIDs inhibit platelet function and cause GI mucosal damage, greatly increasing bleeding risk.",
+      "recommendation": "Avoid NSAIDs with warfarin. Use acetaminophen instead. If unavoidable, lowest dose + INR monitoring.",
+      "evidence": "established",
+      "citations": [
+        "Knijff-Dutmer EA et al. Ann Pharmacother. 2003;37(1):12-16."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "warfarin",
+      "substance_b": "fish_oil",
+      "severity": "moderate",
+      "mechanism": "Omega-3 fatty acids may have mild antiplatelet/anticoagulant effects enhancing warfarin.",
+      "recommendation": "Monitor INR more frequently when starting/changing fish oil dose. >3g/day increases risk.",
+      "evidence": "probable",
+      "citations": [
+        "Buckley MS et al. Ann Pharmacother. 2004;38(1):50-52."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "warfarin",
+      "substance_b": "ginkgo",
+      "severity": "moderate",
+      "mechanism": "Ginkgo biloba inhibits PAF, enhancing warfarin-related bleeding risk.",
+      "recommendation": "Avoid ginkgo while on warfarin. Discontinue 2+ weeks before surgery.",
+      "evidence": "probable",
+      "citations": [
+        "Engelsen J et al. Ugeskr Laeger. 2003;165(18):1868-1871."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "warfarin",
+      "substance_b": "turmeric",
+      "severity": "moderate",
+      "mechanism": "Curcumin may inhibit platelet aggregation and potentiate warfarin anticoagulation.",
+      "recommendation": "Use caution. Monitor INR when adding or removing turmeric/curcumin supplements.",
+      "evidence": "probable",
+      "citations": [
+        "Shah BH et al. Biochem Pharmacol. 1999;58(7):1167-1172."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "warfarin",
+      "substance_b": "st_johns_wort",
+      "severity": "major",
+      "mechanism": "St. John's Wort strongly induces CYP2C9/CYP1A2, accelerating warfarin metabolism.",
+      "recommendation": "Contraindicated. Can cause dangerous loss of anticoagulation. Do not combine.",
+      "evidence": "established",
+      "citations": [
+        "Jiang X et al. Clin Pharmacol Ther. 2004;76(6):657-667."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "warfarin",
+      "substance_b": "grapefruit",
+      "severity": "minor",
+      "mechanism": "Grapefruit may mildly inhibit CYP metabolism of warfarin R-enantiomer.",
+      "recommendation": "Moderate intake unlikely to cause issues. Monitor INR if consumption changes significantly.",
+      "evidence": "theoretical",
+      "citations": [
+        "Taylor JR, Wilt VM. Pharmacotherapy. 1999;19(12):1439-1448."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "levothyroxine",
+      "substance_b": "calcium",
+      "severity": "moderate",
+      "mechanism": "Calcium binds levothyroxine in the gut, forming insoluble complex reducing absorption.",
+      "recommendation": "Separate doses by 4+ hours. Take levothyroxine on empty stomach, calcium with meals.",
+      "evidence": "established",
+      "citations": [
+        "Singh N et al. JAMA. 2000;283(21):2822-2825."
+      ],
+      "timing_advice": "Take levothyroxine first thing in morning on empty stomach. Wait at least 4 hours before taking calcium."
+    },
+    {
+      "substance_a": "levothyroxine",
+      "substance_b": "iron",
+      "severity": "moderate",
+      "mechanism": "Iron salts form insoluble complexes with levothyroxine, reducing absorption by up to 65%.",
+      "recommendation": "Separate doses by 4+ hours. Take levothyroxine in morning, iron later.",
+      "evidence": "established",
+      "citations": [
+        "Campbell NR et al. Ann Intern Med. 1992;117(12):1010-1013."
+      ],
+      "timing_advice": "Take levothyroxine first thing in morning. Take iron at least 4 hours later (with lunch or dinner)."
+    },
+    {
+      "substance_a": "levothyroxine",
+      "substance_b": "magnesium",
+      "severity": "moderate",
+      "mechanism": "Magnesium may chelate levothyroxine in the GI tract, reducing absorption.",
+      "recommendation": "Separate doses by 4+ hours.",
+      "evidence": "probable",
+      "citations": [
+        "Csako G et al. Thyroid. 2001;11(8):789-791."
+      ],
+      "timing_advice": "Take levothyroxine in the morning. Take magnesium in the evening (at least 4 hours later)."
+    },
+    {
+      "substance_a": "levothyroxine",
+      "substance_b": "ppi",
+      "severity": "moderate",
+      "mechanism": "PPIs reduce gastric acid needed for levothyroxine dissolution and absorption.",
+      "recommendation": "Monitor TSH when starting/stopping PPI. Dose may need to increase 20-40%.",
+      "evidence": "established",
+      "citations": [
+        "Irving SA et al. Pharmacotherapy. 2015;35(11):e210-e215."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "levothyroxine",
+      "substance_b": "zinc",
+      "severity": "minor",
+      "mechanism": "Zinc may mildly reduce levothyroxine absorption through chelation.",
+      "recommendation": "Separate doses by 2-4 hours as a precaution.",
+      "evidence": "theoretical",
+      "citations": [
+        "Civitelli R et al. Am J Clin Nutr. 2004;80(3):699-703."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "metformin",
+      "substance_b": "alcohol",
+      "severity": "major",
+      "mechanism": "Alcohol potentiates metformin's effect on lactate metabolism, increasing lactic acidosis risk.",
+      "recommendation": "Limit alcohol. Avoid binge drinking. Seek help for lactic acidosis symptoms.",
+      "evidence": "established",
+      "citations": [
+        "DeFronzo RA et al. N Engl J Med. 1995;333(9):574-579."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "ace_inhibitor",
+      "substance_b": "potassium",
+      "severity": "major",
+      "mechanism": "ACE inhibitors reduce aldosterone, decreasing potassium excretion. Supplements cause hyperkalemia.",
+      "recommendation": "Avoid potassium supplements unless prescribed and monitored. Check serum K+ regularly.",
+      "evidence": "established",
+      "citations": [
+        "Palmer BF. N Engl J Med. 2004;351(6):585-592."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "ace_inhibitor",
+      "substance_b": "nsaid",
+      "severity": "moderate",
+      "mechanism": "NSAIDs reduce renal prostaglandins, blunting antihypertensive effect and increasing nephrotoxicity.",
+      "recommendation": "Monitor BP and renal function. Use lowest effective NSAID dose for shortest duration.",
+      "evidence": "established",
+      "citations": [
+        "Catella-Lawson F et al. N Engl J Med. 2001;345(25):1809-1817."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "ace_inhibitor",
+      "substance_b": "arb",
+      "severity": "major",
+      "mechanism": "Dual RAAS blockade increases risk of hypotension, hyperkalemia, and renal failure.",
+      "recommendation": "Do not combine. ONTARGET trial showed increased adverse events without benefit.",
+      "evidence": "established",
+      "citations": [
+        "ONTARGET Investigators. N Engl J Med. 2008;358(15):1547-1559."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "ace_inhibitor",
+      "substance_b": "lithium",
+      "severity": "major",
+      "mechanism": "ACE inhibitors reduce lithium renal clearance, increasing toxicity risk.",
+      "recommendation": "Monitor lithium levels closely. Dose reduction may be needed.",
+      "evidence": "established",
+      "citations": [
+        "Finley PR et al. J Clin Psychopharmacol. 1996;16(3):197-202."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "ssri",
+      "substance_b": "st_johns_wort",
+      "severity": "major",
+      "mechanism": "Both increase serotonin. Combined use risks serotonin syndrome (potentially fatal).",
+      "recommendation": "Contraindicated. Never combine SSRIs with St. John's Wort. Allow 2-week washout.",
+      "evidence": "established",
+      "citations": [
+        "Lantz MS et al. J Geriatr Psychiatry Neurol. 1999;12(1):7-10."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "ssri",
+      "substance_b": "nsaid",
+      "severity": "moderate",
+      "mechanism": "SSRIs deplete platelet serotonin; combined with NSAID GI effects, bleeding risk increases.",
+      "recommendation": "Use with caution. Consider gastroprotection with a PPI if both necessary.",
+      "evidence": "established",
+      "citations": [
+        "Loke YK et al. Aliment Pharmacol Ther. 2008;27(1):31-40."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "ssri",
+      "substance_b": "ginkgo",
+      "severity": "moderate",
+      "mechanism": "Ginkgo antiplatelet properties combined with SSRI platelet effects increase bleeding risk.",
+      "recommendation": "Use caution. Monitor for unusual bruising or bleeding.",
+      "evidence": "probable",
+      "citations": [
+        "Izzo AA, Ernst E. Drugs. 2001;61(15):2163-2175."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "ssri",
+      "substance_b": "turmeric",
+      "severity": "minor",
+      "mechanism": "Curcumin may have mild serotonergic and antiplatelet effects interacting with SSRIs.",
+      "recommendation": "Likely safe at dietary levels. High-dose supplements warrant monitoring.",
+      "evidence": "theoretical",
+      "citations": [
+        "Kulkarni SK et al. Indian J Pharm Sci. 2008;70(4):455-462."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "nsaid",
+      "substance_b": "aspirin",
+      "severity": "moderate",
+      "mechanism": "Ibuprofen may block aspirin's irreversible platelet binding, reducing cardioprotection. Additive GI risk.",
+      "recommendation": "Take low-dose aspirin 30 min before ibuprofen. Consider acetaminophen alternative.",
+      "evidence": "established",
+      "citations": [
+        "Catella-Lawson F et al. N Engl J Med. 2001;345(25):1809-1817."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "nsaid",
+      "substance_b": "lithium",
+      "severity": "major",
+      "mechanism": "NSAIDs reduce renal lithium clearance by up to 20%, causing elevated levels and toxicity.",
+      "recommendation": "Avoid if possible. Monitor lithium levels within 5 days of starting NSAID.",
+      "evidence": "established",
+      "citations": [
+        "Phelan KM et al. Am J Psychiatry. 2003;160(8):1532-1533."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "nsaid",
+      "substance_b": "methotrexate",
+      "severity": "major",
+      "mechanism": "NSAIDs reduce renal clearance of methotrexate, increasing bone marrow suppression risk.",
+      "recommendation": "Avoid with high-dose methotrexate. Low-dose (RA) requires close monitoring.",
+      "evidence": "established",
+      "citations": [
+        "Thyss A et al. Cancer Chemother Pharmacol. 1986;18(2):159-162."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "ppi",
+      "substance_b": "calcium",
+      "severity": "moderate",
+      "mechanism": "Chronic PPI use reduces gastric acid for calcium carbonate absorption; fracture risk increases.",
+      "recommendation": "Use calcium citrate (acid-independent) instead of carbonate. Monitor bone density.",
+      "evidence": "established",
+      "citations": [
+        "Yang YX et al. JAMA. 2006;296(24):2947-2953."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "ppi",
+      "substance_b": "magnesium",
+      "severity": "moderate",
+      "mechanism": "Long-term PPIs cause hypomagnesemia through impaired intestinal Mg absorption (TRPM6).",
+      "recommendation": "Monitor magnesium with chronic PPI use. Supplement if deficient. Consider PPI step-down.",
+      "evidence": "established",
+      "citations": [
+        "Hess MW et al. Aliment Pharmacol Ther. 2012;36(5):405-413."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "ppi",
+      "substance_b": "iron",
+      "severity": "moderate",
+      "mechanism": "PPIs reduce gastric acid needed for ferric-to-ferrous iron conversion, reducing absorption.",
+      "recommendation": "Co-administer vitamin C to enhance absorption. May need parenteral iron if refractory.",
+      "evidence": "established",
+      "citations": [
+        "Sharma VR et al. Intern Med J. 2019;49(3):336-343."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "ppi",
+      "substance_b": "vitamin_d",
+      "severity": "minor",
+      "mechanism": "Chronic PPIs may reduce calcium absorption, indirectly affecting vitamin D metabolism.",
+      "recommendation": "Ensure adequate vitamin D supplementation on chronic PPI therapy.",
+      "evidence": "theoretical",
+      "citations": [
+        "Heidelbaugh JJ. Curr Opin Gastroenterol. 2013;29(6):614-620."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "calcium_channel_blocker",
+      "substance_b": "grapefruit",
+      "severity": "moderate",
+      "mechanism": "Grapefruit inhibits intestinal CYP3A4, increasing CCB bioavailability. Can cause hypotension.",
+      "recommendation": "Avoid grapefruit with CYP3A4-metabolized CCBs. Monitor BP if consumption changes.",
+      "evidence": "established",
+      "citations": [
+        "Bailey DG et al. Br J Clin Pharmacol. 1998;46(2):101-110."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "calcium_channel_blocker",
+      "substance_b": "magnesium",
+      "severity": "minor",
+      "mechanism": "Magnesium has mild vasodilatory/calcium-blocking properties, potentially additive with CCBs.",
+      "recommendation": "Generally safe. Monitor BP with high-dose magnesium supplementation.",
+      "evidence": "theoretical",
+      "citations": [
+        "Houston M. J Clin Hypertens. 2011;13(11):843-847."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "calcium_channel_blocker",
+      "substance_b": "beta_blocker",
+      "severity": "moderate",
+      "mechanism": "Non-dihydropyridine CCBs (diltiazem, verapamil) + beta-blockers risk bradycardia/AV block.",
+      "recommendation": "Avoid verapamil/diltiazem with beta-blockers. Amlodipine/nifedipine generally safe.",
+      "evidence": "established",
+      "citations": [
+        "Edoute Y et al. Isr Med Assoc J. 2000;2(8):585-588."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "iron",
+      "substance_b": "calcium",
+      "severity": "moderate",
+      "mechanism": "Calcium inhibits heme and non-heme iron absorption via shared transport mechanisms.",
+      "recommendation": "Separate iron and calcium by 2+ hours. Take iron on empty stomach.",
+      "evidence": "established",
+      "citations": [
+        "Hallberg L et al. Am J Clin Nutr. 1991;53(1):112-119."
+      ],
+      "timing_advice": "Take iron in the morning on empty stomach with vitamin C. Take calcium with lunch or dinner (at least 2 hours apart)."
+    },
+    {
+      "substance_a": "iron",
+      "substance_b": "zinc",
+      "severity": "minor",
+      "mechanism": "Iron and zinc compete for DMT1 transporter. High-dose iron reduces zinc absorption.",
+      "recommendation": "Supplement at different times of day. Dietary amounts unlikely to cause issues.",
+      "evidence": "probable",
+      "citations": [
+        "Whittaker P. Am J Clin Nutr. 1998;68(2 Suppl):442S-446S."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "zinc",
+      "substance_b": "calcium",
+      "severity": "minor",
+      "mechanism": "Calcium may modestly reduce zinc absorption through competitive transport inhibition.",
+      "recommendation": "Separate high-dose supplements by 2 hours. Dietary intake is fine.",
+      "evidence": "probable",
+      "citations": [
+        "Wood RJ, Zheng JJ. Am J Clin Nutr. 1997;65(6):1803-1809."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "digoxin",
+      "substance_b": "calcium",
+      "severity": "major",
+      "mechanism": "Hypercalcemia sensitizes myocardium to digoxin, increasing fatal arrhythmia risk.",
+      "recommendation": "Monitor serum calcium and digoxin levels. Avoid IV calcium in digitalized patients.",
+      "evidence": "established",
+      "citations": [
+        "Hauptman PJ, Kelly RA. Circulation. 1999;99(9):1265-1270."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "digoxin",
+      "substance_b": "magnesium",
+      "severity": "moderate",
+      "mechanism": "Hypomagnesemia increases digoxin toxicity by enhancing myocardial sensitivity.",
+      "recommendation": "Maintain normal Mg levels. Supplementation may actually be protective.",
+      "evidence": "established",
+      "citations": [
+        "Kulick DL et al. Am Heart J. 1988;116(6 Pt 1):1591-1599."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "digoxin",
+      "substance_b": "st_johns_wort",
+      "severity": "major",
+      "mechanism": "St. John's Wort induces P-glycoprotein/CYP3A4, reducing digoxin levels by up to 25%.",
+      "recommendation": "Avoid combining. Monitor digoxin levels for 2 weeks if stopped.",
+      "evidence": "established",
+      "citations": [
+        "Johne A et al. Clin Pharmacol Ther. 1999;66(4):338-345."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "beta_blocker",
+      "substance_b": "nsaid",
+      "severity": "moderate",
+      "mechanism": "NSAIDs reduce prostaglandin-mediated vasodilation, attenuating beta-blocker BP lowering.",
+      "recommendation": "Monitor BP. Use lowest effective NSAID dose. Consider acetaminophen.",
+      "evidence": "established",
+      "citations": [
+        "Houston MC. Am J Med. 1991;90(5A):42S-47S."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "metformin",
+      "substance_b": "vitamin_d",
+      "severity": "minor",
+      "mechanism": "Vitamin D deficiency is more common in metformin users. Supplementation may improve insulin sensitivity.",
+      "recommendation": "Consider checking vitamin D levels. Supplementation is safe and potentially beneficial.",
+      "evidence": "probable",
+      "citations": [
+        "Kos E et al. Endocr Pract. 2012;18(2):179-184."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "aspirin",
+      "substance_b": "fish_oil",
+      "severity": "minor",
+      "mechanism": "Both have antiplatelet properties. Combined effect on bleeding time is additive but usually minor.",
+      "recommendation": "Generally safe at standard doses. Watch for easy bruising or prolonged bleeding.",
+      "evidence": "probable",
+      "citations": [
+        "Bays HE. Am J Cardiol. 2007;99(6A):35C-43C."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "aspirin",
+      "substance_b": "ginkgo",
+      "severity": "moderate",
+      "mechanism": "Ginkgo PAF-inhibiting properties + aspirin significantly increase bleeding risk.",
+      "recommendation": "Avoid combining. Discontinue ginkgo 2+ weeks before planned surgery.",
+      "evidence": "probable",
+      "citations": [
+        "Bent S et al. J Gen Intern Med. 2005;20(7):657-661."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "arb",
+      "substance_b": "potassium",
+      "severity": "major",
+      "mechanism": "ARBs reduce aldosterone-mediated K+ excretion. Supplemental potassium risks hyperkalemia.",
+      "recommendation": "Avoid potassium supplements unless monitored. Check serum K+ regularly.",
+      "evidence": "established",
+      "citations": [
+        "Palmer BF. N Engl J Med. 2004;351(6):585-592."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "arb",
+      "substance_b": "nsaid",
+      "severity": "moderate",
+      "mechanism": "NSAIDs blunt ARB antihypertensive effect and increase acute kidney injury risk.",
+      "recommendation": "Monitor BP and renal function. Use lowest effective NSAID dose.",
+      "evidence": "established",
+      "citations": [
+        "Dreischulte T et al. BMJ. 2015;350:h949."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "arb",
+      "substance_b": "lithium",
+      "severity": "major",
+      "mechanism": "ARBs reduce lithium renal clearance similar to ACE inhibitors, increasing toxicity risk.",
+      "recommendation": "Monitor lithium levels closely. Consider dose reduction.",
+      "evidence": "established",
+      "citations": [
+        "Finley PR et al. J Clin Psychopharmacol. 1996;16(3):197-202."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "iron",
+      "substance_b": "vitamin_d",
+      "severity": "minor",
+      "mechanism": "Iron deficiency may impair vitamin D metabolism. No direct absorption competition.",
+      "recommendation": "Both can be taken together safely. Address iron deficiency to optimize vitamin D.",
+      "evidence": "theoretical",
+      "citations": [
+        "Luan H et al. Nutrients. 2020;12(11):3471."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "calcium",
+      "substance_b": "magnesium",
+      "severity": "minor",
+      "mechanism": "High-dose calcium may mildly compete with magnesium for absorption.",
+      "recommendation": "Can be taken together at normal doses. Separate megadoses by 2 hours.",
+      "evidence": "probable",
+      "citations": [
+        "Spencer H et al. J Am Coll Nutr. 1994;13(5):485-492."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "doac",
+      "substance_b": "nsaid",
+      "severity": "major",
+      "mechanism": "DOACs + NSAIDs significantly increase GI and intracranial bleeding risk.",
+      "recommendation": "Avoid combination. Use acetaminophen instead. If unavoidable, add PPI.",
+      "evidence": "established",
+      "citations": [
+        "Lip GY et al. Lancet. 2014;383(9921):955-962."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "doac",
+      "substance_b": "aspirin",
+      "severity": "major",
+      "mechanism": "Dual antithrombotic therapy with DOAC + aspirin doubles major bleeding risk.",
+      "recommendation": "Avoid unless specifically indicated (e.g., recent ACS). Use shortest duration.",
+      "evidence": "established",
+      "citations": [
+        "Alexander JH et al. N Engl J Med. 2011;365(8):699-708."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "doac",
+      "substance_b": "ssri",
+      "severity": "moderate",
+      "mechanism": "SSRIs deplete platelet serotonin, adding bleeding risk on top of DOAC anticoagulation.",
+      "recommendation": "Monitor for bruising/bleeding. Consider lower-risk antidepressants if possible.",
+      "evidence": "probable",
+      "citations": [
+        "Quinn GR et al. Ann Intern Med. 2014;161(3):186-190."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "doac",
+      "substance_b": "st_johns_wort",
+      "severity": "major",
+      "mechanism": "St. John's Wort induces P-glycoprotein/CYP3A4, reducing DOAC levels and anticoagulant efficacy.",
+      "recommendation": "Contraindicated. Can cause treatment failure and thromboembolism.",
+      "evidence": "established",
+      "citations": [
+        "Wessler JD et al. J Am Coll Cardiol. 2013;61(25):2495-2502."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "doac",
+      "substance_b": "grapefruit",
+      "severity": "moderate",
+      "mechanism": "Grapefruit inhibits CYP3A4/P-gp, increasing apixaban and rivaroxaban levels.",
+      "recommendation": "Avoid grapefruit with apixaban/rivaroxaban. Dabigatran less affected.",
+      "evidence": "probable",
+      "citations": [
+        "Frost CE et al. Br J Clin Pharmacol. 2015;79(5):838-846."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "snri",
+      "substance_b": "st_johns_wort",
+      "severity": "major",
+      "mechanism": "Both increase serotonin. Combined use risks serotonin syndrome.",
+      "recommendation": "Contraindicated. Never combine. Allow 2-week washout.",
+      "evidence": "established",
+      "citations": [
+        "Boyer EW, Shannon M. N Engl J Med. 2005;352(11):1112-1120."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "snri",
+      "substance_b": "nsaid",
+      "severity": "moderate",
+      "mechanism": "SNRIs impair platelet serotonin; combined with NSAID GI effects, bleeding risk increases 2-4 fold.",
+      "recommendation": "Use caution. Consider PPI gastroprotection if both necessary.",
+      "evidence": "established",
+      "citations": [
+        "Meijer WE et al. Arch Intern Med. 2004;164(21):2367-2370."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "snri",
+      "substance_b": "ginkgo",
+      "severity": "moderate",
+      "mechanism": "Ginkgo antiplatelet effects add to SNRI-related bleeding risk.",
+      "recommendation": "Monitor for bruising/bleeding. Avoid combining.",
+      "evidence": "probable",
+      "citations": [
+        "Izzo AA, Ernst E. Drugs. 2001;61(15):2163-2175."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "maoi",
+      "substance_b": "ssri",
+      "severity": "contraindicated",
+      "mechanism": "Combined serotonergic activity causes potentially fatal serotonin syndrome (hyperthermia, rigidity, autonomic instability).",
+      "recommendation": "NEVER combine. Require 2-5 week washout between drugs (5 weeks for fluoxetine due to long half-life).",
+      "evidence": "established",
+      "citations": [
+        "Boyer EW, Shannon M. N Engl J Med. 2005;352(11):1112-1120."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "maoi",
+      "substance_b": "snri",
+      "severity": "contraindicated",
+      "mechanism": "Combined serotonergic activity causes potentially fatal serotonin syndrome.",
+      "recommendation": "NEVER combine. Require 2-week washout between drugs.",
+      "evidence": "established",
+      "citations": [
+        "Boyer EW, Shannon M. N Engl J Med. 2005;352(11):1112-1120."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "maoi",
+      "substance_b": "tyramine_foods",
+      "severity": "major",
+      "mechanism": "MAOIs block tyramine metabolism. Tyramine accumulates causing hypertensive crisis (headache, stroke risk).",
+      "recommendation": "Strictly avoid aged cheese, cured meats, sauerkraut, soy sauce, draft beer, and fermented foods.",
+      "evidence": "established",
+      "citations": [
+        "Flockhart DA. J Clin Psychiatry. 2012;73(Suppl 1):17-24."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "maoi",
+      "substance_b": "opioid",
+      "severity": "major",
+      "mechanism": "MAOIs potentiate opioid effects. Meperidine specifically causes fatal serotonin syndrome.",
+      "recommendation": "Avoid meperidine absolutely. Use other opioids with extreme caution.",
+      "evidence": "established",
+      "citations": [
+        "Gillman PK. Br J Anaesth. 2005;95(4):434-441."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "maoi",
+      "substance_b": "five_htp",
+      "severity": "contraindicated",
+      "mechanism": "5-HTP is a direct serotonin precursor. Combined with MAO inhibition causes serotonin syndrome.",
+      "recommendation": "NEVER combine. Extremely dangerous.",
+      "evidence": "established",
+      "citations": [
+        "Turner EH et al. Pharmacol Ther. 2006;109(3):325-338."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "fluoroquinolone",
+      "substance_b": "iron",
+      "severity": "moderate",
+      "mechanism": "Iron forms insoluble chelates with fluoroquinolones, reducing antibiotic absorption by up to 90%.",
+      "recommendation": "Take fluoroquinolone 2 hours before or 6 hours after iron.",
+      "evidence": "established",
+      "citations": [
+        "Nix DE et al. Clin Pharmacol Ther. 1989;46(6):700-705."
+      ],
+      "timing_advice": "Take antibiotic 2 hours before or 6 hours after iron supplements."
+    },
+    {
+      "substance_a": "fluoroquinolone",
+      "substance_b": "calcium",
+      "severity": "moderate",
+      "mechanism": "Calcium chelates fluoroquinolones, significantly reducing absorption.",
+      "recommendation": "Take fluoroquinolone 2 hours before or 6 hours after calcium.",
+      "evidence": "established",
+      "citations": [
+        "Frost RW et al. Antimicrob Agents Chemother. 1992;36(4):830-832."
+      ],
+      "timing_advice": "Take antibiotic 2 hours before or 6 hours after calcium."
+    },
+    {
+      "substance_a": "fluoroquinolone",
+      "substance_b": "magnesium",
+      "severity": "moderate",
+      "mechanism": "Magnesium chelates fluoroquinolones, reducing antibiotic absorption.",
+      "recommendation": "Take fluoroquinolone 2 hours before or 6 hours after magnesium.",
+      "evidence": "established",
+      "citations": [
+        "Nix DE et al. Clin Pharmacol Ther. 1989;46(6):700-705."
+      ],
+      "timing_advice": "Take antibiotic 2 hours before or 6 hours after magnesium."
+    },
+    {
+      "substance_a": "fluoroquinolone",
+      "substance_b": "zinc",
+      "severity": "moderate",
+      "mechanism": "Zinc chelates fluoroquinolones, reducing antibiotic absorption.",
+      "recommendation": "Take fluoroquinolone 2 hours before or 6 hours after zinc.",
+      "evidence": "established",
+      "citations": [
+        "Nix DE et al. Clin Pharmacol Ther. 1989;46(6):700-705."
+      ],
+      "timing_advice": "Take antibiotic 2 hours before or 6 hours after zinc."
+    },
+    {
+      "substance_a": "fluoroquinolone",
+      "substance_b": "nsaid",
+      "severity": "moderate",
+      "mechanism": "Fluoroquinolones lower seizure threshold; NSAIDs further increase CNS excitability and seizure risk.",
+      "recommendation": "Use with caution, especially in patients with epilepsy history.",
+      "evidence": "probable",
+      "citations": [
+        "Halliwell RF et al. J Antimicrob Chemother. 1993;31(2):217-223."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "fluoroquinolone",
+      "substance_b": "dairy",
+      "severity": "moderate",
+      "mechanism": "Dairy calcium chelates fluoroquinolones, reducing absorption 30-50%.",
+      "recommendation": "Avoid dairy products within 2 hours of taking fluoroquinolone.",
+      "evidence": "established",
+      "citations": [
+        "Stass H et al. Clin Pharmacokinet. 2001;40(Suppl 1):57-62."
+      ],
+      "timing_advice": "Take fluoroquinolone 2 hours before or 2 hours after dairy."
+    },
+    {
+      "substance_a": "macrolide",
+      "substance_b": "statin",
+      "severity": "major",
+      "mechanism": "Clarithromycin/erythromycin strongly inhibit CYP3A4, dramatically increasing statin levels and rhabdomyolysis risk.",
+      "recommendation": "Suspend statin during clarithromycin/erythromycin course. Azithromycin is safer (minimal CYP3A4 effect).",
+      "evidence": "established",
+      "citations": [
+        "Jacobson TA. Am J Med. 2004;116(6):408-416."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "macrolide",
+      "substance_b": "warfarin",
+      "severity": "major",
+      "mechanism": "Macrolides inhibit CYP3A4/CYP1A2 and may reduce gut flora vitamin K synthesis, increasing INR.",
+      "recommendation": "Monitor INR closely when starting/stopping macrolide. Dose may need reduction.",
+      "evidence": "established",
+      "citations": [
+        "Westergren T et al. Drug Saf. 2007;30(5):379-407."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "macrolide",
+      "substance_b": "calcium_channel_blocker",
+      "severity": "moderate",
+      "mechanism": "Macrolides inhibit CYP3A4, increasing CCB levels. Risk of hypotension/bradycardia.",
+      "recommendation": "Monitor BP/HR. Consider azithromycin (less CYP3A4 effect).",
+      "evidence": "probable",
+      "citations": [
+        "Wright AJ et al. CMAJ. 2011;183(3):303-307."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "macrolide",
+      "substance_b": "digoxin",
+      "severity": "major",
+      "mechanism": "Macrolides inhibit P-glycoprotein and kill gut bacteria that metabolize digoxin, causing toxic levels.",
+      "recommendation": "Monitor digoxin levels. Consider temporary dose reduction.",
+      "evidence": "established",
+      "citations": [
+        "Bizjak ED, Mauro VF. Ann Pharmacother. 1997;31(9):1077-1079."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "azole_antifungal",
+      "substance_b": "statin",
+      "severity": "major",
+      "mechanism": "Azole antifungals are potent CYP3A4 inhibitors, dramatically increasing statin levels and rhabdomyolysis risk.",
+      "recommendation": "Suspend CYP3A4-metabolized statins (simvastatin, lovastatin, atorvastatin) during azole therapy.",
+      "evidence": "established",
+      "citations": [
+        "Kantola T et al. Clin Pharmacol Ther. 1998;64(1):58-65."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "azole_antifungal",
+      "substance_b": "warfarin",
+      "severity": "major",
+      "mechanism": "Fluconazole strongly inhibits CYP2C9 (main warfarin metabolizer). INR can double within days.",
+      "recommendation": "Reduce warfarin dose 25-50% when starting fluconazole. Monitor INR every 2-3 days.",
+      "evidence": "established",
+      "citations": [
+        "Black DJ et al. Ann Intern Med. 1996;124(1 Pt 1):107-109."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "azole_antifungal",
+      "substance_b": "calcium_channel_blocker",
+      "severity": "moderate",
+      "mechanism": "Azole CYP3A4 inhibition increases CCB levels, risking hypotension.",
+      "recommendation": "Monitor BP. Consider dose reduction of CCB during azole therapy.",
+      "evidence": "probable",
+      "citations": [
+        "Nivoix Y et al. Clin Pharmacol Ther. 2009;85(4):425-432."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "azole_antifungal",
+      "substance_b": "cyclosporine",
+      "severity": "major",
+      "mechanism": "Azoles inhibit CYP3A4-mediated cyclosporine metabolism, causing nephrotoxic drug levels.",
+      "recommendation": "Reduce cyclosporine dose 50% when starting azole. Monitor trough levels closely.",
+      "evidence": "established",
+      "citations": [
+        "Saari TI et al. Clin Pharmacol Ther. 2006;80(2):126-135."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "azole_antifungal",
+      "substance_b": "tacrolimus",
+      "severity": "major",
+      "mechanism": "Azoles inhibit CYP3A4 metabolism of tacrolimus, causing nephrotoxic and neurotoxic levels.",
+      "recommendation": "Reduce tacrolimus dose. Monitor trough levels every 2-3 days.",
+      "evidence": "established",
+      "citations": [
+        "Venkataramanan R et al. Transplantation. 2002;73(7):1066-1072."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "tetracycline",
+      "substance_b": "iron",
+      "severity": "moderate",
+      "mechanism": "Iron chelates tetracyclines, reducing antibiotic absorption 50-90%.",
+      "recommendation": "Separate doses by 2-3 hours.",
+      "evidence": "established",
+      "citations": [
+        "Neuvonen PJ. Drugs. 1976;11(1):45-54."
+      ],
+      "timing_advice": "Take tetracycline 2 hours before or 3 hours after iron."
+    },
+    {
+      "substance_a": "tetracycline",
+      "substance_b": "calcium",
+      "severity": "moderate",
+      "mechanism": "Calcium chelates tetracyclines, forming insoluble complexes.",
+      "recommendation": "Separate doses by 2-3 hours. Avoid dairy near dosing time.",
+      "evidence": "established",
+      "citations": [
+        "Neuvonen PJ. Drugs. 1976;11(1):45-54."
+      ],
+      "timing_advice": "Take tetracycline 2 hours before or 3 hours after calcium/dairy."
+    },
+    {
+      "substance_a": "tetracycline",
+      "substance_b": "dairy",
+      "severity": "moderate",
+      "mechanism": "Dairy calcium chelates tetracyclines, reducing absorption significantly.",
+      "recommendation": "Avoid dairy products within 2-3 hours of tetracycline doses.",
+      "evidence": "established",
+      "citations": [
+        "Neuvonen PJ. Drugs. 1976;11(1):45-54."
+      ],
+      "timing_advice": "Take tetracycline at least 2 hours before or after dairy."
+    },
+    {
+      "substance_a": "five_htp",
+      "substance_b": "ssri",
+      "severity": "major",
+      "mechanism": "5-HTP is a direct serotonin precursor. Combined with SSRIs causes excess serotonin and serotonin syndrome risk.",
+      "recommendation": "Do not combine. Use one or the other, never both.",
+      "evidence": "established",
+      "citations": [
+        "Turner EH et al. Pharmacol Ther. 2006;109(3):325-338."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "five_htp",
+      "substance_b": "snri",
+      "severity": "major",
+      "mechanism": "5-HTP combined with SNRIs causes additive serotonin elevation, risking serotonin syndrome.",
+      "recommendation": "Do not combine.",
+      "evidence": "established",
+      "citations": [
+        "Turner EH et al. Pharmacol Ther. 2006;109(3):325-338."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "same",
+      "substance_b": "ssri",
+      "severity": "moderate",
+      "mechanism": "SAMe has serotonergic properties. Combined with SSRIs may increase serotonin syndrome risk.",
+      "recommendation": "Use with caution. Start low dose if adding to SSRI. Monitor for agitation.",
+      "evidence": "probable",
+      "citations": [
+        "Mischoulon D et al. J Clin Psychopharmacol. 2014;34(3):413-416."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "same",
+      "substance_b": "snri",
+      "severity": "moderate",
+      "mechanism": "SAMe serotonergic activity adds to SNRI effects. Risk of serotonin excess.",
+      "recommendation": "Use with caution. Monitor for agitation, tremor, hyperthermia.",
+      "evidence": "probable",
+      "citations": [
+        "Mischoulon D et al. J Clin Psychopharmacol. 2014;34(3):413-416."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "cbd",
+      "substance_b": "warfarin",
+      "severity": "major",
+      "mechanism": "CBD inhibits CYP2C19 and CYP3A4, significantly increasing warfarin levels and INR. Case reports of INR doubling.",
+      "recommendation": "Avoid or monitor INR very closely. Warfarin dose reduction likely needed.",
+      "evidence": "established",
+      "citations": [
+        "Grayson L et al. J Thromb Thrombolysis. 2018;46(2):207-210."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "cbd",
+      "substance_b": "ssri",
+      "severity": "moderate",
+      "mechanism": "CBD inhibits CYP2D6 (metabolizes many SSRIs), potentially increasing SSRI levels and side effects.",
+      "recommendation": "Monitor for increased SSRI side effects. Start CBD low if combining.",
+      "evidence": "probable",
+      "citations": [
+        "Nasrin S et al. Clin Pharmacol Ther. 2021;109(6):1525-1536."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "cbd",
+      "substance_b": "statin",
+      "severity": "minor",
+      "mechanism": "CBD may inhibit CYP3A4 to a modest degree, slightly increasing statin exposure.",
+      "recommendation": "Likely safe at low CBD doses. Monitor for muscle symptoms at high doses.",
+      "evidence": "theoretical",
+      "citations": [
+        "Nasrin S et al. Clin Pharmacol Ther. 2021;109(6):1525-1536."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "berberine",
+      "substance_b": "metformin",
+      "severity": "moderate",
+      "mechanism": "Both lower blood glucose via complementary mechanisms. Combined use risks hypoglycemia.",
+      "recommendation": "Monitor glucose closely if combining. May need metformin dose reduction.",
+      "evidence": "probable",
+      "citations": [
+        "Yin J et al. Metabolism. 2008;57(5):712-717."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "berberine",
+      "substance_b": "statin",
+      "severity": "moderate",
+      "mechanism": "Berberine inhibits CYP3A4 and may increase statin levels. Also has independent cholesterol-lowering effects.",
+      "recommendation": "Monitor for muscle symptoms. Consider lower statin dose if combining.",
+      "evidence": "probable",
+      "citations": [
+        "Guo Y et al. Atherosclerosis. 2014;232(2):381-387."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "berberine",
+      "substance_b": "cyclosporine",
+      "severity": "major",
+      "mechanism": "Berberine inhibits CYP3A4 and P-glycoprotein, significantly increasing cyclosporine levels and toxicity risk.",
+      "recommendation": "Avoid combining. Cyclosporine dose adjustment difficult to predict.",
+      "evidence": "probable",
+      "citations": [
+        "Xin HW et al. Eur J Clin Pharmacol. 2006;62(7):581-586."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "ashwagandha",
+      "substance_b": "levothyroxine",
+      "severity": "moderate",
+      "mechanism": "Ashwagandha may stimulate thyroid hormone production (increases T3 and T4), altering thyroid medication needs.",
+      "recommendation": "Monitor TSH if combining. May need levothyroxine dose reduction.",
+      "evidence": "probable",
+      "citations": [
+        "Sharma AK et al. J Altern Complement Med. 2018;24(3):243-248."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "melatonin",
+      "substance_b": "warfarin",
+      "severity": "moderate",
+      "mechanism": "Melatonin may enhance warfarin's anticoagulant effect, increasing bleeding risk.",
+      "recommendation": "Monitor INR when starting/changing melatonin dose.",
+      "evidence": "probable",
+      "citations": [
+        "Lissoni P et al. Thromb Res. 1998;91(1):43-47."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "melatonin",
+      "substance_b": "beta_blocker",
+      "severity": "minor",
+      "mechanism": "Beta-blockers suppress melatonin secretion (via beta-1 receptors on pineal gland), which may worsen insomnia.",
+      "recommendation": "Melatonin supplementation may be beneficial for beta-blocker insomnia.",
+      "evidence": "probable",
+      "citations": [
+        "Scheer FA et al. Clin Pharmacol Ther. 2012;91(3):609-616."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "valerian",
+      "substance_b": "benzodiazepine",
+      "severity": "moderate",
+      "mechanism": "Valerian has GABAergic properties. Combined with benzodiazepines causes excessive CNS depression and sedation.",
+      "recommendation": "Avoid combining. Use one or the other for sleep.",
+      "evidence": "probable",
+      "citations": [
+        "Miyasaka LS et al. Cochrane Database Syst Rev. 2006;4:CD004515."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "valerian",
+      "substance_b": "opioid",
+      "severity": "moderate",
+      "mechanism": "Valerian CNS-depressant effects are additive with opioids, increasing sedation and respiratory depression risk.",
+      "recommendation": "Avoid combining.",
+      "evidence": "probable",
+      "citations": [
+        "Miyasaka LS et al. Cochrane Database Syst Rev. 2006;4:CD004515."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "milk_thistle",
+      "substance_b": "statin",
+      "severity": "minor",
+      "mechanism": "Milk thistle may mildly inhibit CYP3A4 and CYP2C9. Theoretical risk of increased statin levels.",
+      "recommendation": "Likely safe at standard doses. Monitor for muscle symptoms.",
+      "evidence": "theoretical",
+      "citations": [
+        "Wen Z et al. Drug Metab Dispos. 2008;36(9):1904-1916."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "cyclosporine",
+      "substance_b": "statin",
+      "severity": "major",
+      "mechanism": "Cyclosporine inhibits CYP3A4 and OATP1B1, dramatically increasing statin levels. High rhabdomyolysis risk.",
+      "recommendation": "Avoid simvastatin/lovastatin. Use lowest doses of other statins. Pravastatin/fluvastatin preferred.",
+      "evidence": "established",
+      "citations": [
+        "Jacobson TA. Am J Med. 2004;116(6):408-416."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "cyclosporine",
+      "substance_b": "grapefruit",
+      "severity": "major",
+      "mechanism": "Grapefruit inhibits CYP3A4, increasing cyclosporine to nephrotoxic levels.",
+      "recommendation": "Avoid grapefruit entirely while on cyclosporine.",
+      "evidence": "established",
+      "citations": [
+        "Ducharme MP et al. Clin Pharmacol Ther. 1995;57(5):485-491."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "opioid",
+      "substance_b": "benzodiazepine",
+      "severity": "major",
+      "mechanism": "Combined CNS/respiratory depression is the leading cause of prescription overdose deaths.",
+      "recommendation": "FDA black box warning: avoid concurrent use. If unavoidable, use lowest effective doses with close monitoring.",
+      "evidence": "established",
+      "citations": [
+        "Sun EC et al. BMJ. 2017;356:j760."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "opioid",
+      "substance_b": "alcohol",
+      "severity": "major",
+      "mechanism": "Alcohol potentiates opioid CNS depression. Risk of fatal respiratory depression even with moderate drinking.",
+      "recommendation": "Do not drink alcohol while taking opioids.",
+      "evidence": "established",
+      "citations": [
+        "Jones CM et al. MMWR Morb Mortal Wkly Rep. 2014;63(39):881-885."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "opioid",
+      "substance_b": "ssri",
+      "severity": "moderate",
+      "mechanism": "Tramadol specifically has serotonergic activity. Combined with SSRIs increases serotonin syndrome risk.",
+      "recommendation": "Avoid tramadol + SSRI if possible. Other opioids have lower serotonin risk.",
+      "evidence": "established",
+      "citations": [
+        "Gillman PK. Br J Anaesth. 2005;95(4):434-441."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "glp1_agonist",
+      "substance_b": "sulfonylurea",
+      "severity": "moderate",
+      "mechanism": "GLP-1 agonists + sulfonylureas significantly increase hypoglycemia risk.",
+      "recommendation": "Consider reducing sulfonylurea dose by 50% when starting GLP-1 agonist.",
+      "evidence": "established",
+      "citations": [
+        "Nauck MA et al. Diabetes Care. 2009;32(1):84-90."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "glp1_agonist",
+      "substance_b": "insulin",
+      "severity": "moderate",
+      "mechanism": "Combined use increases hypoglycemia risk. GLP-1 delayed gastric emptying also alters insulin PK.",
+      "recommendation": "Reduce insulin dose when starting GLP-1 agonist. Monitor glucose closely.",
+      "evidence": "established",
+      "citations": [
+        "Buse JB et al. Lancet. 2009;374(9683):39-47."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "sglt2i",
+      "substance_b": "thiazide",
+      "severity": "moderate",
+      "mechanism": "Additive diuretic effects increase dehydration, hypotension, and acute kidney injury risk.",
+      "recommendation": "Monitor BP, hydration status, and renal function. Ensure adequate fluid intake.",
+      "evidence": "probable",
+      "citations": [
+        "Perkovic V et al. N Engl J Med. 2019;380(24):2295-2306."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "sglt2i",
+      "substance_b": "insulin",
+      "severity": "moderate",
+      "mechanism": "SGLT2 inhibitors + insulin increase hypoglycemia risk. Also increases euglycemic DKA risk.",
+      "recommendation": "Reduce insulin dose. Monitor glucose and ketones, especially during illness.",
+      "evidence": "established",
+      "citations": [
+        "Rosenstock J et al. Diabetes Care. 2015;38(9):1638-1642."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "levothyroxine",
+      "substance_b": "soy",
+      "severity": "moderate",
+      "mechanism": "Soy isoflavones may inhibit thyroid peroxidase and reduce levothyroxine absorption from the gut.",
+      "recommendation": "Separate levothyroxine from soy products by 4+ hours. Monitor TSH if diet changes.",
+      "evidence": "established",
+      "citations": [
+        "Bell DS, Ovalle F. Ann Intern Med. 2001;134(10):946-947."
+      ],
+      "timing_advice": "Take levothyroxine in the morning. Avoid soy for at least 4 hours."
+    }
+  ],
+  "condition_aliases": {
+    "chronic kidney disease": "kidney_disease",
+    "ckd": "kidney_disease",
+    "kidney disease": "kidney_disease",
+    "renal failure": "kidney_disease",
+    "renal impairment": "kidney_disease",
+    "kidney failure": "kidney_disease",
+    "nephropathy": "kidney_disease",
+    "reduced kidney function": "kidney_disease",
+    "heart failure": "heart_failure",
+    "chf": "heart_failure",
+    "congestive heart failure": "heart_failure",
+    "hf": "heart_failure",
+    "systolic heart failure": "heart_failure",
+    "hfref": "heart_failure",
+    "diastolic heart failure": "heart_failure",
+    "hfpef": "heart_failure",
+    "asthma": "asthma",
+    "reactive airway disease": "asthma",
+    "copd": "copd",
+    "chronic obstructive pulmonary disease": "copd",
+    "emphysema": "copd",
+    "chronic bronchitis": "copd",
+    "diabetes": "diabetes",
+    "type 2 diabetes": "diabetes",
+    "type 1 diabetes": "diabetes",
+    "t2dm": "diabetes",
+    "t1dm": "diabetes",
+    "dm2": "diabetes",
+    "dm1": "diabetes",
+    "diabetic": "diabetes",
+    "liver disease": "liver_disease",
+    "hepatic impairment": "liver_disease",
+    "cirrhosis": "liver_disease",
+    "hepatitis": "liver_disease",
+    "fatty liver": "liver_disease",
+    "nafld": "liver_disease",
+    "nash": "liver_disease",
+    "gout": "gout",
+    "hyperuricemia": "gout",
+    "peptic ulcer": "gi_ulcer",
+    "gastric ulcer": "gi_ulcer",
+    "stomach ulcer": "gi_ulcer",
+    "gi bleed": "gi_ulcer",
+    "gastrointestinal bleeding": "gi_ulcer",
+    "osteoporosis": "osteoporosis",
+    "osteopenia": "osteoporosis",
+    "low bone density": "osteoporosis",
+    "hypertension": "hypertension",
+    "high blood pressure": "hypertension",
+    "htn": "hypertension",
+    "epilepsy": "seizure_disorder",
+    "seizures": "seizure_disorder",
+    "seizure disorder": "seizure_disorder",
+    "bleeding disorder": "bleeding_disorder",
+    "hemophilia": "bleeding_disorder",
+    "von willebrand": "bleeding_disorder",
+    "sleep apnea": "sleep_apnea",
+    "osa": "sleep_apnea",
+    "obstructive sleep apnea": "sleep_apnea",
+    "bipolar": "bipolar",
+    "bipolar disorder": "bipolar",
+    "bipolar 1": "bipolar",
+    "bipolar 2": "bipolar"
+  },
+  "drug_condition_interactions": [
+    {
+      "drug": "nsaid",
+      "condition": "heart_failure",
+      "severity": "major",
+      "mechanism": "NSAIDs cause sodium/water retention and reduce renal blood flow, worsening heart failure and increasing hospitalization risk.",
+      "recommendation": "Avoid NSAIDs in heart failure. Use acetaminophen for pain.",
+      "evidence": "established",
+      "citation": "Gislason GH et al. Arch Intern Med. 2009;169(2):141-149."
+    },
+    {
+      "drug": "nsaid",
+      "condition": "kidney_disease",
+      "severity": "major",
+      "mechanism": "NSAIDs reduce renal perfusion via prostaglandin inhibition, accelerating kidney decline. Risk of acute kidney injury.",
+      "recommendation": "Avoid NSAIDs if eGFR < 60. Use acetaminophen instead.",
+      "evidence": "established",
+      "citation": "Zhang J et al. Kidney Int. 2018;94(2):363-369."
+    },
+    {
+      "drug": "nsaid",
+      "condition": "gi_ulcer",
+      "severity": "major",
+      "mechanism": "NSAIDs inhibit COX-1, reducing protective gastric mucus. High risk of GI bleeding with ulcer history.",
+      "recommendation": "Avoid NSAIDs. If unavoidable, use celecoxib + PPI.",
+      "evidence": "established",
+      "citation": "Lanas A et al. BMJ. 2006;332(7553):1302-1308."
+    },
+    {
+      "drug": "nsaid",
+      "condition": "asthma",
+      "severity": "moderate",
+      "mechanism": "Aspirin-exacerbated respiratory disease (AERD) affects 7-20% of asthmatics. NSAIDs can trigger severe bronchospasm.",
+      "recommendation": "Use with caution. Avoid if history of NSAID-triggered asthma. Acetaminophen is generally safe.",
+      "evidence": "established",
+      "citation": "Rajan JP et al. J Allergy Clin Immunol Pract. 2015;3(3):305-312."
+    },
+    {
+      "drug": "nsaid",
+      "condition": "bleeding_disorder",
+      "severity": "major",
+      "mechanism": "NSAIDs inhibit platelet aggregation and increase bleeding time.",
+      "recommendation": "Avoid NSAIDs. Use acetaminophen for pain.",
+      "evidence": "established",
+      "citation": "Schafer AI. Am J Med. 1999;107(6):635-645."
+    },
+    {
+      "drug": "beta_blocker",
+      "condition": "asthma",
+      "severity": "major",
+      "mechanism": "Beta-blockers block bronchial beta-2 receptors, causing bronchospasm. Even cardioselective agents carry risk.",
+      "recommendation": "Avoid non-selective beta-blockers (propranolol, carvedilol). Cardioselective (metoprolol, bisoprolol) with extreme caution only.",
+      "evidence": "established",
+      "citation": "Salpeter SR et al. Ann Intern Med. 2002;137(9):715-725."
+    },
+    {
+      "drug": "beta_blocker",
+      "condition": "copd",
+      "severity": "moderate",
+      "mechanism": "Beta-blockers may worsen airflow obstruction in COPD, though cardioselective agents may be tolerated.",
+      "recommendation": "Use cardioselective beta-blockers (bisoprolol, metoprolol) if indicated for heart failure/post-MI. Monitor lung function.",
+      "evidence": "established",
+      "citation": "Dransfield MT et al. Lancet Respir Med. 2018;6(1):29-39."
+    },
+    {
+      "drug": "beta_blocker",
+      "condition": "diabetes",
+      "severity": "moderate",
+      "mechanism": "Beta-blockers mask tachycardia (key hypoglycemia warning sign) and may impair glucose counter-regulation.",
+      "recommendation": "Monitor glucose more frequently. Cardioselective agents preferred. Educate on non-adrenergic hypoglycemia symptoms (sweating).",
+      "evidence": "established",
+      "citation": "Dungan K et al. Endocrinol Metab Clin. 2000;29(4):731-746."
+    },
+    {
+      "drug": "metformin",
+      "condition": "kidney_disease",
+      "severity": "major",
+      "mechanism": "Metformin accumulates when eGFR < 30 mL/min, increasing lactic acidosis risk (rare but fatal).",
+      "recommendation": "Contraindicated if eGFR < 30. Reduce dose if eGFR 30-45. Monitor eGFR every 3-6 months.",
+      "evidence": "established",
+      "citation": "Inzucchi SE et al. Diabetes Care. 2014;37(1):150-158."
+    },
+    {
+      "drug": "metformin",
+      "condition": "liver_disease",
+      "severity": "moderate",
+      "mechanism": "Severe hepatic impairment reduces lactate clearance, increasing lactic acidosis risk with metformin.",
+      "recommendation": "Avoid in severe liver disease (Child-Pugh C). Use with caution in mild-moderate impairment.",
+      "evidence": "established",
+      "citation": "DeFronzo RA et al. N Engl J Med. 1995;333(9):574-579."
+    },
+    {
+      "drug": "metformin",
+      "condition": "heart_failure",
+      "severity": "minor",
+      "mechanism": "Previously contraindicated, now considered safe and even beneficial in stable heart failure. Only avoid in acute/unstable HF.",
+      "recommendation": "Safe in stable HF. Avoid in acute decompensated HF or with significant hypoxia.",
+      "evidence": "established",
+      "citation": "Eurich DT et al. Circ Heart Fail. 2013;6(3):395-402."
+    },
+    {
+      "drug": "statin",
+      "condition": "liver_disease",
+      "severity": "moderate",
+      "mechanism": "Statins can cause hepatotoxicity. Active liver disease or unexplained persistent ALT elevation is a contraindication.",
+      "recommendation": "Avoid in active liver disease. Paradoxically, statins may benefit NAFLD. Check LFTs before starting.",
+      "evidence": "established",
+      "citation": "Bj\u00f6rnsson E et al. Hepatology. 2012;56(1):17-27."
+    },
+    {
+      "drug": "corticosteroid",
+      "condition": "diabetes",
+      "severity": "major",
+      "mechanism": "Corticosteroids induce hepatic gluconeogenesis and peripheral insulin resistance. Dose-dependent hyperglycemia.",
+      "recommendation": "Monitor glucose in all diabetics on steroids. Insulin dose may need to double. Check HbA1c.",
+      "evidence": "established",
+      "citation": "Hwang JL, Weiss RE. Endocrinol Metab Clin. 2014;43(1):75-102."
+    },
+    {
+      "drug": "corticosteroid",
+      "condition": "osteoporosis",
+      "severity": "major",
+      "mechanism": "Corticosteroids are the most common cause of drug-induced osteoporosis. Bone loss is rapid in first 3-6 months.",
+      "recommendation": "Start calcium + vitamin D. Consider bisphosphonate if >3 months use. DEXA scan at baseline.",
+      "evidence": "established",
+      "citation": "Van Staa TP et al. J Bone Miner Res. 2000;15(6):993-1000."
+    },
+    {
+      "drug": "corticosteroid",
+      "condition": "gi_ulcer",
+      "severity": "moderate",
+      "mechanism": "Corticosteroids impair mucosal healing and increase peptic ulcer risk, especially when combined with NSAIDs.",
+      "recommendation": "Consider PPI prophylaxis if concurrent NSAID or ulcer history.",
+      "evidence": "established",
+      "citation": "Piper JM et al. Ann Intern Med. 1991;114(9):735-740."
+    },
+    {
+      "drug": "thiazide",
+      "condition": "gout",
+      "severity": "moderate",
+      "mechanism": "Thiazides increase serum uric acid by competing for renal tubular secretion, triggering gout flares.",
+      "recommendation": "Consider alternative antihypertensive (CCB, ACE inhibitor). If thiazide essential, monitor uric acid and use prophylaxis.",
+      "evidence": "established",
+      "citation": "Choi HK et al. BMJ. 2012;344:d8190."
+    },
+    {
+      "drug": "thiazide",
+      "condition": "diabetes",
+      "severity": "moderate",
+      "mechanism": "Thiazides impair insulin secretion (hypokalemia-mediated) and increase insulin resistance.",
+      "recommendation": "Monitor glucose and HbA1c. Keep potassium normal. Low-dose thiazide (12.5mg HCTZ) has less metabolic impact.",
+      "evidence": "established",
+      "citation": "Carter BL et al. Hypertension. 2008;52(6):1030-1037."
+    },
+    {
+      "drug": "ssri",
+      "condition": "bipolar",
+      "severity": "major",
+      "mechanism": "SSRIs can trigger manic episodes in bipolar disorder. Risk of destabilization and rapid cycling.",
+      "recommendation": "Avoid monotherapy SSRI in bipolar. Must be combined with mood stabilizer if antidepressant needed.",
+      "evidence": "established",
+      "citation": "Sachs GS et al. N Engl J Med. 2007;356(17):1711-1722."
+    },
+    {
+      "drug": "ssri",
+      "condition": "bleeding_disorder",
+      "severity": "moderate",
+      "mechanism": "SSRIs deplete platelet serotonin, impairing aggregation. Increases bleeding risk in patients with bleeding disorders.",
+      "recommendation": "Use with caution. Consider mirtazapine or bupropion as alternatives.",
+      "evidence": "established",
+      "citation": "Andrade C et al. J Clin Psychiatry. 2010;71(12):1565-1575."
+    },
+    {
+      "drug": "doac",
+      "condition": "kidney_disease",
+      "severity": "major",
+      "mechanism": "DOACs are renally cleared (dabigatran most, apixaban least). Accumulation in CKD increases bleeding risk.",
+      "recommendation": "Dose-adjust based on eGFR. Avoid dabigatran if eGFR < 30. Apixaban is safest in CKD (least renal clearance).",
+      "evidence": "established",
+      "citation": "Heidbuchel H et al. Europace. 2015;17(10):1467-1507."
+    },
+    {
+      "drug": "fluoroquinolone",
+      "condition": "seizure_disorder",
+      "severity": "moderate",
+      "mechanism": "Fluoroquinolones lower seizure threshold via GABA-A receptor antagonism.",
+      "recommendation": "Use with caution in epilepsy. Monitor for seizure activity. Consider alternative antibiotics.",
+      "evidence": "established",
+      "citation": "Stahlmann R, Lode H. Drugs. 1999;58(Suppl 2):37-42."
+    },
+    {
+      "drug": "opioid",
+      "condition": "sleep_apnea",
+      "severity": "major",
+      "mechanism": "Opioids depress central respiratory drive, worsening sleep apnea and increasing risk of fatal apnea events.",
+      "recommendation": "Avoid opioids if possible. If essential, use lowest dose with continuous pulse oximetry monitoring.",
+      "evidence": "established",
+      "citation": "Chung F et al. Br J Anaesth. 2014;113(1):4-13."
+    },
+    {
+      "drug": "opioid",
+      "condition": "copd",
+      "severity": "major",
+      "mechanism": "Opioids depress respiratory drive. COPD patients already have compromised respiratory function.",
+      "recommendation": "Avoid strong opioids. If needed, use lowest effective dose with respiratory monitoring.",
+      "evidence": "established",
+      "citation": "Vozoris NT et al. Eur Respir J. 2016;48(5):1477-1480."
+    },
+    {
+      "drug": "lithium",
+      "condition": "kidney_disease",
+      "severity": "major",
+      "mechanism": "Lithium is entirely renally excreted. Reduced clearance in CKD causes toxic accumulation.",
+      "recommendation": "Monitor levels and renal function very closely. Consider alternative mood stabilizer if eGFR declining.",
+      "evidence": "established",
+      "citation": "Gitlin M. Int J Bipolar Disord. 2016;4(1):27."
+    },
+    {
+      "drug": "ace_inhibitor",
+      "condition": "kidney_disease",
+      "severity": "moderate",
+      "mechanism": "ACE inhibitors may initially raise creatinine but are renoprotective long-term. Risk of hyperkalemia in advanced CKD.",
+      "recommendation": "Continue unless creatinine rises >30% or K+ > 5.5. Monitor closely in first 2 weeks.",
+      "evidence": "established",
+      "citation": "Bakris GL, Weir MR. Am J Med. 2000;109(2):164-167."
+    },
+    {
+      "drug": "warfarin",
+      "condition": "liver_disease",
+      "severity": "major",
+      "mechanism": "Liver disease reduces clotting factor synthesis and warfarin metabolism, causing unpredictable INR and high bleeding risk.",
+      "recommendation": "Use with extreme caution. Very frequent INR monitoring. DOACs may be safer alternatives in some cases.",
+      "evidence": "established",
+      "citation": "Tripodi A, Mannucci PM. N Engl J Med. 2011;365(2):147-156."
+    }
+  ],
+  "drug_lab_interactions": [
+    {
+      "drug": "metformin",
+      "lab": "vitamin_b12",
+      "effect": "decrease",
+      "severity": "moderate",
+      "mechanism": "Metformin reduces ileal B12 absorption via calcium-dependent membrane action. 10-30% of users develop deficiency over years.",
+      "monitor": "Check B12 annually. Supplement if <300 pg/mL.",
+      "evidence": "established",
+      "citation": "Aroda VR et al. J Clin Endocrinol Metab. 2016;101(4):1754-1761."
+    },
+    {
+      "drug": "metformin",
+      "lab": "folate",
+      "effect": "decrease",
+      "severity": "minor",
+      "mechanism": "Metformin may modestly reduce folate absorption via same ileal mechanism.",
+      "monitor": "Monitor folate if B12 is low. Supplement if deficient.",
+      "evidence": "probable",
+      "citation": "Sahin M et al. J Endocrinol Invest. 2007;30(5):880-884."
+    },
+    {
+      "drug": "statin",
+      "lab": "creatine_kinase",
+      "effect": "increase",
+      "severity": "moderate",
+      "mechanism": "Statins can cause myopathy with elevated CK. Risk highest with simvastatin 80mg and drug interactions (CYP3A4 inhibitors).",
+      "monitor": "Check CK if muscle symptoms. Baseline CK before starting.",
+      "evidence": "established",
+      "citation": "Thompson PD et al. JACC. 2016;67(24):2395-2410."
+    },
+    {
+      "drug": "statin",
+      "lab": "alt",
+      "effect": "increase",
+      "severity": "moderate",
+      "mechanism": "Statins can cause hepatotoxicity (rare). ALT >3x ULN in 0.5-2% of patients.",
+      "monitor": "Check liver enzymes at baseline and if symptoms arise.",
+      "evidence": "established",
+      "citation": "Bj\u00f6rnsson E et al. Hepatology. 2012;56(1):17-27."
+    },
+    {
+      "drug": "statin",
+      "lab": "ast",
+      "effect": "increase",
+      "severity": "minor",
+      "mechanism": "AST may rise with ALT in statin hepatotoxicity. Less specific than ALT.",
+      "monitor": "Monitor alongside ALT. Evaluate if >3x ULN.",
+      "evidence": "established",
+      "citation": "Bj\u00f6rnsson E et al. Hepatology. 2012;56(1):17-27."
+    },
+    {
+      "drug": "statin",
+      "lab": "coenzyme_q10",
+      "effect": "decrease",
+      "severity": "moderate",
+      "mechanism": "Statins inhibit HMG-CoA reductase, reducing endogenous CoQ10 synthesis. May contribute to muscle symptoms.",
+      "monitor": "Consider CoQ10 supplementation (100-200mg/day), especially if muscle symptoms.",
+      "evidence": "probable",
+      "citation": "Caso G et al. Am J Cardiol. 2007;99(10):1409-1412."
+    },
+    {
+      "drug": "ppi",
+      "lab": "magnesium",
+      "effect": "decrease",
+      "severity": "moderate",
+      "mechanism": "Chronic PPI use impairs intestinal Mg absorption via TRPM6 channel downregulation. Risk increases after 1+ year of use.",
+      "monitor": "Check magnesium annually on chronic PPI. Supplement if low.",
+      "evidence": "established",
+      "citation": "Hess MW et al. Aliment Pharmacol Ther. 2012;36(5):405-413."
+    },
+    {
+      "drug": "ppi",
+      "lab": "vitamin_b12",
+      "effect": "decrease",
+      "severity": "moderate",
+      "mechanism": "PPIs reduce gastric acid needed for B12 release from food proteins. Deficiency develops over 2+ years of continuous use.",
+      "monitor": "Check B12 every 1-2 years on chronic PPI.",
+      "evidence": "established",
+      "citation": "Lam JR et al. JAMA. 2013;310(22):2435-2442."
+    },
+    {
+      "drug": "ppi",
+      "lab": "calcium",
+      "effect": "decrease",
+      "severity": "moderate",
+      "mechanism": "Reduced gastric acid impairs calcium carbonate absorption. Increased fracture risk with long-term use.",
+      "monitor": "Use calcium citrate instead of carbonate. Monitor bone density.",
+      "evidence": "established",
+      "citation": "Yang YX et al. JAMA. 2006;296(24):2947-2953."
+    },
+    {
+      "drug": "ppi",
+      "lab": "iron",
+      "effect": "decrease",
+      "severity": "minor",
+      "mechanism": "PPIs reduce ferric-to-ferrous iron conversion needed for absorption.",
+      "monitor": "Co-administer vitamin C. Consider IV iron if refractory.",
+      "evidence": "established",
+      "citation": "Sharma VR et al. Intern Med J. 2019;49(3):336-343."
+    },
+    {
+      "drug": "ace_inhibitor",
+      "lab": "potassium",
+      "effect": "increase",
+      "severity": "major",
+      "mechanism": "ACE inhibitors reduce aldosterone secretion, decreasing renal potassium excretion. Hyperkalemia risk especially with renal impairment.",
+      "monitor": "Check potassium within 1-2 weeks of starting, then every 6-12 months.",
+      "evidence": "established",
+      "citation": "Palmer BF. N Engl J Med. 2004;351(6):585-592."
+    },
+    {
+      "drug": "ace_inhibitor",
+      "lab": "creatinine",
+      "effect": "increase",
+      "severity": "moderate",
+      "mechanism": "ACE inhibitors reduce glomerular filtration pressure. Up to 30% creatinine rise is expected and acceptable.",
+      "monitor": "Check creatinine 1-2 weeks after starting. >30% rise warrants evaluation.",
+      "evidence": "established",
+      "citation": "Bakris GL, Weir MR. Am J Med. 2000;109(2):164-167."
+    },
+    {
+      "drug": "arb",
+      "lab": "potassium",
+      "effect": "increase",
+      "severity": "major",
+      "mechanism": "ARBs reduce aldosterone via AT1 receptor blockade, same mechanism as ACEi.",
+      "monitor": "Check potassium within 1-2 weeks of starting, then periodically.",
+      "evidence": "established",
+      "citation": "Palmer BF. N Engl J Med. 2004;351(6):585-592."
+    },
+    {
+      "drug": "arb",
+      "lab": "creatinine",
+      "effect": "increase",
+      "severity": "moderate",
+      "mechanism": "ARBs reduce efferent arteriolar tone, may increase creatinine.",
+      "monitor": "Monitor creatinine 1-2 weeks after initiation.",
+      "evidence": "established",
+      "citation": "Bakris GL, Weir MR. Am J Med. 2000;109(2):164-167."
+    },
+    {
+      "drug": "thiazide",
+      "lab": "sodium",
+      "effect": "decrease",
+      "severity": "moderate",
+      "mechanism": "Thiazides block NaCl reabsorption in distal tubule. Hyponatremia in 4-11% of patients, higher in elderly.",
+      "monitor": "Check sodium within 1-2 weeks of starting and periodically.",
+      "evidence": "established",
+      "citation": "Liamis G et al. Am J Kidney Dis. 2008;52(1):144-153."
+    },
+    {
+      "drug": "thiazide",
+      "lab": "potassium",
+      "effect": "decrease",
+      "severity": "moderate",
+      "mechanism": "Thiazides increase renal potassium excretion via increased distal sodium delivery and aldosterone stimulation.",
+      "monitor": "Check potassium regularly. Supplement or add K-sparing agent if low.",
+      "evidence": "established",
+      "citation": "Ellison DH, Loffing J. Hypertension. 2009;54(3):313-320."
+    },
+    {
+      "drug": "thiazide",
+      "lab": "glucose",
+      "effect": "increase",
+      "severity": "moderate",
+      "mechanism": "Thiazides impair insulin secretion (hypokalemia-mediated) and increase insulin resistance. New-onset diabetes in ~2-5%.",
+      "monitor": "Monitor fasting glucose/HbA1c annually. Keep potassium normal.",
+      "evidence": "established",
+      "citation": "Carter BL et al. Hypertension. 2008;52(6):1030-1037."
+    },
+    {
+      "drug": "thiazide",
+      "lab": "uric_acid",
+      "effect": "increase",
+      "severity": "minor",
+      "mechanism": "Thiazides compete with uric acid for renal tubular secretion.",
+      "monitor": "Monitor uric acid if gout history. Consider alternative if symptomatic.",
+      "evidence": "established",
+      "citation": "Choi HK et al. BMJ. 2012;344:d8190."
+    },
+    {
+      "drug": "thiazide",
+      "lab": "calcium",
+      "effect": "increase",
+      "severity": "minor",
+      "mechanism": "Thiazides enhance renal calcium reabsorption in distal tubule.",
+      "monitor": "Usually beneficial (reduces kidney stones, helps bone density). Check calcium if symptoms of hypercalcemia.",
+      "evidence": "established",
+      "citation": "Rejnmark L et al. J Intern Med. 2001;250(1):45-53."
+    },
+    {
+      "drug": "corticosteroid",
+      "lab": "glucose",
+      "effect": "increase",
+      "severity": "major",
+      "mechanism": "Corticosteroids induce hepatic gluconeogenesis and peripheral insulin resistance. Dose-dependent hyperglycemia.",
+      "monitor": "Monitor glucose in all patients on >7.5mg prednisone equivalent. Diabetics need dose adjustment.",
+      "evidence": "established",
+      "citation": "Hwang JL, Weiss RE. Endocrinol Metab Clin. 2014;43(1):75-102."
+    },
+    {
+      "drug": "corticosteroid",
+      "lab": "calcium",
+      "effect": "decrease",
+      "severity": "moderate",
+      "mechanism": "Corticosteroids reduce intestinal calcium absorption and increase renal excretion. Major cause of drug-induced osteoporosis.",
+      "monitor": "Supplement calcium + vitamin D. DEXA scan if >3 months use.",
+      "evidence": "established",
+      "citation": "Van Staa TP et al. J Bone Miner Res. 2000;15(6):993-1000."
+    },
+    {
+      "drug": "corticosteroid",
+      "lab": "potassium",
+      "effect": "decrease",
+      "severity": "moderate",
+      "mechanism": "Mineralocorticoid activity of some corticosteroids increases renal potassium excretion.",
+      "monitor": "Monitor potassium on high-dose or long-term steroids.",
+      "evidence": "probable",
+      "citation": "Bia MJ, DeFronzo RA. Am J Med. 1981;71(5):811-827."
+    },
+    {
+      "drug": "ssri",
+      "lab": "sodium",
+      "effect": "decrease",
+      "severity": "moderate",
+      "mechanism": "SSRIs can cause SIADH-mediated hyponatremia. Risk highest in elderly, women, and with concurrent diuretics.",
+      "monitor": "Check sodium within 2-4 weeks of starting, especially in elderly.",
+      "evidence": "established",
+      "citation": "Jacob S, Bhatt RR. Am J Med. 2006;119(11):893-901."
+    },
+    {
+      "drug": "ssri",
+      "lab": "platelets",
+      "effect": "decrease",
+      "severity": "minor",
+      "mechanism": "SSRIs deplete platelet serotonin stores, impairing platelet aggregation. Increases bleeding time.",
+      "monitor": "Monitor for bruising/bleeding. Caution with concurrent anticoagulants.",
+      "evidence": "established",
+      "citation": "Andrade C et al. J Clin Psychiatry. 2010;71(12):1565-1575."
+    },
+    {
+      "drug": "lithium",
+      "lab": "tsh",
+      "effect": "increase",
+      "severity": "moderate",
+      "mechanism": "Lithium concentrates in thyroid, inhibiting thyroid hormone release. Hypothyroidism in 20-30% of long-term users.",
+      "monitor": "Check TSH every 6-12 months on lithium therapy.",
+      "evidence": "established",
+      "citation": "Bocchetta A et al. J Endocrinol Invest. 2001;24(5):334-338."
+    },
+    {
+      "drug": "lithium",
+      "lab": "creatinine",
+      "effect": "increase",
+      "severity": "moderate",
+      "mechanism": "Lithium causes chronic tubulointerstitial nephropathy. GFR decline in 20-40% of patients over 10+ years.",
+      "monitor": "Check creatinine/eGFR every 6 months on lithium.",
+      "evidence": "established",
+      "citation": "Gitlin M. Int J Bipolar Disord. 2016;4(1):27."
+    },
+    {
+      "drug": "methotrexate",
+      "lab": "alt",
+      "effect": "increase",
+      "severity": "major",
+      "mechanism": "Methotrexate causes hepatotoxicity through folate antagonism. Liver fibrosis risk increases with cumulative dose.",
+      "monitor": "Check liver enzymes every 4-8 weeks. Hold if ALT >3x ULN.",
+      "evidence": "established",
+      "citation": "Conway R et al. Ann Rheum Dis. 2015;74(12):e59."
+    },
+    {
+      "drug": "methotrexate",
+      "lab": "wbc",
+      "effect": "decrease",
+      "severity": "major",
+      "mechanism": "Methotrexate suppresses bone marrow, causing pancytopenia. Risk highest with renal impairment and folate deficiency.",
+      "monitor": "Check CBC every 4-8 weeks. Supplement folate (1mg/day).",
+      "evidence": "established",
+      "citation": "Weinblatt ME. N Engl J Med. 2013;368(1):10-18."
+    },
+    {
+      "drug": "beta_blocker",
+      "lab": "glucose",
+      "effect": "increase",
+      "severity": "minor",
+      "mechanism": "Beta-blockers (especially non-selective) can mask hypoglycemia symptoms and impair insulin secretion. May worsen glycemic control.",
+      "monitor": "Monitor glucose more frequently in diabetics. Cardioselective preferred.",
+      "evidence": "probable",
+      "citation": "Bangalore S et al. Lancet. 2007;370(9596):2313-2320."
+    },
+    {
+      "drug": "beta_blocker",
+      "lab": "triglycerides",
+      "effect": "increase",
+      "severity": "minor",
+      "mechanism": "Non-selective beta-blockers can raise triglycerides and lower HDL.",
+      "monitor": "Monitor lipid panel. Consider carvedilol/nebivolol (lipid-neutral).",
+      "evidence": "probable",
+      "citation": "Wiysonge CS et al. Cochrane Database Syst Rev. 2017;1:CD002003."
+    },
+    {
+      "drug": "warfarin",
+      "lab": "inr",
+      "effect": "alter",
+      "severity": "major",
+      "mechanism": "Warfarin's effect on INR is affected by diet (vitamin K), medications (CYP2C9/VKORC1), and illness. INR monitoring is essential.",
+      "monitor": "Check INR at least monthly. More frequently with diet/med changes.",
+      "evidence": "established",
+      "citation": "Ansell J et al. Chest. 2008;133(6 Suppl):160S-198S."
+    },
+    {
+      "drug": "sglt2i",
+      "lab": "glucose",
+      "effect": "decrease",
+      "severity": "moderate",
+      "mechanism": "SGLT2 inhibitors lower glucose by blocking renal glucose reabsorption. Risk of euglycemic DKA (normal glucose but high ketones).",
+      "monitor": "Monitor ketones during illness, surgery, or fasting. Hold SGLT2i 3 days before planned surgery.",
+      "evidence": "established",
+      "citation": "Goldenberg RM et al. Diabetes Care. 2016;39(12):2175-2180."
+    },
+    {
+      "drug": "sglt2i",
+      "lab": "potassium",
+      "effect": "increase",
+      "severity": "minor",
+      "mechanism": "SGLT2 inhibitors may modestly increase potassium via reduced distal sodium delivery and aldosterone suppression.",
+      "monitor": "Monitor potassium, especially if combined with ACEi/ARB.",
+      "evidence": "probable",
+      "citation": "Perkovic V et al. N Engl J Med. 2019;380(24):2295-2306."
+    },
+    {
+      "drug": "glp1_agonist",
+      "lab": "lipase",
+      "effect": "increase",
+      "severity": "minor",
+      "mechanism": "GLP-1 agonists can mildly elevate pancreatic enzymes (lipase/amylase) without clinical pancreatitis.",
+      "monitor": "Monitor if abdominal pain develops. Elevated lipase alone without symptoms does not require discontinuation.",
+      "evidence": "established",
+      "citation": "Steinberg WM et al. Diabetes Care. 2017;40(7):966-972."
+    },
+    {
+      "drug": "doac",
+      "lab": "hemoglobin",
+      "effect": "decrease",
+      "severity": "moderate",
+      "mechanism": "DOACs increase bleeding risk. Monitoring hemoglobin detects occult bleeding (GI, genitourinary).",
+      "monitor": "Check CBC every 6-12 months on DOAC therapy. Investigate unexplained hemoglobin drops.",
+      "evidence": "established",
+      "citation": "Heidbuchel H et al. Europace. 2015;17(10):1467-1507."
+    },
+    {
+      "drug": "doac",
+      "lab": "creatinine",
+      "effect": "alter",
+      "severity": "moderate",
+      "mechanism": "DOAC clearance depends on renal function. Dose adjustment required if creatinine rises / eGFR falls.",
+      "monitor": "Check creatinine/eGFR at least annually on DOACs. More frequently if >75 years or renal comorbidity.",
+      "evidence": "established",
+      "citation": "Heidbuchel H et al. Europace. 2015;17(10):1467-1507."
+    },
+    {
+      "drug": "snri",
+      "lab": "sodium",
+      "effect": "decrease",
+      "severity": "moderate",
+      "mechanism": "SNRIs (especially venlafaxine) can cause SIADH-mediated hyponatremia, similar to SSRIs.",
+      "monitor": "Check sodium within 2-4 weeks of starting, especially in elderly.",
+      "evidence": "established",
+      "citation": "De Picker L et al. Psychosomatics. 2014;55(6):536-547."
+    },
+    {
+      "drug": "fluoroquinolone",
+      "lab": "glucose",
+      "effect": "alter",
+      "severity": "moderate",
+      "mechanism": "Fluoroquinolones can cause both hypo- and hyperglycemia, especially in diabetics. Gatifloxacin worst offender.",
+      "monitor": "Monitor glucose in diabetics on fluoroquinolones.",
+      "evidence": "established",
+      "citation": "Park-Wyllie LY et al. Clin Infect Dis. 2006;42(5):657-668."
+    }
+  ]
+}

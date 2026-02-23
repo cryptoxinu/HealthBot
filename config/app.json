@@ -1,0 +1,6 @@
+{
+  "allowed_user_ids": [],
+  "rate_limit_per_minute": 20,
+  "max_pdf_size_bytes": 52428800,
+  "max_pdf_pages": 500
+}

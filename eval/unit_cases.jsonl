@@ -1,0 +1,35 @@
+{"id": "height_ft_01", "category": "unit_norm", "input": "6ft", "check_type": "equals", "expected": "182.88", "description": "6ft -> 182.88 cm"}
+{"id": "height_ft_02", "category": "unit_norm", "input": "5 feet", "check_type": "equals", "expected": "152.4", "description": "5 feet -> 152.4 cm"}
+{"id": "height_ftin_01", "category": "unit_norm", "input": "5'10\"", "check_type": "equals", "expected": "177.8", "description": "5'10\" -> 177.8 cm"}
+{"id": "height_ftin_02", "category": "unit_norm", "input": "5'10", "check_type": "equals", "expected": "177.8", "description": "5'10 (no quote) -> 177.8 cm"}
+{"id": "height_ftin_03", "category": "unit_norm", "input": "6 feet 2 inches", "check_type": "equals", "expected": "187.96", "description": "6 feet 2 inches -> 187.96 cm"}
+{"id": "height_ftin_04", "category": "unit_norm", "input": "5ft 11in", "check_type": "equals", "expected": "180.34", "description": "5ft 11in -> 180.34 cm"}
+{"id": "height_in_01", "category": "unit_norm", "input": "72 inches", "check_type": "equals", "expected": "182.88", "description": "72 inches -> 182.88 cm"}
+{"id": "height_in_02", "category": "unit_norm", "input": "72in", "check_type": "equals", "expected": "182.88", "description": "72in -> 182.88 cm"}
+{"id": "height_cm_01", "category": "unit_norm", "input": "183cm", "check_type": "equals", "expected": "183.0", "description": "183cm -> 183.0 cm"}
+{"id": "height_cm_02", "category": "unit_norm", "input": "183 cm", "check_type": "equals", "expected": "183.0", "description": "183 cm -> 183.0 cm"}
+{"id": "height_m_01", "category": "unit_norm", "input": "1.83m", "check_type": "equals", "expected": "183.0", "description": "1.83m -> 183.0 cm"}
+{"id": "height_dash_01", "category": "unit_norm", "input": "5-10", "check_type": "equals", "expected": "177.8", "description": "5-10 -> 177.8 cm"}
+{"id": "weight_lb_01", "category": "unit_norm", "input": "180 lbs", "check_type": "equals", "expected": "81.65", "description": "180 lbs -> 81.65 kg"}
+{"id": "weight_lb_02", "category": "unit_norm", "input": "180lbs", "check_type": "equals", "expected": "81.65", "description": "180lbs -> 81.65 kg"}
+{"id": "weight_lb_03", "category": "unit_norm", "input": "150 pounds", "check_type": "equals", "expected": "68.04", "description": "150 pounds -> 68.04 kg"}
+{"id": "weight_kg_01", "category": "unit_norm", "input": "80kg", "check_type": "equals", "expected": "80.0", "description": "80kg -> 80.0 kg"}
+{"id": "weight_kg_02", "category": "unit_norm", "input": "80 kg", "check_type": "equals", "expected": "80.0", "description": "80 kg -> 80.0 kg"}
+{"id": "lab_unit_01", "category": "unit_norm", "input": {"value": 5.5, "from": "mmol/l", "to": "mg/dl"}, "check_type": "equals", "expected": "99.1", "description": "Glucose: 5.5 mmol/L -> 99.1 mg/dL"}
+{"id": "lab_unit_02", "category": "unit_norm", "input": {"value": 100.0, "from": "mg/dl", "to": "mmol/l"}, "check_type": "equals", "expected": "5.55", "description": "Glucose: 100 mg/dL -> 5.55 mmol/L"}
+{"id": "lab_unit_03", "category": "unit_norm", "input": {"value": 88.4, "from": "umol/l", "to": "mg/dl"}, "check_type": "equals", "expected": "1.0", "description": "Creatinine: 88.4 umol/L -> 1.0 mg/dL"}
+{"id": "height_ft_03", "category": "unit_norm", "input": "6 foot", "check_type": "equals", "expected": "182.88", "description": "6 foot (singular) -> 182.88 cm"}
+{"id": "height_ftin_05", "category": "unit_norm", "input": "5 ft 0 in", "check_type": "equals", "expected": "152.4", "description": "5 ft 0 in -> 152.4 cm"}
+{"id": "height_ftin_06", "category": "unit_norm", "input": "6'0\"", "check_type": "equals", "expected": "182.88", "description": "6'0\" -> 182.88 cm"}
+{"id": "height_ftin_07", "category": "unit_norm", "input": "5 feet 0 inches", "check_type": "equals", "expected": "152.4", "description": "5 feet 0 inches -> 152.4 cm"}
+{"id": "height_m_02", "category": "unit_norm", "input": "1.75m", "check_type": "equals", "expected": "175.0", "description": "1.75m -> 175.0 cm"}
+{"id": "height_m_03", "category": "unit_norm", "input": "1.75 m", "check_type": "equals", "expected": "175.0", "description": "1.75 m (with space) -> 175.0 cm"}
+{"id": "height_cm_03", "category": "unit_norm", "input": "170cm", "check_type": "equals", "expected": "170.0", "description": "170cm -> 170.0 cm"}
+{"id": "height_in_03", "category": "unit_norm", "input": "65 inches", "check_type": "equals", "expected": "165.1", "description": "65 inches -> 165.1 cm"}
+{"id": "height_dash_02", "category": "unit_norm", "input": "6-2", "check_type": "equals", "expected": "187.96", "description": "6-2 -> 187.96 cm"}
+{"id": "weight_lb_04", "category": "unit_norm", "input": "200 lbs", "check_type": "equals", "expected": "90.72", "description": "200 lbs -> 90.72 kg"}
+{"id": "weight_lb_05", "category": "unit_norm", "input": "120 pounds", "check_type": "equals", "expected": "54.43", "description": "120 pounds -> 54.43 kg"}
+{"id": "weight_kg_03", "category": "unit_norm", "input": "65 kg", "check_type": "equals", "expected": "65.0", "description": "65 kg -> 65.0 kg"}
+{"id": "lab_unit_04", "category": "unit_norm", "input": {"value": 7.0, "from": "mmol/l", "to": "mg/dl"}, "check_type": "equals", "expected": "126.13", "description": "Glucose: 7.0 mmol/L -> 126.13 mg/dL"}
+{"id": "lab_unit_05", "category": "unit_norm", "input": {"value": 200.0, "from": "mg/dl", "to": "mmol/l"}, "check_type": "equals", "expected": "11.1", "description": "Glucose: 200 mg/dL -> 11.1 mmol/L"}
+{"id": "weight_lb_06", "category": "unit_norm", "input": "180 LBS", "check_type": "equals", "expected": "81.65", "description": "180 LBS (uppercase) -> 81.65 kg"}
