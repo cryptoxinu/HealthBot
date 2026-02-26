@@ -264,6 +264,11 @@ class VaultBackup:
         for f in files:
             if f not in keep:
                 try:
+                    size = f.stat().st_size
+                    f.write_bytes(os.urandom(min(size, 1024 * 1024)))
+                except OSError:
+                    pass
+                try:
                     f.unlink()
                     deleted += 1
                     logger.info("Pruned old backup: %s", f.name)

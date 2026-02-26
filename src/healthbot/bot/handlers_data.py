@@ -930,7 +930,7 @@ class DataHandlers:
                 type(e).__name__, str(e), provider=name.lower(),
                 hint=f"{name} OAuth URL generation failed",
             )
-            await update.message.reply_text(f"{name} auth error: {e}")
+            await update.message.reply_text(f"{name} auth error: {type(e).__name__}")
             return
 
         await update.message.reply_text(
@@ -1518,7 +1518,7 @@ class DataHandlers:
                 await update.message.reply_text(result.validation.summary())
         except Exception as e:
             logger.error("AI export error: %s", e)
-            await update.message.reply_text(f"Export failed: {type(e).__name__}: {e}")
+            await update.message.reply_text(f"Export failed: {type(e).__name__}")
 
     # ── Document retrieval ──────────────────────────────────────────
 

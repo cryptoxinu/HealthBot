@@ -752,7 +752,7 @@ class CleanSyncEngine:
                     "clean_providers", "clean_appointments",
                     "clean_health_records_ext",
                 ]:
-                    self._clean.conn.execute(f"DELETE FROM {table}")
+                    self._clean.conn.execute(f'DELETE FROM "{table}"')
                 # Clear anonymization cache too (rebuild = re-anonymize all)
                 self._clean.conn.execute("DELETE FROM clean_anon_cache")
                 self._clean.set_meta("last_sync_at", "")

@@ -10,7 +10,8 @@ import io
 import json
 import logging
 import uuid
-import xml.etree.ElementTree as ET
+
+import defusedxml.ElementTree as ET  # noqa: N817
 
 from healthbot.data.db import HealthDB
 from healthbot.data.models import LabResult, Medication

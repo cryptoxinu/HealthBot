@@ -7,9 +7,9 @@ from __future__ import annotations
 
 import asyncio
 import time
-import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 
+import defusedxml.ElementTree as ET  # noqa: N817
 import httpx
 
 from healthbot.config import Config

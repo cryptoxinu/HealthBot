@@ -15,10 +15,11 @@ import io
 import json
 import logging
 import uuid
-import xml.etree.ElementTree as ET
 import zipfile
 from dataclasses import dataclass, field
 from datetime import datetime
+
+import defusedxml.ElementTree as ET  # noqa: N817
 
 from healthbot.data.db import HealthDB
 from healthbot.data.models import LabResult, VitalSign, Workout

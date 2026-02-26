@@ -8,7 +8,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from healthbot.bot.handler_core import HandlerCore
-from healthbot.bot.middleware import require_auth, require_unlocked
+from healthbot.bot.middleware import rate_limited, require_auth, require_unlocked
 from healthbot.bot.typing_helper import TypingIndicator
 
 logger = logging.getLogger("healthbot")
@@ -147,6 +147,7 @@ class SessionHandlers:
         )
 
     @require_auth
+    @rate_limited(max_per_minute=5)
     async def unlock(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle /unlock command. Accepts inline passphrase: /unlock <passphrase>."""
         # If passphrase provided inline, delete the message and process immediately
@@ -240,6 +241,7 @@ class SessionHandlers:
         await update.message.reply_text(f"Backup created: {path.name}")
 
     @require_unlocked
+    @rate_limited(max_per_minute=5)
     async def rekey(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle /rekey — two-step passphrase change.
 
