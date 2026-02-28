@@ -323,10 +323,29 @@ class MessageRouter:
                 except Exception:
                     pass
 
+            from healthbot._version import __version__
+            version_line = f"v{__version__}"
+            try:
+                import os
+                import subprocess
+                repo_dir = os.path.dirname(os.path.dirname(
+                    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                ))
+                result = subprocess.run(
+                    ["git", "rev-parse", "--short", "HEAD"],
+                    capture_output=True, text=True, timeout=3,
+                    cwd=repo_dir,
+                )
+                if result.returncode == 0:
+                    version_line += f" ({result.stdout.strip()})"
+            except Exception:
+                pass
+
             if connected_line:
                 await update.effective_chat.send_message(
                     f"Vault unlocked. Session active for 30 minutes.\n"
-                    f"{connected_line}\n\n"
+                    f"{connected_line}\n"
+                    f"Running: {version_line}\n\n"
                     "Quick actions:\n"
                     "  /insights — Health dashboard\n"
                     "  /upload — Upload a lab PDF\n"
@@ -336,7 +355,8 @@ class MessageRouter:
                 )
             else:
                 await update.effective_chat.send_message(
-                    "Vault unlocked. Session active for 30 minutes.\n\n"
+                    f"Vault unlocked. Session active for 30 minutes.\n"
+                    f"Running: {version_line}\n\n"
                     "Quick actions:\n"
                     "  /insights — Health dashboard\n"
                     "  /upload — Upload a lab PDF\n"
