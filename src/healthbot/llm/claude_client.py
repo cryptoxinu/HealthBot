@@ -64,9 +64,19 @@ def _build_subprocess_env(api_key: str | None = None) -> dict[str, str]:
     """Build minimal subprocess env — PATH + HOME + USER + optional API key.
 
     USER is required for macOS Keychain access (Claude CLI auth).
+    Ensures common Claude CLI install locations are in PATH even under
+    launchd's restricted environment.
     """
+    path = os.environ.get("PATH", "")
+    # Ensure common Claude CLI install locations are in PATH
+    for extra in [
+        str(Path.home() / ".npm-global" / "bin"),
+        "/opt/homebrew/bin",
+    ]:
+        if extra not in path:
+            path = f"{extra}:{path}"
     env = {
-        "PATH": os.environ.get("PATH", ""),
+        "PATH": path,
         "HOME": os.environ.get("HOME", ""),
         "USER": os.environ.get("USER", ""),
     }
@@ -90,6 +100,8 @@ def resolve_cli(cli_path: str | Path | None = None) -> Path | None:
         Path.home() / ".local" / "bin" / "claude",
         Path("/usr/local/bin/claude"),
         Path.home() / ".claude" / "local" / "claude",
+        Path.home() / ".npm-global" / "bin" / "claude",   # npm global install
+        Path("/opt/homebrew/bin/claude"),                    # Homebrew
     ]
     for p in candidates:
         if p.exists():
@@ -271,12 +283,18 @@ class ClaudeClient:
 
         if result.returncode != 0:
             stderr = result.stderr.strip()[:200] if result.stderr else ""
+            stdout = result.stdout.strip()[:200] if result.stdout else ""
             if self._is_auth_error(stderr):
                 raise CLIAuthError(
                     "Claude CLI is not authenticated. "
                     "Run 'claude login' in your terminal."
                 )
-            logger.error("Claude CLI error (rc=%d): %s", result.returncode, stderr)
+            logger.error(
+                "Claude CLI error (rc=%d): stderr=%s stdout=%s",
+                result.returncode,
+                stderr or "(empty)",
+                stdout or "(empty)",
+            )
             lower_stderr = stderr.lower()
             if any(w in lower_stderr for w in ("rate limit", "429", "too many")):
                 return (

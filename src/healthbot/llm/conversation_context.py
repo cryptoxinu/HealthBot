@@ -7,8 +7,12 @@ Split from claude_conversation.py to stay under 400 lines per file.
 from __future__ import annotations
 
 import logging
+import time
 
 logger = logging.getLogger("healthbot")
+
+# Cache TTL for user memory (seconds)
+_MEMORY_CACHE_TTL = 60
 
 # Max conversation history entries to include in prompt
 _MAX_HISTORY = 20
@@ -302,19 +306,58 @@ def append_research_evidence(mgr, parts: list[str], query: str) -> None:
     parts.append("")
 
 
+def _apply_confidence_decay(mem: dict) -> float:
+    """Apply age-based confidence decay for claude_inferred memories.
+
+    Display-only — does not modify the stored confidence.
+    >90 days old: confidence * 0.8
+    >180 days old: confidence * 0.6
+    """
+    conf = mem.get("confidence", 1.0)
+    if mem.get("source") != "claude_inferred":
+        return conf
+
+    created = mem.get("created_at", "")
+    if not created:
+        return conf
+
+    try:
+        from datetime import UTC, datetime
+
+        dt = datetime.fromisoformat(created)
+        # Handle naive timestamps (no timezone info) by assuming UTC
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=UTC)
+        age_days = (datetime.now(UTC) - dt).days
+        if age_days > 180:
+            return conf * 0.6
+        if age_days > 90:
+            return conf * 0.8
+    except Exception:
+        pass
+    return conf
+
+
 def append_user_memory(mgr, parts: list[str]) -> None:
     """Add user memory from Clean DB to the prompt context.
 
     Preferences are extracted into their own prominent section so Claude
     applies them to every response. Memories are cached per-session
-    and invalidated when a MEMORY block writes new data.
+    with a TTL and invalidated when a MEMORY block writes new data.
+    Inferred memories older than 90/180 days show decayed confidence.
     """
-    if mgr._cached_user_memory is None:
+    now = time.monotonic()
+    cache_expired = (
+        hasattr(mgr, "_memory_cache_ts")
+        and (now - mgr._memory_cache_ts) > _MEMORY_CACHE_TTL
+    )
+    if mgr._cached_user_memory is None or cache_expired:
         clean_db = mgr._get_clean_db()
         if not clean_db:
             return
         try:
             mgr._cached_user_memory = clean_db.get_user_memory() or []
+            mgr._memory_cache_ts = now
         except Exception:
             return
         finally:
@@ -342,7 +385,7 @@ def append_user_memory(mgr, parts: list[str]) -> None:
         for cat in sorted(by_cat.keys()):
             parts.append(f"  {cat.replace('_', ' ').title()}:")
             for mem in by_cat[cat]:
-                conf = mem.get("confidence", 1.0)
+                conf = _apply_confidence_decay(mem)
                 marker = "" if conf >= 0.9 else f" (~{conf:.0%} confidence)"
                 parts.append(f"  - {mem['key']}: {mem['value']}{marker}")
         parts.append("")

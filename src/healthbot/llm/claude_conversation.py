@@ -103,6 +103,7 @@ class ClaudeConversationManager:
         self._status_builder: object | None = None
         self._on_system_improvement: object | None = None  # Callable[[dict], None]
         self._cached_user_memory: list[dict] | None = None
+        self._memory_feedback: list[str] = []
 
     def load(self) -> None:
         """Load context.md, health data, and memory from disk."""
@@ -134,6 +135,7 @@ class ClaudeConversationManager:
         """Process a message through Claude CLI. Returns (response, pii_warnings)."""
         if user_id is not None and user_id > 0:
             self._user_id = user_id
+        self._memory_feedback.clear()
         system, prompt = build_prompt(self, user_text)
         raw_response = self._claude.send(prompt=prompt, system=system)
 
@@ -148,6 +150,11 @@ class ClaudeConversationManager:
         quality_note = format_quality_notifications(self)
         if quality_note:
             response = f"{response}\n\n---\n{quality_note}"
+
+        # Append memory feedback footer
+        if self._memory_feedback:
+            footer = "\n".join(self._memory_feedback)
+            response = f"{response}\n\n---\n{footer}"
 
         self._history.append({"role": "user", "content": user_text})
         self._history.append({"role": "assistant", "content": response})
@@ -374,7 +381,16 @@ class ClaudeConversationManager:
                 data = json.loads(match.group(2))
                 data["_type"] = block_type
                 blocks.append(data)
-            except (json.JSONDecodeError, ValueError):
+            except (json.JSONDecodeError, ValueError) as exc:
+                raw_block = match.group(2)[:200]
+                logger.warning(
+                    "Malformed %s block (skipped): %s — %s",
+                    block_type, exc, raw_block,
+                )
+                if block_type == "MEMORY":
+                    self._memory_feedback.append(
+                        f"[Failed to parse MEMORY block: {exc}]",
+                    )
                 continue
 
         # Strip all structured blocks from user-visible response
@@ -393,13 +409,30 @@ class ClaudeConversationManager:
                 "Blocked %s block with PII: %s",
                 block_type, text_to_check[:40],
             )
+            if block_type == "MEMORY":
+                key = block.get("key", "?")
+                self._memory_feedback.append(
+                    f"[Could not remember '{key}' — contains sensitive data]",
+                )
             return
 
         # Route to specialized systems (best effort)
         try:
+            if block_type == "MEMORY":
+                from healthbot.llm.conversation_routing import handle_memory_block
+                feedback = handle_memory_block(self, block)
+                if feedback:
+                    self._memory_feedback.append(feedback)
+                # Skip the general route_block call for MEMORY — already handled
+                return
             route_block(self, block_type, block)
         except Exception as exc:
             logger.warning("Failed to route %s block: %s", block_type, exc)
+            if block_type == "MEMORY":
+                key = block.get("key", "?")
+                self._memory_feedback.append(
+                    f"[Failed to remember '{key}': {exc}]",
+                )
 
         # New block types have dedicated structured storage — skip flat memory
         if block_type in ("MEMORY", "CORRECTION", "SYSTEM_IMPROVEMENT",

@@ -1,4 +1,4 @@
-"""Tests for chart_generator — in-memory PNG generation."""
+"""Tests for chart_generator and chart_generator_ext — in-memory PNG generation."""
 from __future__ import annotations
 
 from healthbot.export.chart_generator import (
@@ -7,6 +7,14 @@ from healthbot.export.chart_generator import (
     trend_chart,
     workout_summary_chart,
 )
+from healthbot.export.chart_generator_ext import (
+    composite_score_chart,
+    correlation_scatter_chart,
+    lab_heatmap_chart,
+    sleep_architecture_chart,
+    wearable_sparklines_chart,
+)
+from healthbot.reasoning.health_score import CompositeHealthScore
 from healthbot.reasoning.insights import DomainScore
 from healthbot.reasoning.trends import TrendResult
 
@@ -151,3 +159,161 @@ class TestWorkoutSummaryChart:
 
     def test_returns_none_for_empty(self):
         assert workout_summary_chart({}) is None
+
+
+# ── Extended chart tests (chart_generator_ext.py) ─────────────────
+
+
+def _make_composite_score(**overrides) -> CompositeHealthScore:
+    defaults = {
+        "overall": 78.5,
+        "grade": "B",
+        "breakdown": {
+            "biomarker": 85.0,
+            "recovery": 70.0,
+            "trend_trajectory": 60.0,
+            "anomaly_penalty": 100.0,
+        },
+        "trend_direction": "improving",
+        "limiting_factors": [],
+        "data_coverage": {"biomarker": True, "recovery": True},
+    }
+    defaults.update(overrides)
+    return CompositeHealthScore(**defaults)
+
+
+def _make_wearable_data(days: int = 14) -> list[dict]:
+    rows = []
+    for i in range(days):
+        rows.append({
+            "_date": f"2025-01-{i + 1:02d}",
+            "hrv": 45 + i,
+            "rhr": 62 - i * 0.3,
+            "sleep_score": 70 + i,
+            "recovery_score": 60 + i * 2,
+            "strain": 10 + i * 0.5,
+            "sleep_duration_min": 420 + i * 5,
+            "deep_min": 60 + i,
+            "rem_min": 90 + i,
+        })
+    return rows
+
+
+class TestCompositeScoreChart:
+    def test_returns_valid_png(self):
+        result = composite_score_chart(_make_composite_score())
+        assert result is not None
+        assert result[:4] == _PNG_HEADER
+
+    def test_returns_none_for_none(self):
+        assert composite_score_chart(None) is None
+
+    def test_returns_none_for_empty_breakdown(self):
+        s = _make_composite_score(overall=0, breakdown={})
+        assert composite_score_chart(s) is None
+
+    def test_high_score(self):
+        s = _make_composite_score(overall=95, grade="A+")
+        result = composite_score_chart(s)
+        assert result is not None
+
+    def test_low_score(self):
+        s = _make_composite_score(overall=30, grade="F")
+        result = composite_score_chart(s)
+        assert result is not None
+
+
+class TestWearableSparklines:
+    def test_returns_valid_png(self):
+        data = _make_wearable_data(14)
+        result = wearable_sparklines_chart(data)
+        assert result is not None
+        assert result[:4] == _PNG_HEADER
+
+    def test_returns_none_for_empty(self):
+        assert wearable_sparklines_chart([]) is None
+
+    def test_custom_metrics(self):
+        data = _make_wearable_data(10)
+        result = wearable_sparklines_chart(data, metrics=["hrv", "rhr"])
+        assert result is not None
+
+    def test_few_days(self):
+        data = _make_wearable_data(3)
+        result = wearable_sparklines_chart(data, days=3)
+        assert result is not None
+
+
+class TestSleepArchitecture:
+    def test_returns_valid_png(self):
+        data = _make_wearable_data(30)
+        result = sleep_architecture_chart(data)
+        assert result is not None
+        assert result[:4] == _PNG_HEADER
+
+    def test_returns_none_for_empty(self):
+        assert sleep_architecture_chart([]) is None
+
+    def test_returns_none_for_no_sleep_data(self):
+        data = [{"_date": "2025-01-01", "hrv": 50}]
+        assert sleep_architecture_chart(data) is None
+
+    def test_custom_days(self):
+        data = _make_wearable_data(7)
+        result = sleep_architecture_chart(data, days=7)
+        assert result is not None
+
+
+class TestLabHeatmap:
+    def test_returns_valid_png(self):
+        lab_data = [
+            {"test_name": "LDL", "date": "2024-01-15", "value": 100, "ref_low": 0, "ref_high": 130},
+            {"test_name": "LDL", "date": "2024-06-15", "value": 145, "ref_low": 0, "ref_high": 130},
+            {"test_name": "HDL", "date": "2024-01-15", "value": 55, "ref_low": 40, "ref_high": 100},
+            {"test_name": "HDL", "date": "2024-06-15", "value": 60, "ref_low": 40, "ref_high": 100},
+        ]
+        result = lab_heatmap_chart(lab_data)
+        assert result is not None
+        assert result[:4] == _PNG_HEADER
+
+    def test_returns_none_for_empty(self):
+        assert lab_heatmap_chart([]) is None
+
+    def test_returns_none_for_single_entry(self):
+        lab_data = [
+            {"test_name": "LDL", "date": "2024-01-15", "value": 100},
+        ]
+        assert lab_heatmap_chart(lab_data) is None
+
+    def test_with_reference_ranges(self):
+        lab_data = [
+            {"test_name": "TSH", "date": "2024-01-01", "value": 2.5},
+            {"test_name": "TSH", "date": "2024-06-01", "value": 5.5},
+        ]
+        ref = {"TSH": (0.4, 4.0)}
+        result = lab_heatmap_chart(lab_data, reference_ranges=ref)
+        assert result is not None
+
+
+class TestCorrelationScatter:
+    def test_returns_valid_png(self):
+        x = [1.0, 2.0, 3.0, 4.0, 5.0]
+        y = [2.0, 4.0, 6.0, 8.0, 10.0]
+        result = correlation_scatter_chart(x, y, "HRV", "Sleep Score", r_value=0.99)
+        assert result is not None
+        assert result[:4] == _PNG_HEADER
+
+    def test_returns_none_for_empty(self):
+        assert correlation_scatter_chart([], [], "X", "Y") is None
+
+    def test_returns_none_for_too_few_points(self):
+        assert correlation_scatter_chart([1.0, 2.0], [3.0, 4.0], "X", "Y") is None
+
+    def test_returns_none_for_length_mismatch(self):
+        assert correlation_scatter_chart([1.0, 2.0, 3.0], [4.0, 5.0], "X", "Y") is None
+
+    def test_no_r_value(self):
+        x = [1.0, 2.0, 3.0, 4.0]
+        y = [10.0, 8.0, 6.0, 4.0]
+        result = correlation_scatter_chart(x, y, "Strain", "Recovery")
+        assert result is not None

@@ -48,6 +48,9 @@ class Handlers:
         "timeline": "_health", "report": "_health", "emergency": "_health",
         "workouts": "_health", "weeklyreport": "_health",
         "monthlyreport": "_health", "analyze": "_health",
+        "score": "_health", "wearable_chart": "_health",
+        "sleep_chart": "_health", "lab_heatmap": "_health",
+        "scatter": "_health", "trends_chart": "_health",
         # Medical tracking commands
         "doctorprep": "_medical", "research_cloud": "_medical",
         "doctorpacket": "_medical", "interactions": "_medical",

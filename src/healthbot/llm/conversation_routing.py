@@ -27,6 +27,17 @@ _LTM_DEMOGRAPHIC_MAP: dict[str, tuple[str, re.Pattern[str]]] = {
     "nickname":  ("Nickname: {value}",       re.compile(r"nickname\s*[:=]", re.IGNORECASE)),
 }
 
+# MEMORY category → LTM category mapping for non-demographic keys
+_MEMORY_CATEGORY_TO_LTM: dict[str, str] = {
+    "medical_context": "condition",
+    "supplement": "medication",
+    "lifestyle": "lifestyle",
+    "preference": "preference",
+    "goal": "goal",
+    "demographic": "demographic",
+    "general": "user_memory",
+}
+
 
 def get_clean_db(mgr):
     """Create a fresh CleanDB connection.
@@ -158,38 +169,67 @@ def route_block(mgr, block_type: str, block: dict) -> None:
         handle_data_quality(mgr, block)
 
 
-def handle_memory_block(mgr, block: dict) -> None:
+def handle_memory_block(mgr, block: dict) -> str | None:
     """Route a MEMORY block to CleanDB user memory.
 
     Also updates clean_demographics when demographic keys are detected
     (height, weight, age, sex) so /aboutme reflects the latest values.
+
+    Returns a feedback string describing what happened, or None on failure.
     """
     clean_db = mgr._get_clean_db()
     if not clean_db:
-        return
+        return None
     try:
         key = block["key"].strip().lower().replace(" ", "_")
         value = block["value"]
+        category = block.get("category", "general")
         if mgr._fw.contains_phi(value):
             logger.warning("MEMORY block contains PHI, blocked: %s", key)
-            return
+            return f"[Could not remember '{key}' — contains sensitive data]"
+
+        # Contradiction detection: check existing value before upsert
+        old_value = None
+        try:
+            existing = clean_db.get_user_memory()
+            for mem in (existing or []):
+                if mem.get("key") == key:
+                    old_value = mem.get("value")
+                    break
+        except Exception:
+            pass
+
         supersedes = block.get("supersedes", "")
         if supersedes:
             clean_db.mark_memory_superseded(supersedes.strip().lower(), key)
         clean_db.upsert_user_memory(
             key=key,
             value=value,
-            category=block.get("category", "general"),
+            category=category,
             confidence=block.get("confidence", 1.0),
             source=block.get("source", "claude_inferred"),
         )
         # Update clean_demographics for demographic keys
         sync_memory_to_demographics(mgr, clean_db, key, value)
         # Update Raw Vault LTM so /aboutme reads the latest value
-        sync_memory_to_ltm(mgr, key, value)
+        sync_memory_to_ltm(mgr, key, value, category=category)
+
+        # Build feedback
+        if old_value and old_value != value:
+            feedback = f"Updated: {key} (was: {old_value})"
+            logger.info(
+                "MEMORY contradiction resolved: %s changed from %r to %r",
+                key, old_value, value,
+            )
+        else:
+            feedback = f"Remembered: {key}"
+        mgr.invalidate_memory_cache()
+        return feedback
+    except Exception as exc:
+        logger.warning("Failed to store MEMORY block '%s': %s", block.get("key", "?"), exc)
+        return f"[Failed to remember '{block.get('key', '?')}': {exc}]"
     finally:
         clean_db.close()
-    mgr.invalidate_memory_cache()
 
 
 def sync_memory_to_demographics(mgr, clean_db, key: str, value: str) -> None:
@@ -239,29 +279,57 @@ def sync_memory_to_demographics(mgr, clean_db, key: str, value: str) -> None:
             logger.warning("Failed to sync memory to demographics: %s", exc)
 
 
-def sync_memory_to_ltm(mgr, key: str, value: str) -> None:
-    """Update Raw Vault LTM demographic fact to match a MEMORY block."""
-    entry = _LTM_DEMOGRAPHIC_MAP.get(key.lower())
-    if not entry:
-        return
-    fmt, pattern = entry
-    new_fact = fmt.format(value=value)
+def sync_memory_to_ltm(
+    mgr, key: str, value: str, category: str = "demographic",
+) -> None:
+    """Update Raw Vault LTM fact to match a MEMORY block.
+
+    Handles both demographic keys (with format patterns) and general
+    MEMORY keys (stored as "Key Title: value" in the appropriate LTM category).
+    """
     user_id = mgr._user_id or 0
     db = mgr._db
     if db is None:
         return
+
+    # Demographic keys use format patterns
+    entry = _LTM_DEMOGRAPHIC_MAP.get(key.lower())
+    if entry:
+        fmt, pattern = entry
+        new_fact = fmt.format(value=value)
+        try:
+            facts = db.get_ltm_by_category(user_id, "demographic")
+            for fact in facts:
+                if pattern.search(fact.get("fact", "")):
+                    db.update_ltm(fact["_id"], new_fact)
+                    logger.info("Updated LTM demographic fact %s → %r", fact["_id"], new_fact)
+                    return
+            # No existing fact found — create one
+            fact_id = db.insert_ltm(user_id, "demographic", new_fact, source="claude_memory")
+            logger.info("Inserted new LTM demographic fact %s → %r", fact_id, new_fact)
+        except Exception as exc:
+            logger.warning("Failed to sync memory to LTM: %s", exc)
+        return
+
+    # Non-demographic keys: store in appropriate LTM category
+    ltm_category = _MEMORY_CATEGORY_TO_LTM.get(category, "user_memory")
+    key_title = key.replace("_", " ").title()
+    new_fact = f"{key_title}: {value}"
+    # Build a pattern to find existing LTM entries with the same key prefix
+    key_pattern = re.compile(rf"^{re.escape(key_title)}\s*:", re.IGNORECASE)
+
     try:
-        facts = db.get_ltm_by_category(user_id, "demographic")
+        facts = db.get_ltm_by_category(user_id, ltm_category)
         for fact in facts:
-            if pattern.search(fact.get("fact", "")):
+            if key_pattern.search(fact.get("fact", "")):
                 db.update_ltm(fact["_id"], new_fact)
-                logger.info("Updated LTM demographic fact %s → %r", fact["_id"], new_fact)
+                logger.info("Updated LTM %s fact %s → %r", ltm_category, fact["_id"], new_fact)
                 return
-        # No existing fact found — create one
-        fact_id = db.insert_ltm(user_id, "demographic", new_fact, source="claude_memory")
-        logger.info("Inserted new LTM demographic fact %s → %r", fact_id, new_fact)
+        # No existing fact — create one
+        fact_id = db.insert_ltm(user_id, ltm_category, new_fact, source="claude_memory")
+        logger.info("Inserted new LTM %s fact %s → %r", ltm_category, fact_id, new_fact)
     except Exception as exc:
-        logger.warning("Failed to sync memory to LTM: %s", exc)
+        logger.warning("Failed to sync memory to LTM (%s): %s", ltm_category, exc)
 
 
 def reconcile_demographics_to_ltm(mgr) -> None:

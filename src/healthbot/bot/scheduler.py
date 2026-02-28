@@ -269,12 +269,14 @@ class AlertScheduler:
         Sends briefing immediately (all local DB), then syncs WHOOP after.
         Wearable alerts and deep analysis run on the periodic schedule.
         """
+        import asyncio
+
         self._sent_keys.clear()
         if not self._km.is_unlocked:
             return
 
-        # Send briefing first — instant (local DB queries only)
-        briefing = self._build_welcome_briefing()
+        # Build briefing in a thread — DB queries on large vaults can block
+        briefing = await asyncio.to_thread(self._build_welcome_briefing)
         if briefing:
             for page in paginate(briefing):
                 await self._tracked_send(bot, page)

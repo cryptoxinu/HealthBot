@@ -32,6 +32,7 @@ class PdfReportData:
     medication_items: list[str] = field(default_factory=list)
     action_items: list[str] = field(default_factory=list)
     goal_items: list[str] = field(default_factory=list)
+    memory_items: list[str] = field(default_factory=list)
     # Charts (PNG bytes)
     dashboard_chart: bytes | None = None
     trend_charts: list[bytes] = field(default_factory=list)
@@ -43,18 +44,28 @@ class WeeklyPdfReportGenerator:
     def __init__(self, db: HealthDB) -> None:
         self._db = db
 
-    def generate_weekly(self, user_id: int, days: int = 7) -> bytes:
+    def generate_weekly(
+        self, user_id: int, days: int = 7,
+        memory_items: list[str] | None = None,
+    ) -> bytes:
         """Generate a weekly PDF report."""
         end = date.today()
         start = end - timedelta(days=days)
         data = self._gather_data(user_id, "weekly", start, end)
+        if memory_items:
+            data.memory_items = memory_items
         return self._render_pdf(data)
 
-    def generate_monthly(self, user_id: int, days: int = 30) -> bytes:
+    def generate_monthly(
+        self, user_id: int, days: int = 30,
+        memory_items: list[str] | None = None,
+    ) -> bytes:
         """Generate a monthly PDF report."""
         end = date.today()
         start = end - timedelta(days=days)
         data = self._gather_data(user_id, "monthly", start, end)
+        if memory_items:
+            data.memory_items = memory_items
         return self._render_pdf(data)
 
     def _gather_data(
@@ -281,6 +292,13 @@ class WeeklyPdfReportGenerator:
         if data.goal_items:
             self._section_header(pdf, "Health Goals")
             for item in data.goal_items:
+                self._body_text(pdf, item)
+            pdf.ln(4)
+
+        # Memory Summary
+        if data.memory_items:
+            self._section_header(pdf, "What I Know About You")
+            for item in data.memory_items:
                 self._body_text(pdf, item)
             pdf.ln(4)
 

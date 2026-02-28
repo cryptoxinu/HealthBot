@@ -2261,6 +2261,14 @@ class DataHandlers:
         for page in paginate(msg):
             await update.message.reply_text(page)
 
+        # Genetic risk chart
+        if findings:
+            from healthbot.export.chart_generator import genetic_risk_chart
+            chart_bytes = genetic_risk_chart(findings)
+            if chart_bytes:
+                import io as iomod
+                await update.message.reply_photo(photo=iomod.BytesIO(chart_bytes))
+
     async def _genetics_risks(
         self, update: Update, db: object, user_id: int,
     ) -> None:

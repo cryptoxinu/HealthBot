@@ -45,6 +45,8 @@ CREATE INDEX IF NOT EXISTS idx_obs_type ON observations(record_type);
 CREATE INDEX IF NOT EXISTS idx_obs_date ON observations(date_effective);
 CREATE INDEX IF NOT EXISTS idx_obs_triage ON observations(triage_level);
 CREATE INDEX IF NOT EXISTS idx_obs_name ON observations(canonical_name);
+CREATE INDEX IF NOT EXISTS idx_obs_type_name_date
+  ON observations(record_type, canonical_name, date_effective DESC);
 
 CREATE TABLE IF NOT EXISTS medications (
     med_id TEXT PRIMARY KEY,

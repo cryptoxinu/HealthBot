@@ -285,6 +285,12 @@ def create_application(
     app.add_handler(CommandHandler("weeklyreport", handlers.weeklyreport))
     app.add_handler(CommandHandler("monthlyreport", handlers.monthlyreport))
     app.add_handler(CommandHandler("analyze", handlers.analyze))
+    app.add_handler(CommandHandler("score", handlers.score))
+    app.add_handler(CommandHandler("wearable_chart", handlers.wearable_chart))
+    app.add_handler(CommandHandler("sleep_chart", handlers.sleep_chart))
+    app.add_handler(CommandHandler("lab_heatmap", handlers.lab_heatmap))
+    app.add_handler(CommandHandler("scatter", handlers.scatter))
+    app.add_handler(CommandHandler("trends_chart", handlers.trends_chart))
 
     # Callback query handlers (inline keyboard buttons)
     app.add_handler(CallbackQueryHandler(

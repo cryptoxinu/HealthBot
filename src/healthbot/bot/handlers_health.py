@@ -58,6 +58,8 @@ class HealthHandlers:
         """Handle /memory command — view or manage user memories.
 
         /memory                  — show all memories grouped by category
+        /memory search <term>    — search memories by keyword
+        /memory export           — send all memories as .txt file
         /memory clear <key>      — delete one entry
         /memory clear all        — delete all entries
         /memory corrections      — show corrections from Clean DB
@@ -83,11 +85,15 @@ class HealthHandlers:
                 await self._memory_corrections(update, clean_db)
             elif args[0].lower() == "improvements":
                 await self._memory_improvements(update, clean_db)
+            elif args[0].lower() == "search":
+                await self._memory_search(update, args, clean_db)
+            elif args[0].lower() == "export":
+                await self._memory_export(update, clean_db)
             elif args[0].lower() in ("approve", "reject"):
                 await self._memory_approve_reject(update, args, clean_db)
             else:
                 await update.message.reply_text(
-                    "Usage: /memory [clear|corrections|improvements|approve|reject]"
+                    "Usage: /memory [clear|search|export|corrections|improvements|approve|reject]"
                 )
         finally:
             clean_db.close()
@@ -145,6 +151,133 @@ class HealthHandlers:
             await update.message.reply_text(
                 "Usage: /memory clear <key> or /memory clear all"
             )
+
+    async def _memory_search(
+        self, update: Update, args: list[str], clean_db,
+    ) -> None:
+        """Handle /memory search <term> — case-insensitive keyword search."""
+        if len(args) < 2:
+            await update.message.reply_text(
+                "Usage: /memory search <term>\n"
+                "Example: /memory search supplement"
+            )
+            return
+
+        term = " ".join(args[1:]).lower()
+        memories = clean_db.get_user_memory()
+        matches = [
+            mem for mem in memories
+            if term in mem.get("key", "").lower()
+            or term in mem.get("value", "").lower()
+            or term in mem.get("category", "").lower()
+        ]
+
+        if not matches:
+            await update.message.reply_text(
+                f"No memories matching '{term}'."
+            )
+            return
+
+        by_cat: dict[str, list[dict]] = {}
+        for mem in matches:
+            by_cat.setdefault(mem.get("category", "general"), []).append(mem)
+
+        lines = [f"MEMORIES MATCHING '{term}'", "=" * 25, ""]
+        for cat in sorted(by_cat.keys()):
+            lines.append(f"{cat.replace('_', ' ').upper()}:")
+            for mem in by_cat[cat]:
+                conf = mem.get("confidence", 1.0)
+                src = mem.get("source", "")
+                marker = ""
+                if conf < 0.9:
+                    marker = f" (~{conf:.0%})"
+                src_tag = f" [{src}]" if src else ""
+                lines.append(
+                    f"  {mem['key']}: {mem['value']}{marker}{src_tag}"
+                )
+            lines.append("")
+
+        lines.append(f"{len(matches)} result(s) found.")
+
+        for page in paginate("\n".join(lines)):
+            await update.message.reply_text(page)
+
+    async def _memory_export(self, update: Update, clean_db) -> None:
+        """Handle /memory export — send all memories as a .txt file."""
+        import io
+        from datetime import datetime
+
+        memories = clean_db.get_user_memory()
+        if not memories:
+            await update.message.reply_text(
+                "No memories to export."
+            )
+            return
+
+        by_cat: dict[str, list[dict]] = {}
+        for mem in memories:
+            by_cat.setdefault(mem.get("category", "general"), []).append(mem)
+
+        lines = [
+            "HEALTHBOT MEMORY EXPORT",
+            f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+            f"Total entries: {len(memories)}",
+            "=" * 40,
+            "",
+        ]
+
+        for cat in sorted(by_cat.keys()):
+            lines.append(f"[{cat.replace('_', ' ').upper()}]")
+            for mem in by_cat[cat]:
+                conf = mem.get("confidence", 1.0)
+                src = mem.get("source", "")
+                created = (mem.get("created_at") or "")[:10]
+                updated = (mem.get("updated_at") or "")[:10]
+
+                lines.append(f"  Key: {mem['key']}")
+                lines.append(f"  Value: {mem['value']}")
+                if conf < 1.0:
+                    lines.append(f"  Confidence: {conf:.0%}")
+                if src:
+                    lines.append(f"  Source: {src}")
+                if created:
+                    lines.append(f"  Created: {created}")
+                if updated and updated != created:
+                    lines.append(f"  Updated: {updated}")
+                lines.append("")
+            lines.append("")
+
+        content = "\n".join(lines)
+        doc = io.BytesIO(content.encode("utf-8"))
+        doc.name = "healthbot_memories.txt"
+        await update.message.reply_document(document=doc)
+
+    def _build_memory_summary(self) -> list[str]:
+        """Build a memory summary list for PDF reports."""
+        items: list[str] = []
+        try:
+            clean_db = self._core._get_clean_db()
+            if not clean_db:
+                return items
+            try:
+                memories = clean_db.get_user_memory()
+            finally:
+                clean_db.close()
+            if not memories:
+                return items
+
+            by_cat: dict[str, int] = {}
+            for mem in memories:
+                cat = mem.get("category", "general")
+                by_cat[cat] = by_cat.get(cat, 0) + 1
+
+            items.append(f"{len(memories)} stored memories:")
+            for cat in sorted(by_cat.keys()):
+                label = cat.replace("_", " ").title()
+                items.append(f"  {label}: {by_cat[cat]}")
+        except Exception as e:
+            logger.debug("Memory summary for report: %s", e)
+        return items
 
     async def _memory_corrections(self, update: Update, clean_db) -> None:
         """Show corrections stored in Clean DB."""
@@ -1499,10 +1632,14 @@ class HealthHandlers:
                 db = self._core._get_db()
                 uid = update.effective_user.id
 
+                memory_items = self._build_memory_summary()
+
                 from healthbot.export.weekly_pdf_report import WeeklyPdfReportGenerator
 
                 gen = WeeklyPdfReportGenerator(db)
-                pdf_bytes = gen.generate_weekly(uid, days=days)
+                pdf_bytes = gen.generate_weekly(
+                    uid, days=days, memory_items=memory_items,
+                )
 
             import io
             doc = io.BytesIO(pdf_bytes)
@@ -1550,10 +1687,14 @@ class HealthHandlers:
                 db = self._core._get_db()
                 uid = update.effective_user.id
 
+                memory_items = self._build_memory_summary()
+
                 from healthbot.export.weekly_pdf_report import WeeklyPdfReportGenerator
 
                 gen = WeeklyPdfReportGenerator(db)
-                pdf_bytes = gen.generate_monthly(uid, days=days)
+                pdf_bytes = gen.generate_monthly(
+                    uid, days=days, memory_items=memory_items,
+                )
 
             import io
             doc = io.BytesIO(pdf_bytes)
@@ -1626,3 +1767,299 @@ class HealthHandlers:
             await update.message.reply_text(
                 "Could not retrieve source PDF.",
             )
+
+    # ── New visualization commands ────────────────────────────────────
+
+    @require_unlocked
+    async def score(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE,
+    ) -> None:
+        """Handle /score — composite health score with gauge chart."""
+        import asyncio
+
+        uid = update.effective_user.id if update.effective_user else 0
+        db = self._core._get_db()
+
+        async with TypingIndicator(update.effective_chat):
+            from healthbot.reasoning.health_score import CompositeHealthEngine
+
+            engine = CompositeHealthEngine(db)
+            result = await asyncio.to_thread(engine.compute, uid)
+
+        # Text summary
+        lines = [
+            f"Health Score: {result.overall:.0f}/100 ({result.grade})",
+            f"Trend: {result.trend_direction}",
+            "",
+        ]
+        for component, val in result.breakdown.items():
+            name = component.replace("_", " ").title()
+            bar = format_score_bar(val)
+            lines.append(f"  {name}: {val:.0f}/100 {bar}")
+
+        if result.limiting_factors:
+            lines.append("")
+            lines.append("Limiting factors:")
+            for lf in result.limiting_factors:
+                lines.append(f"  ! {lf}")
+
+        coverage = [k for k, v in result.data_coverage.items() if not v]
+        if coverage:
+            lines.append("")
+            lines.append(f"Missing data: {', '.join(coverage)}")
+
+        await update.message.reply_text("\n".join(lines))
+
+        # Chart
+        from healthbot.export.chart_generator_ext import composite_score_chart
+
+        chart_bytes = composite_score_chart(result)
+        if chart_bytes:
+            import io as iomod
+            await update.message.reply_photo(photo=iomod.BytesIO(chart_bytes))
+
+    @require_unlocked
+    async def wearable_chart(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE,
+    ) -> None:
+        """Handle /wearable_chart [days] — WHOOP sparklines."""
+        import asyncio
+        from datetime import date, timedelta
+
+        args = context.args or []
+        days = 14
+        if args:
+            try:
+                days = int(args[0])
+            except ValueError:
+                pass
+
+        uid = update.effective_user.id if update.effective_user else 0
+        db = self._core._get_db()
+
+        async with TypingIndicator(update.effective_chat):
+            cutoff = (date.today() - timedelta(days=days)).isoformat()
+            data = await asyncio.to_thread(
+                db.query_wearable_daily, start_date=cutoff, limit=days, user_id=uid,
+            )
+
+        if not data:
+            await update.message.reply_text("No wearable data available.")
+            return
+
+        from healthbot.export.chart_generator_ext import wearable_sparklines_chart
+
+        chart_bytes = wearable_sparklines_chart(data, days=days)
+        if chart_bytes:
+            import io as iomod
+            await update.message.reply_photo(photo=iomod.BytesIO(chart_bytes))
+        else:
+            await update.message.reply_text("Not enough wearable data for chart.")
+
+    @require_unlocked
+    async def sleep_chart(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE,
+    ) -> None:
+        """Handle /sleep_chart [days] — sleep architecture stacked bars."""
+        import asyncio
+        from datetime import date, timedelta
+
+        args = context.args or []
+        days = 30
+        if args:
+            try:
+                days = int(args[0])
+            except ValueError:
+                pass
+
+        uid = update.effective_user.id if update.effective_user else 0
+        db = self._core._get_db()
+
+        async with TypingIndicator(update.effective_chat):
+            cutoff = (date.today() - timedelta(days=days)).isoformat()
+            data = await asyncio.to_thread(
+                db.query_wearable_daily, start_date=cutoff, limit=days, user_id=uid,
+            )
+
+        if not data:
+            await update.message.reply_text("No sleep data available.")
+            return
+
+        from healthbot.export.chart_generator_ext import sleep_architecture_chart
+
+        chart_bytes = sleep_architecture_chart(data, days=days)
+        if chart_bytes:
+            import io as iomod
+            await update.message.reply_photo(photo=iomod.BytesIO(chart_bytes))
+        else:
+            await update.message.reply_text("Not enough sleep data for chart.")
+
+    @require_unlocked
+    async def lab_heatmap(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE,
+    ) -> None:
+        """Handle /lab_heatmap — color-coded lab results grid."""
+        import asyncio
+
+        uid = update.effective_user.id if update.effective_user else 0
+        db = self._core._get_db()
+
+        async with TypingIndicator(update.effective_chat):
+            rows = await asyncio.to_thread(
+                db.query_observations,
+                record_type="lab_result", limit=500, user_id=uid,
+            )
+
+        if not rows:
+            await update.message.reply_text("No lab data available.")
+            return
+
+        # Build heatmap data from observations
+        lab_data = []
+        for row in rows:
+            val = row.get("value")
+            if val is None:
+                continue
+            try:
+                float(val)
+            except (ValueError, TypeError):
+                continue
+            meta = row.get("_meta", {})
+            lab_data.append({
+                "test_name": row.get("test_name", row.get("canonical_name", "")),
+                "date": row.get("date_effective", ""),
+                "value": val,
+                "ref_low": meta.get("ref_low", 0),
+                "ref_high": meta.get("ref_high", 0),
+            })
+
+        if len(lab_data) < 2:
+            await update.message.reply_text("Not enough lab data for heatmap.")
+            return
+
+        from healthbot.export.chart_generator_ext import lab_heatmap_chart
+
+        chart_bytes = lab_heatmap_chart(lab_data)
+        if chart_bytes:
+            import io as iomod
+            await update.message.reply_photo(photo=iomod.BytesIO(chart_bytes))
+        else:
+            await update.message.reply_text("Could not generate lab heatmap.")
+
+    @require_unlocked
+    async def scatter(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE,
+    ) -> None:
+        """Handle /scatter m1 m2 — plot two metrics against each other."""
+        import asyncio
+
+        args = context.args or []
+        if len(args) < 2:
+            await update.message.reply_text(
+                "Usage: /scatter <metric1> <metric2>\n"
+                "Example: /scatter hrv sleep_score"
+            )
+            return
+
+        m1 = _WEARABLE_ALIASES.get(args[0].lower(), args[0].lower())
+        m2 = _WEARABLE_ALIASES.get(args[1].lower(), args[1].lower())
+
+        uid = update.effective_user.id if update.effective_user else 0
+        db = self._core._get_db()
+
+        async with TypingIndicator(update.effective_chat):
+            from datetime import date, timedelta
+            cutoff = (date.today() - timedelta(days=90)).isoformat()
+            data = await asyncio.to_thread(
+                db.query_wearable_daily, start_date=cutoff, limit=90, user_id=uid,
+            )
+
+        if not data:
+            await update.message.reply_text("No wearable data available.")
+            return
+
+        # Extract paired values
+        x_vals, y_vals = [], []
+        for row in data:
+            xv, yv = row.get(m1), row.get(m2)
+            if xv is not None and yv is not None:
+                try:
+                    x_vals.append(float(xv))
+                    y_vals.append(float(yv))
+                except (ValueError, TypeError):
+                    continue
+
+        if len(x_vals) < 3:
+            await update.message.reply_text(
+                f"Not enough paired data for {m1} vs {m2}."
+            )
+            return
+
+        # Compute Pearson r
+        import numpy as np
+        x_arr = np.array(x_vals)
+        y_arr = np.array(y_vals)
+        r_val = float(np.corrcoef(x_arr, y_arr)[0, 1])
+
+        from healthbot.reasoning.wearable_trends import METRIC_DISPLAY_NAMES
+        x_label = METRIC_DISPLAY_NAMES.get(m1, m1)
+        y_label = METRIC_DISPLAY_NAMES.get(m2, m2)
+
+        from healthbot.export.chart_generator_ext import correlation_scatter_chart
+
+        chart_bytes = correlation_scatter_chart(x_vals, y_vals, x_label, y_label, r_val)
+        if chart_bytes:
+            import io as iomod
+            await update.message.reply_photo(photo=iomod.BytesIO(chart_bytes))
+            if abs(r_val) > 0.7:
+                strength = "strong"
+            elif abs(r_val) > 0.4:
+                strength = "moderate"
+            else:
+                strength = "weak"
+            direction = "positive" if r_val > 0 else "negative"
+            await update.message.reply_text(
+                f"{x_label} vs {y_label}: r={r_val:.2f} ({strength} {direction} correlation)"
+            )
+        else:
+            await update.message.reply_text("Could not generate scatter plot.")
+
+    @require_unlocked
+    async def trends_chart(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE,
+    ) -> None:
+        """Handle /trends_chart — lab trend sparkline grid."""
+        import asyncio
+
+        uid = update.effective_user.id if update.effective_user else 0
+        db = self._core._get_db()
+
+        async with TypingIndicator(update.effective_chat):
+            from healthbot.reasoning.trends import TrendAnalyzer
+
+            analyzer = TrendAnalyzer(db)
+            trends = await asyncio.to_thread(
+                analyzer.detect_all_trends, months=12, user_id=uid,
+            )
+
+        if not trends:
+            await update.message.reply_text("No significant lab trends detected.")
+            return
+
+        from healthbot.export.chart_generator import multi_trend_chart
+
+        chart_bytes = multi_trend_chart(trends, max_panels=6)
+        if chart_bytes:
+            import io as iomod
+            await update.message.reply_photo(photo=iomod.BytesIO(chart_bytes))
+            # Text summary
+            lines = ["Lab Trends:"]
+            for t in trends[:6]:
+                arrow = {"increasing": "↑", "decreasing": "↓", "stable": "→"}.get(t.direction, "→")
+                lines.append(
+                    f"  {arrow} {t.test_name}: {t.first_value:.1f} → "
+                    f"{t.last_value:.1f} ({t.pct_change:+.1f}%)"
+                )
+            await update.message.reply_text("\n".join(lines))
+        else:
+            await update.message.reply_text("Not enough data for trends chart.")
