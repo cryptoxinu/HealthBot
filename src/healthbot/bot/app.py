@@ -291,6 +291,7 @@ def create_application(
     app.add_handler(CommandHandler("lab_heatmap", handlers.lab_heatmap))
     app.add_handler(CommandHandler("scatter", handlers.scatter))
     app.add_handler(CommandHandler("trends_chart", handlers.trends_chart))
+    app.add_handler(CommandHandler("tokenusage", handlers.tokenusage))
 
     # Callback query handlers (inline keyboard buttons)
     app.add_handler(CallbackQueryHandler(

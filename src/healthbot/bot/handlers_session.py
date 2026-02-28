@@ -1298,3 +1298,44 @@ class SessionHandlers:
             await self.unpause_overdue(update, context)
         else:
             await self.pause_overdue(update, context, duration_text=text)
+
+    @require_unlocked
+    async def tokenusage(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE,
+    ) -> None:
+        """Handle /tokenusage — show per-section context window usage."""
+        conv = self._core._get_claude_conversation()
+        if not conv:
+            await update.message.reply_text(
+                "Claude conversation not available. "
+                "Is Claude CLI installed?"
+            )
+            return
+
+        from healthbot.llm.conversation_context import measure_prompt_sections
+
+        sections = measure_prompt_sections(conv)
+        if not sections:
+            await update.message.reply_text("No context data loaded yet.")
+            return
+
+        total_chars = sum(sections.values())
+        total_tokens = total_chars / 4
+        window = 200_000
+        pct = (total_tokens / window) * 100
+        headroom = window - total_tokens
+
+        lines = ["CONTEXT USAGE", "\u2550" * 30, ""]
+        for label, chars in sections.items():
+            tokens = chars / 4
+            lines.append(
+                f"{label + ':':24s} {chars:>7,} chars  (~{tokens:,.0f} tokens)"
+            )
+        lines.append("\u2500" * 35)
+        lines.append(
+            f"{'Total:':24s} {total_chars:>7,} chars  (~{total_tokens:,.0f} tokens)"
+        )
+        lines.append(f"Context window:      {pct:.1f}% of 200K used")
+        lines.append(f"Headroom:            ~{headroom:,.0f} tokens remaining")
+
+        await update.message.reply_text("\n".join(lines))

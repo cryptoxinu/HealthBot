@@ -1070,3 +1070,51 @@ class TestClaudeEncryption:
         # .enc unchanged (old data), no plaintext written
         assert enc_path.read_bytes() == first_enc
         assert not plain_path.exists()
+
+
+class TestChartBlocks:
+    """CHART blocks are accumulated in _pending_charts, not routed to DB."""
+
+    def test_chart_block_extracted(self, tmp_path):
+        response = (
+            'Here is your HRV trend.\n'
+            'CHART: {"metric": "hrv", "source": "wearable", "days": 90}\n'
+        )
+        mgr, _ = _make_manager(tmp_path, claude_response=response)
+        mgr.handle_message("show me my hrv")
+        assert len(mgr._pending_charts) == 1
+        assert mgr._pending_charts[0]["metric"] == "hrv"
+        assert mgr._pending_charts[0]["source"] == "wearable"
+        assert mgr._pending_charts[0]["days"] == 90
+
+    def test_multiple_chart_blocks(self, tmp_path):
+        response = (
+            'Overview:\n'
+            'CHART: {"metric": "hrv", "source": "wearable", "days": 30}\n'
+            'CHART: {"metric": "ldl", "source": "lab", "days": 730}\n'
+        )
+        mgr, _ = _make_manager(tmp_path, claude_response=response)
+        mgr.handle_message("overview")
+        assert len(mgr._pending_charts) == 2
+        assert mgr._pending_charts[0]["metric"] == "hrv"
+        assert mgr._pending_charts[1]["metric"] == "ldl"
+
+    def test_chart_blocks_cleared_between_messages(self, tmp_path):
+        response1 = 'CHART: {"metric": "hrv", "source": "wearable", "days": 30}\nDone.'
+        mgr, claude = _make_manager(tmp_path, claude_response=response1)
+        mgr.handle_message("first")
+        assert len(mgr._pending_charts) == 1
+
+        claude.send.return_value = "No charts this time."
+        mgr.handle_message("second")
+        assert len(mgr._pending_charts) == 0
+
+    def test_chart_blocks_stripped_from_response(self, tmp_path):
+        response = (
+            'Your HRV is improving.\n'
+            'CHART: {"metric": "hrv", "source": "wearable", "days": 90}\n'
+        )
+        mgr, _ = _make_manager(tmp_path, claude_response=response)
+        result, _ = mgr.handle_message("hrv?")
+        assert "CHART" not in result
+        assert "Your HRV is improving" in result

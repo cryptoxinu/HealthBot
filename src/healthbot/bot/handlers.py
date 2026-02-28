@@ -37,7 +37,7 @@ class Handlers:
         "refresh": "_session", "claude_auth": "_session",
         "auth_status": "_session", "pii_alerts": "_session",
         "privacy": "_session", "redacted": "_session", "snooze": "_session",
-        "preferences": "_session",
+        "preferences": "_session", "tokenusage": "_session",
         # Health analysis commands
         "memory": "_health", "insights": "_health", "summary": "_health",
         "trend": "_health", "ask": "_health", "overdue": "_health",

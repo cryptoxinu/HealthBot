@@ -562,7 +562,7 @@ class HealthHandlers:
                 img.name = f"trend_{metric}.png"
                 await update.message.reply_photo(photo=img)
         except Exception as e:
-            logger.debug("Wearable chart generation skipped: %s", e)
+            logger.warning("Wearable chart generation skipped: %s", e)
 
     @require_unlocked
     async def ask(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

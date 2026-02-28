@@ -17,6 +17,7 @@ from healthbot.export.chart_generator_ext import (
 from healthbot.reasoning.health_score import CompositeHealthScore
 from healthbot.reasoning.insights import DomainScore
 from healthbot.reasoning.trends import TrendResult
+from healthbot.reasoning.wearable_trends import WearableTrendResult
 
 _PNG_HEADER = b"\x89PNG"
 
@@ -91,6 +92,63 @@ class TestTrendChart:
         t = _make_trend(direction="stable")
         result = trend_chart(t)
         assert result is not None
+
+
+def _make_wearable_trend(
+    metric: str = "hrv",
+    display: str = "HRV",
+    direction: str = "increasing",
+    values: list[tuple[str, float]] | None = None,
+) -> WearableTrendResult:
+    vals = values or [
+        ("2025-01-01", 45.0),
+        ("2025-01-08", 48.0),
+        ("2025-01-15", 50.0),
+        ("2025-01-22", 53.0),
+        ("2025-01-29", 55.0),
+    ]
+    return WearableTrendResult(
+        metric_name=metric,
+        display_name=display,
+        direction=direction,
+        slope=0.4,
+        r_squared=0.92,
+        data_points=len(vals),
+        first_date=vals[0][0],
+        last_date=vals[-1][0],
+        first_value=vals[0][1],
+        last_value=vals[-1][1],
+        pct_change=22.2,
+        values=vals,
+    )
+
+
+class TestWearableTrendChart:
+    """trend_chart() should work with WearableTrendResult via alias properties."""
+
+    def test_alias_properties_map_correctly(self):
+        wt = _make_wearable_trend(metric="hrv", display="HRV")
+        assert wt.test_name == "HRV"
+        assert wt.canonical_name == "hrv"
+
+    def test_returns_valid_png(self):
+        wt = _make_wearable_trend()
+        result = trend_chart(wt)
+        assert result is not None
+        assert result[:4] == _PNG_HEADER
+
+    def test_decreasing_wearable_trend(self):
+        wt = _make_wearable_trend(
+            direction="decreasing",
+            values=[("2025-01-01", 60.0), ("2025-01-15", 45.0)],
+        )
+        result = trend_chart(wt)
+        assert result is not None
+        assert result[:4] == _PNG_HEADER
+
+    def test_insufficient_data_returns_none(self):
+        wt = _make_wearable_trend(values=[("2025-01-01", 50.0)])
+        assert trend_chart(wt) is None
 
 
 class TestDashboardChart:

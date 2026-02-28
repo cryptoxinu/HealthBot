@@ -187,6 +187,14 @@ ANALYSIS_RULE: {"name": "allergy_med_check", "scope": "allergy,medication", \
   Define persistent analysis rules for your future self. These are loaded \
 into your context every session. Update by emitting with supersedes.
 
+CHART: {"metric": "hrv", "source": "wearable", "days": 90}
+  Emit when a visual trend chart would help the user understand their data.
+  source: "wearable" or "lab". metric: canonical name (hrv, rhr, sleep_score, \
+recovery_score, strain, ldl, hdl, glucose, hba1c, tsh, testosterone_total, \
+vitamin_d, ferritin, creatinine, alt, etc.).
+  days: lookback window (default 90 for wearables, 730 for labs).
+  Emit at most 3 CHART blocks per response. Only when visually useful.
+
 Rules for structured blocks:
 - Always update hypotheses when new lab data changes the picture
 - Track what tests are overdue and remind me proactively

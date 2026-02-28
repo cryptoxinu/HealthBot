@@ -31,6 +31,118 @@ _LABS_DETAIL_CATEGORIES = frozenset({
 })
 
 
+def _measure_parts(parts: list[str]) -> int:
+    """Return total character count of parts joined with newlines."""
+    return sum(len(p) for p in parts) + max(len(parts) - 1, 0)  # newline joins
+
+
+def measure_prompt_sections(mgr) -> dict[str, int]:
+    """Measure character count per prompt section without sending anything.
+
+    Mirrors build_prompt() logic but collects per-section sizes.
+    Uses 'general' category so all detail sections are included.
+    Returns dict mapping section label to character count.
+    """
+    sections: dict[str, int] = {}
+
+    # System prompt
+    sections["System prompt"] = len(mgr._context_prompt or "")
+
+    # Health data
+    parts: list[str] = []
+    if mgr._health_sections:
+        append_health_sections(mgr, parts, "general health overview")
+    elif mgr._health_data:
+        parts.append("## HEALTH DATA\n")
+        parts.append(mgr._health_data)
+        parts.append("")
+    if parts:
+        sections["Health data"] = _measure_parts(parts)
+
+    # Integration status
+    parts = []
+    status = ""
+    if mgr._status_builder:
+        try:
+            status = mgr._status_builder()
+        except Exception:
+            pass
+    if not status:
+        status = mgr._integration_status
+    if status:
+        parts.append("## INTEGRATION STATUS\n")
+        parts.append(status)
+        parts.append("")
+    if parts:
+        sections["Integration status"] = _measure_parts(parts)
+
+    # Hypotheses
+    parts = []
+    append_hypotheses(mgr, parts)
+    if parts:
+        sections["Hypotheses"] = _measure_parts(parts)
+
+    # KB findings
+    parts = []
+    append_kb_findings(mgr, parts, "general health overview")
+    if parts:
+        sections["KB findings"] = _measure_parts(parts)
+
+    # Research library
+    parts = []
+    append_research_evidence(mgr, parts, "general health overview")
+    if parts:
+        sections["Research library"] = _measure_parts(parts)
+
+    # User memory
+    parts = []
+    append_user_memory(mgr, parts)
+    if parts:
+        sections["User memory"] = _measure_parts(parts)
+
+    # Analysis rules
+    parts = []
+    append_analysis_rules(mgr, parts)
+    if parts:
+        sections["Analysis rules"] = _measure_parts(parts)
+
+    # Health records ext
+    parts = []
+    append_health_records_ext(mgr, parts)
+    if parts:
+        sections["Health records ext"] = _measure_parts(parts)
+
+    # Previous insights (persistent memory)
+    if mgr._memory:
+        parts = []
+        recent_memory = mgr._memory[-_MAX_MEMORY:]
+        parts.append("## PREVIOUS INSIGHTS\n")
+        for mem in recent_memory:
+            cat = mem.get("category", "")
+            fact = mem.get("fact", "")
+            ts = (mem.get("timestamp") or "")[:10]
+            parts.append(f"- [{cat}] {fact} ({ts})")
+        parts.append("")
+        sections["Previous insights"] = _measure_parts(parts)
+
+    # History
+    if mgr._history:
+        parts = []
+        parts.append("## CONVERSATION HISTORY\n")
+        hist = mgr._history[-_MAX_HISTORY * 2:]
+        for msg in hist:
+            role = "User" if msg["role"] == "user" else "Assistant"
+            content = msg["content"]
+            if len(content) > 500:
+                content = content[:500] + "..."
+            parts.append(f"{role}: {content}")
+        parts.append("")
+        n_msgs = len(hist)
+        sections[f"History ({n_msgs} msgs)"] = _measure_parts(parts)
+
+    return sections
+
+
 def build_prompt(mgr, user_text: str) -> tuple[str, str]:
     """Build (system, prompt) for ClaudeClient.send().
 

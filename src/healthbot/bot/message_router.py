@@ -828,6 +828,43 @@ class MessageRouter:
             response = strip_markdown(response)
             for page in paginate(response):
                 await update.message.reply_text(page)
+
+            # Generate charts requested by Claude via CHART blocks
+            for chart_req in getattr(claude, "_pending_charts", [])[:3]:
+                metric = ""
+                try:
+                    import io
+
+                    if not isinstance(chart_req, dict):
+                        continue
+                    metric = chart_req.get("metric", "")
+                    source = chart_req.get("source", "wearable")
+                    days = chart_req.get("days", 90 if source == "wearable" else 730)
+                    db = self._get_db()
+
+                    if source == "wearable":
+                        from healthbot.reasoning.wearable_trends import WearableTrendAnalyzer
+                        analyzer = WearableTrendAnalyzer(db)
+                        result = analyzer.analyze_metric(
+                            metric, days=days, user_id=user_id,
+                        )
+                    else:
+                        from healthbot.reasoning.trends import TrendAnalyzer
+                        analyzer = TrendAnalyzer(db)
+                        result = analyzer.analyze_test(
+                            metric, months=max(1, days // 30),
+                            user_id=user_id,
+                        )
+
+                    if result and result.values and len(result.values) >= 2:
+                        from healthbot.export.chart_generator import trend_chart
+                        chart_bytes = trend_chart(result)
+                        if chart_bytes:
+                            img = io.BytesIO(chart_bytes)
+                            img.name = f"trend_{metric}.png"
+                            await update.message.reply_photo(photo=img)
+                except Exception as exc:
+                    logger.debug("CHART block for %s skipped: %s", metric, exc)
         except Exception as e:
             from healthbot.llm.claude_client import CLIAuthError
 

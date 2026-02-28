@@ -89,6 +89,7 @@ class ClaudeCLIResearchClient:
                 text=True,
                 timeout=self._config.claude_cli_timeout,
                 env=_build_subprocess_env(self._api_key),
+                cwd="/tmp",  # Neutral dir — prevents CLAUDE.md pickup
             )
         except subprocess.TimeoutExpired:
             return "Research timed out. Please try a simpler question."

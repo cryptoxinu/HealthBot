@@ -65,7 +65,7 @@ logger = logging.getLogger("healthbot")
 # Uses a greedy match with look-ahead for end-of-block boundary
 # (newline + non-whitespace or end-of-string) so nested JSON braces work.
 _BLOCK_PATTERN = re.compile(
-    r"(HYPOTHESIS|ACTION|RESEARCH|INSIGHT|CONDITION|DATA_QUALITY|MEMORY|CORRECTION|SYSTEM_IMPROVEMENT|HEALTH_DATA|ANALYSIS_RULE):\s*(\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})",
+    r"(HYPOTHESIS|ACTION|RESEARCH|INSIGHT|CONDITION|DATA_QUALITY|MEMORY|CORRECTION|SYSTEM_IMPROVEMENT|HEALTH_DATA|ANALYSIS_RULE|CHART):\s*(\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})",
 )
 
 
@@ -104,6 +104,7 @@ class ClaudeConversationManager:
         self._on_system_improvement: object | None = None  # Callable[[dict], None]
         self._cached_user_memory: list[dict] | None = None
         self._memory_feedback: list[str] = []
+        self._pending_charts: list[dict] = []
 
     def load(self) -> None:
         """Load context.md, health data, and memory from disk."""
@@ -136,6 +137,7 @@ class ClaudeConversationManager:
         if user_id is not None and user_id > 0:
             self._user_id = user_id
         self._memory_feedback.clear()
+        self._pending_charts.clear()
         system, prompt = build_prompt(self, user_text)
         raw_response = self._claude.send(prompt=prompt, system=system)
 
@@ -414,6 +416,11 @@ class ClaudeConversationManager:
                 self._memory_feedback.append(
                     f"[Could not remember '{key}' — contains sensitive data]",
                 )
+            return
+
+        # CHART blocks are accumulated for post-response chart generation
+        if block_type == "CHART":
+            self._pending_charts.append(block)
             return
 
         # Route to specialized systems (best effort)

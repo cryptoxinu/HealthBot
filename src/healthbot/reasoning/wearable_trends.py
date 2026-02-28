@@ -77,6 +77,16 @@ class WearableTrendResult:
     pct_change: float
     values: list[tuple[str, float]]
 
+    @property
+    def test_name(self) -> str:
+        """Alias for chart_generator compatibility (maps to display_name)."""
+        return self.display_name
+
+    @property
+    def canonical_name(self) -> str:
+        """Alias for chart_generator compatibility (maps to metric_name)."""
+        return self.metric_name
+
 
 @dataclass
 class WearableAnomaly:
