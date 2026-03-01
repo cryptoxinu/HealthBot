@@ -1,9 +1,10 @@
 """Tests for natural language date parsing."""
 from __future__ import annotations
 
+import calendar
 from datetime import date, timedelta
 
-from healthbot.nlu.date_parse import parse_date
+from healthbot.nlu.date_parse import parse_date, resolve_temporal
 
 
 class TestRelativeDates:
@@ -161,3 +162,150 @@ class TestEdgeCases:
         result = parse_date("last fri")
         assert result is not None
         assert result.weekday() == 4  # Friday
+
+
+class TestResolveTemporalPast:
+    """Test resolve_temporal() for past-looking queries."""
+
+    def test_last_month_range(self) -> None:
+        result = resolve_temporal("how were my labs last month?")
+        assert result is not None
+        assert result["direction"] == "past"
+        start = date.fromisoformat(result["start"])
+        end = date.fromisoformat(result["end"])
+        assert end == date.today()
+        # Start should be roughly one month ago
+        today = date.today()
+        expected_month = today.month - 1 if today.month > 1 else 12
+        assert start.month == expected_month
+
+    def test_last_week_range(self) -> None:
+        result = resolve_temporal("labs from last week")
+        assert result is not None
+        assert result["direction"] == "past"
+        start = date.fromisoformat(result["start"])
+        assert start == date.today() - timedelta(weeks=1)
+
+    def test_last_n_days(self) -> None:
+        result = resolve_temporal("results from the last 30 days")
+        assert result is not None
+        start = date.fromisoformat(result["start"])
+        assert start == date.today() - timedelta(days=30)
+
+    def test_past_3_months(self) -> None:
+        result = resolve_temporal("trends over the past 3 months")
+        assert result is not None
+        assert result["direction"] == "past"
+        start = date.fromisoformat(result["start"])
+        today = date.today()
+        # 3 months back
+        target_month = today.month - 3
+        target_year = today.year
+        while target_month < 1:
+            target_month += 12
+            target_year -= 1
+        assert start.month == target_month
+        assert start.year == target_year
+
+    def test_n_months_ago(self) -> None:
+        result = resolve_temporal("labs from 2 months ago")
+        assert result is not None
+        assert result["direction"] == "past"
+        # Should return a window around the point
+        start = date.fromisoformat(result["start"])
+        end = date.fromisoformat(result["end"])
+        assert start < end
+
+    def test_since_month_name(self) -> None:
+        result = resolve_temporal("labs since January")
+        assert result is not None
+        start = date.fromisoformat(result["start"])
+        assert start.month == 1
+        assert start.day == 1
+        assert result["end"] == date.today().isoformat()
+
+    def test_since_month_with_year(self) -> None:
+        result = resolve_temporal("labs since March 2025")
+        assert result is not None
+        start = date.fromisoformat(result["start"])
+        assert start == date(2025, 3, 1)
+
+    def test_in_month(self) -> None:
+        result = resolve_temporal("my labs in January")
+        assert result is not None
+        start = date.fromisoformat(result["start"])
+        end = date.fromisoformat(result["end"])
+        assert start.month == 1
+        assert start.day == 1
+        # End should be last day of January (or today if in the future)
+        today = date.today()
+        year = today.year if 1 <= today.month else today.year - 1
+        expected_end = min(date(year, 1, 31), today)
+        assert end == expected_end
+
+    def test_in_month_with_year(self) -> None:
+        result = resolve_temporal("labs in March 2025")
+        assert result is not None
+        start = date.fromisoformat(result["start"])
+        assert start == date(2025, 3, 1)
+        end = date.fromisoformat(result["end"])
+        assert end.month == 3
+        assert end.day == 31
+
+    def test_yesterday(self) -> None:
+        result = resolve_temporal("what were my labs yesterday")
+        assert result is not None
+        yesterday = (date.today() - timedelta(days=1)).isoformat()
+        assert result["start"] == yesterday
+        assert result["direction"] == "past"
+
+    def test_recently(self) -> None:
+        result = resolve_temporal("any recent lab changes?")
+        assert result is not None
+        start = date.fromisoformat(result["start"])
+        assert start == date.today() - timedelta(days=14)
+        assert result["direction"] == "past"
+
+    def test_last_year(self) -> None:
+        result = resolve_temporal("trends from last year")
+        assert result is not None
+        start = date.fromisoformat(result["start"])
+        today = date.today()
+        assert start.year == today.year - 1
+
+
+class TestResolveTemporalFuture:
+    """Test resolve_temporal() for forward-looking queries."""
+
+    def test_next_week(self) -> None:
+        result = resolve_temporal("what should I do next week")
+        assert result is not None
+        assert result["direction"] == "future"
+        end = date.fromisoformat(result["end"])
+        assert end == date.today() + timedelta(weeks=1)
+
+    def test_next_appointment(self) -> None:
+        result = resolve_temporal("when is my next appointment")
+        assert result is not None
+        assert result["direction"] == "future"
+
+    def test_upcoming(self) -> None:
+        result = resolve_temporal("upcoming appointments")
+        assert result is not None
+        assert result["direction"] == "future"
+
+
+class TestResolveTemporalNoMatch:
+    """Test that non-temporal queries return None."""
+
+    def test_plain_question(self) -> None:
+        assert resolve_temporal("what is my cholesterol level") is None
+
+    def test_empty(self) -> None:
+        assert resolve_temporal("") is None
+
+    def test_whitespace(self) -> None:
+        assert resolve_temporal("   ") is None
+
+    def test_no_temporal_signal(self) -> None:
+        assert resolve_temporal("explain my liver panel results") is None

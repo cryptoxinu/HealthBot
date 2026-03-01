@@ -66,6 +66,7 @@ class HealthHandlers:
         /memory improvements     — show system improvement suggestions
         /memory approve <id>     — approve a system improvement
         /memory reject <id>      — reject a system improvement
+        /memory audit            — show memory change history
         """
         args = context.args or []
 
@@ -91,9 +92,12 @@ class HealthHandlers:
                 await self._memory_export(update, clean_db)
             elif args[0].lower() in ("approve", "reject"):
                 await self._memory_approve_reject(update, args, clean_db)
+            elif args[0].lower() == "audit":
+                await self._memory_audit(update, clean_db)
             else:
                 await update.message.reply_text(
-                    "Usage: /memory [clear|search|export|corrections|improvements|approve|reject]"
+                    "Usage: /memory [clear|search|export|corrections"
+                    "|improvements|approve|reject|audit]"
                 )
         finally:
             clean_db.close()
@@ -298,6 +302,37 @@ class HealthHandlers:
             if original:
                 lines.append(f"  Was: {original}")
             lines.append(f"  Now: {corrected}")
+            lines.append("")
+
+        for page in paginate("\n".join(lines)):
+            await update.message.reply_text(page)
+
+    async def _memory_audit(self, update: Update, clean_db) -> None:
+        """Show memory change audit log."""
+        async with TypingIndicator(update.effective_chat):
+            entries = clean_db.get_memory_audit_log(limit=30)
+
+        if not entries:
+            await update.message.reply_text("No memory changes recorded yet.")
+            return
+
+        lines = ["MEMORY AUDIT LOG", "=" * 25, ""]
+        for entry in entries:
+            ts = (entry.get("changed_at") or "")[:19].replace("T", " ")
+            key = entry.get("key", "?")
+            old = entry.get("old_value", "")
+            new = entry.get("new_value", "")
+            source = entry.get("source_type", "")
+
+            if old and old != new:
+                lines.append(f"[{ts}] {key}")
+                lines.append(f"  {old} -> {new}")
+                if source:
+                    lines.append(f"  source: {source}")
+            else:
+                lines.append(f"[{ts}] {key} = {new}")
+                if source:
+                    lines.append(f"  source: {source}")
             lines.append("")
 
         for page in paginate("\n".join(lines)):

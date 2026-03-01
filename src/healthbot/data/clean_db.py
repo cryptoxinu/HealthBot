@@ -264,6 +264,18 @@ CREATE TABLE IF NOT EXISTS clean_anon_cache (
     cleaned_text TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS memory_audit_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    key TEXT NOT NULL,
+    old_value TEXT DEFAULT '',
+    new_value TEXT NOT NULL,
+    source_type TEXT DEFAULT '',
+    source_ref TEXT DEFAULT '',
+    changed_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_audit_key ON memory_audit_log(key);
+CREATE INDEX IF NOT EXISTS idx_audit_changed ON memory_audit_log(changed_at DESC);
 """
 
 
@@ -1662,6 +1674,77 @@ class CleanDB:
             (new_key, self._now(), old_key),
         )
         self._auto_commit()
+
+    # ── Exact-fact lookup (patient constants) ────────────
+
+    _FACT_CATEGORIES: frozenset[str] = frozenset({
+        "allergy", "medication", "demographic", "baseline_metric",
+        "medical_context", "supplement", "preference",
+    })
+
+    def get_facts(self, category: str | None = None) -> dict[str, str]:
+        """Return high-confidence user-stated facts as a key→value dict.
+
+        Only returns active (non-superseded), user-stated memories with
+        confidence >= 0.9. These are deterministic constants that Claude
+        should never contradict.
+
+        Args:
+            category: Optional category filter. Must be one of the
+                      recognized fact categories if provided.
+
+        Returns:
+            Dict mapping fact key to value string.
+        """
+        if category and category not in self._FACT_CATEGORIES:
+            return {}
+        if category:
+            rows = self.conn.execute(
+                """SELECT key, value FROM clean_user_memory
+                   WHERE superseded_by = ''
+                     AND confidence >= 0.9
+                     AND source = 'user_stated'
+                     AND category = ?
+                   ORDER BY key""",
+                (category,),
+            ).fetchall()
+        else:
+            rows = self.conn.execute(
+                """SELECT key, value, category FROM clean_user_memory
+                   WHERE superseded_by = ''
+                     AND confidence >= 0.9
+                     AND source = 'user_stated'
+                   ORDER BY category, key""",
+            ).fetchall()
+        return {r["key"]: r["value"] for r in rows}
+
+    # ── Memory audit log ─────────────────────────────────
+
+    def log_memory_change(
+        self,
+        key: str,
+        old_value: str,
+        new_value: str,
+        source_type: str = "",
+        source_ref: str = "",
+    ) -> None:
+        """Record a memory write event in the audit log."""
+        self.conn.execute(
+            """INSERT INTO memory_audit_log
+               (key, old_value, new_value, source_type, source_ref, changed_at)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (key, old_value, new_value, source_type, source_ref, self._now()),
+        )
+        self._auto_commit()
+
+    def get_memory_audit_log(self, limit: int = 50) -> list[dict]:
+        """Return recent memory audit entries, newest first."""
+        rows = self.conn.execute(
+            """SELECT * FROM memory_audit_log
+               ORDER BY changed_at DESC LIMIT ?""",
+            (limit,),
+        ).fetchall()
+        return [dict(r) for r in rows]
 
     # ── Correction + system improvement methods ────────
 

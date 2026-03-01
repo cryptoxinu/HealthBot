@@ -209,6 +209,18 @@ def handle_memory_block(mgr, block: dict) -> str | None:
             confidence=block.get("confidence", 1.0),
             source=block.get("source", "claude_inferred"),
         )
+        # Audit log: record what changed
+        try:
+            clean_db.log_memory_change(
+                key=key,
+                old_value=old_value or "",
+                new_value=value,
+                source_type=block.get("source", "claude_inferred"),
+                source_ref=supersedes,
+            )
+        except Exception as exc:
+            logger.debug("Audit log write failed: %s", exc)
+
         # Update clean_demographics for demographic keys
         sync_memory_to_demographics(mgr, clean_db, key, value)
         # Update Raw Vault LTM so /aboutme reads the latest value

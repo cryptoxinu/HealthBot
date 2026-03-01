@@ -48,6 +48,12 @@ def measure_prompt_sections(mgr) -> dict[str, int]:
     # System prompt
     sections["System prompt"] = len(mgr._context_prompt or "")
 
+    # Patient constants
+    parts: list[str] = []
+    append_patient_constants(mgr, parts)
+    if parts:
+        sections["Patient constants"] = _measure_parts(parts)
+
     # Health data
     parts: list[str] = []
     if mgr._health_sections:
@@ -155,6 +161,9 @@ def build_prompt(mgr, user_text: str) -> tuple[str, str]:
     """
     parts: list[str] = []
 
+    # Patient constants (deterministic facts Claude must not contradict)
+    append_patient_constants(mgr, parts)
+
     # Health data — query-aware if sections available
     if mgr._health_sections:
         append_health_sections(mgr, parts, user_text)
@@ -224,11 +233,19 @@ def build_prompt(mgr, user_text: str) -> tuple[str, str]:
 
 
 def append_health_sections(mgr, parts: list[str], user_text: str) -> None:
-    """Append health data sections with query-aware selection."""
+    """Append health data sections with query-aware selection.
+
+    When the query contains a temporal phrase (e.g. "last month",
+    "since January"), labs are filtered to that date range via
+    a fresh CleanDB query instead of using the pre-built section.
+    """
     from healthbot.nlu.medical_classifier import classify_medical_category
 
     category = classify_medical_category(user_text)
     s = mgr._health_sections
+
+    # Check for temporal filter
+    temporal = _resolve_query_temporal(user_text)
 
     parts.append("## HEALTH DATA\n")
 
@@ -238,8 +255,14 @@ def append_health_sections(mgr, parts: list[str], user_text: str) -> None:
     if s.get("demographics"):
         parts.append(s["demographics"])
 
-    # Labs: full table or flagged-only summary
-    if category in _LABS_DETAIL_CATEGORIES:
+    # Labs: temporal-filtered, full table, or flagged-only summary
+    if temporal and temporal.get("start"):
+        filtered_labs = _build_temporal_labs(mgr, temporal)
+        if filtered_labs:
+            parts.append(filtered_labs)
+        elif s.get("labs_summary"):
+            parts.append(s["labs_summary"])
+    elif category in _LABS_DETAIL_CATEGORIES:
         if s.get("labs"):
             parts.append(s["labs"])
     else:
@@ -450,6 +473,34 @@ def _apply_confidence_decay(mem: dict) -> float:
     return conf
 
 
+def append_patient_constants(mgr, parts: list[str]) -> None:
+    """Prepend verified patient constants that Claude must never contradict.
+
+    Pulls high-confidence (>=0.9) user-stated memories from Clean DB
+    and presents them as immutable facts. This prevents hallucinated
+    constants (wrong allergies, wrong meds, etc.).
+    """
+    from healthbot.llm.conversation_routing import get_clean_db
+
+    clean_db = get_clean_db(mgr)
+    if not clean_db:
+        return
+    try:
+        facts = clean_db.get_facts()
+    except Exception:
+        return
+    finally:
+        clean_db.close()
+    if not facts:
+        return
+
+    parts.append("## PATIENT CONSTANTS (verified — do NOT contradict)\n")
+    for key, value in facts.items():
+        label = key.replace("_", " ").title()
+        parts.append(f"- {label}: {value}")
+    parts.append("")
+
+
 def append_user_memory(mgr, parts: list[str]) -> None:
     """Add user memory from Clean DB to the prompt context.
 
@@ -561,3 +612,65 @@ def append_health_records_ext(mgr, parts: list[str]) -> None:
                 line += f" ({r['date_effective']})"
             parts.append(line)
     parts.append("")
+
+
+# ── Temporal query helpers ────────────────────────────────────
+
+
+def _resolve_query_temporal(user_text: str) -> dict | None:
+    """Extract temporal range from user query. Returns None if none found."""
+    try:
+        from healthbot.nlu.date_parse import resolve_temporal
+        return resolve_temporal(user_text)
+    except Exception:
+        return None
+
+
+def _build_temporal_labs(mgr, temporal: dict) -> str:
+    """Query CleanDB for labs within a temporal range and format as markdown."""
+    from healthbot.llm.conversation_routing import get_clean_db
+
+    clean_db = get_clean_db(mgr)
+    if not clean_db:
+        return ""
+    try:
+        start = temporal.get("start", "")
+        end = temporal.get("end", "")
+        labs = clean_db.get_lab_results(start_date=start, end_date=end, limit=100)
+    except Exception:
+        return ""
+    finally:
+        clean_db.close()
+
+    if not labs:
+        return f"## Lab Results ({start} to {end})\n\nNo lab results in this period.\n"
+
+    parts: list[str] = [f"## Lab Results ({start} to {end}) — {len(labs)} results\n"]
+    has_lab = any(lab.get("source_lab") for lab in labs)
+    if has_lab:
+        parts.append("| Date | Test | Value | Unit | Reference | Flag | Lab |")
+        parts.append("|------|------|-------|------|-----------|------|-----|")
+    else:
+        parts.append("| Date | Test | Value | Unit | Reference | Flag |")
+        parts.append("|------|------|-------|------|-----------|------|")
+    for lab in labs:
+        ref = ""
+        if lab.get("reference_low") is not None and lab.get("reference_high") is not None:
+            ref = f"{lab['reference_low']}-{lab['reference_high']}"
+        elif lab.get("reference_text"):
+            ref = lab["reference_text"]
+        row = (
+            f"| {lab.get('date_effective', '')} "
+            f"| {lab.get('test_name') or lab.get('canonical_name', '')} "
+            f"| {lab.get('value', '')} "
+            f"| {lab.get('unit', '')} "
+            f"| {ref} "
+            f"| {lab.get('flag', '')} "
+        )
+        if has_lab:
+            row += f"| {lab.get('source_lab', '')} |"
+        else:
+            row += "|"
+        parts.append(row)
+    parts.append("")
+    return "\n".join(parts)

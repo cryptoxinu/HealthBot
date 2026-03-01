@@ -2,12 +2,16 @@
 
 Uses dateutil for structured dates and custom code for relative
 and named date expressions. Returns date | None (never raises).
+
+Also provides resolve_temporal() which extracts date ranges from
+natural language queries for time-bounded health data filtering.
 """
 from __future__ import annotations
 
 import calendar
 import re
 from datetime import date, timedelta
+from typing import TypedDict
 
 # Weekday name -> weekday number (Monday=0 ... Sunday=6)
 _WEEKDAY_MAP: dict[str, int] = {
@@ -196,3 +200,221 @@ def parse_date(text: str) -> date | None:
         return result.date()
     except Exception:
         return None
+
+
+# ── Temporal query resolver ──────────────────────────────────────
+
+
+class TemporalRange(TypedDict, total=False):
+    """Result of resolve_temporal(). All fields optional."""
+
+    start: str  # ISO date string (YYYY-MM-DD)
+    end: str  # ISO date string (YYYY-MM-DD)
+    direction: str  # "past" | "future"
+
+
+# Month name → number
+_MONTH_NAMES: dict[str, int] = {
+    "january": 1, "jan": 1, "february": 2, "feb": 2,
+    "march": 3, "mar": 3, "april": 4, "apr": 4,
+    "may": 5, "june": 6, "jun": 6, "july": 7, "jul": 7,
+    "august": 8, "aug": 8, "september": 9, "sep": 9, "sept": 9,
+    "october": 10, "oct": 10, "november": 11, "nov": 11,
+    "december": 12, "dec": 12,
+}
+
+# Patterns for temporal phrases in queries
+_LAST_N_RE = re.compile(
+    r"\b(?:last|past|previous)\s+(\d+)\s+(days?|weeks?|months?|years?)\b",
+    re.IGNORECASE,
+)
+_LAST_PERIOD_QUERY_RE = re.compile(
+    r"\b(?:last|past|previous)\s+(week|month|year)\b", re.IGNORECASE,
+)
+_SINCE_RE = re.compile(
+    r"\bsince\s+(\w+)(?:\s+(\d{4}))?\b", re.IGNORECASE,
+)
+_IN_MONTH_RE = re.compile(
+    r"\bin\s+(january|february|march|april|may|june|july|august"
+    r"|september|october|november|december"
+    r"|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)"
+    r"(?:\s+(\d{4}))?\b",
+    re.IGNORECASE,
+)
+_N_AGO_RE = re.compile(
+    r"\b(\d+)\s+(days?|weeks?|months?|years?)\s+ago\b", re.IGNORECASE,
+)
+_FUTURE_PERIOD_RE = re.compile(
+    r"\b(?:next|coming)\s+(week|month|year|appointment)\b",
+    re.IGNORECASE,
+)
+_FUTURE_STANDALONE_RE = re.compile(
+    r"\b(?:upcoming|coming\s+up)\b",
+    re.IGNORECASE,
+)
+_RECENTLY_RE = re.compile(
+    r"\b(?:recently|recent|lately)\b", re.IGNORECASE,
+)
+
+
+def resolve_temporal(query: str) -> TemporalRange | None:
+    """Extract a date range from a natural language query.
+
+    Returns a TemporalRange dict with start/end ISO dates and direction,
+    or None if no temporal phrase is detected. Never raises.
+
+    Examples:
+        "how were my labs last month?" → {"start": "2026-02-01", "end": "2026-02-28", ...}
+        "labs since January"          → {"start": "2026-01-01", "end": "2026-03-01", ...}
+        "results 2 weeks ago"         → {"start": "2026-02-15", "end": "2026-02-15", ...}
+        "next appointment"            → {"direction": "future"}
+    """
+    if not query or not query.strip():
+        return None
+
+    text = query.strip().lower()
+    today = date.today()
+
+    # --- "last/past N days/weeks/months/years" ---
+    m = _LAST_N_RE.search(text)
+    if m:
+        amount = int(m.group(1))
+        unit = m.group(2).lower().rstrip("s")
+        start = _subtract_unit(today, amount, unit)
+        return {"start": start.isoformat(), "end": today.isoformat(), "direction": "past"}
+
+    # --- "last/past week/month/year" (no number) ---
+    m = _LAST_PERIOD_QUERY_RE.search(text)
+    if m:
+        period = m.group(1).lower()
+        if period == "week":
+            start = today - timedelta(weeks=1)
+        elif period == "month":
+            start = _subtract_unit(today, 1, "month")
+        else:  # year
+            start = _subtract_unit(today, 1, "year")
+        return {"start": start.isoformat(), "end": today.isoformat(), "direction": "past"}
+
+    # --- "N days/weeks/months ago" (point-in-time, use ±window) ---
+    m = _N_AGO_RE.search(text)
+    if m:
+        amount = int(m.group(1))
+        unit = m.group(2).lower().rstrip("s")
+        point = _subtract_unit(today, amount, unit)
+        # Use a ±3 day window around the point for fuzzy matching
+        start = point - timedelta(days=3)
+        end = point + timedelta(days=3)
+        if end > today:
+            end = today
+        return {"start": start.isoformat(), "end": end.isoformat(), "direction": "past"}
+
+    # --- "since January [2025]" ---
+    m = _SINCE_RE.search(text)
+    if m:
+        month_num = _MONTH_NAMES.get(m.group(1).lower())
+        if month_num:
+            year = int(m.group(2)) if m.group(2) else _resolve_year(month_num, today)
+            start = date(year, month_num, 1)
+            return {
+                "start": start.isoformat(),
+                "end": today.isoformat(),
+                "direction": "past",
+            }
+
+    # --- "in March [2025]" ---
+    m = _IN_MONTH_RE.search(text)
+    if m:
+        month_num = _MONTH_NAMES.get(m.group(1).lower())
+        if month_num:
+            year = int(m.group(2)) if m.group(2) else _resolve_year(month_num, today)
+            start = date(year, month_num, 1)
+            last_day = calendar.monthrange(year, month_num)[1]
+            end = date(year, month_num, last_day)
+            if end > today:
+                end = today
+            return {
+                "start": start.isoformat(),
+                "end": end.isoformat(),
+                "direction": "past",
+            }
+
+    # --- "yesterday" ---
+    if re.search(r"\byesterday\b", text):
+        yesterday = today - timedelta(days=1)
+        return {
+            "start": yesterday.isoformat(),
+            "end": yesterday.isoformat(),
+            "direction": "past",
+        }
+
+    # --- "recently" / "recent" / "lately" ---
+    if _RECENTLY_RE.search(text):
+        start = today - timedelta(days=14)
+        return {"start": start.isoformat(), "end": today.isoformat(), "direction": "past"}
+
+    # --- Forward-looking: "next week/month/appointment" ---
+    m = _FUTURE_PERIOD_RE.search(text)
+    if m:
+        period = m.group(1).lower()
+        if period == "week":
+            end = today + timedelta(weeks=1)
+            return {
+                "start": today.isoformat(),
+                "end": end.isoformat(),
+                "direction": "future",
+            }
+        if period == "month":
+            end_month = today.month + 1
+            end_year = today.year
+            if end_month > 12:
+                end_month = 1
+                end_year += 1
+            last_day = calendar.monthrange(end_year, end_month)[1]
+            end = date(end_year, end_month, last_day)
+            return {
+                "start": today.isoformat(),
+                "end": end.isoformat(),
+                "direction": "future",
+            }
+        # "next appointment"
+        return {"direction": "future"}
+
+    # --- "upcoming" / "coming up" (standalone) ---
+    if _FUTURE_STANDALONE_RE.search(text):
+        return {"direction": "future"}
+
+    return None
+
+
+def _subtract_unit(today: date, amount: int, unit: str) -> date:
+    """Subtract N days/weeks/months/years from today."""
+    if unit == "day":
+        return today - timedelta(days=amount)
+    if unit == "week":
+        return today - timedelta(weeks=amount)
+    if unit == "month":
+        target_month = today.month - amount
+        target_year = today.year
+        while target_month < 1:
+            target_month += 12
+            target_year -= 1
+        max_day = calendar.monthrange(target_year, target_month)[1]
+        day = min(today.day, max_day)
+        return date(target_year, target_month, day)
+    if unit == "year":
+        try:
+            return today.replace(year=today.year - amount)
+        except ValueError:
+            # Feb 29 in non-leap year
+            return today.replace(year=today.year - amount, day=28)
+    return today
+
+
+def _resolve_year(month_num: int, today: date) -> int:
+    """Resolve which year a bare month name refers to.
+
+    If the month hasn't occurred yet this year, assume last year.
+    """
+    if month_num > today.month:
+        return today.year - 1
+    return today.year
