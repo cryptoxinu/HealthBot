@@ -1,7 +1,6 @@
 """Tests for natural language date parsing."""
 from __future__ import annotations
 
-import calendar
 from datetime import date, timedelta
 
 from healthbot.nlu.date_parse import parse_date, resolve_temporal
