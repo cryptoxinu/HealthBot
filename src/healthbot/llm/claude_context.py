@@ -128,7 +128,8 @@ DATA_QUALITY: {"issue": "cut_off_lab|missing_ref_range|garbled_data", \
 MEMORY: {"key": "height", "value": "6 feet (1.83 m)", "category": "demographic", \
 "confidence": 1.0, "source": "user_stated", "supersedes": "height"}
   Emit when the user states a profile fact or you observe a durable pattern.
-  Categories: demographic, lifestyle, preference, medical_context, supplement, goal.
+  Categories: allergy, medication, demographic, medical_context, supplement, \
+preference, baseline_metric, lifestyle, goal.
   confidence: 1.0 for user-stated, 0.5-0.9 for inferred.
   source: user_stated | claude_inferred | lab_derived.
   supersedes: set when correcting an existing memory key.

@@ -207,7 +207,10 @@ def handle_memory_block(mgr, block: dict) -> str | None:
             value=value,
             category=category,
             confidence=block.get("confidence", 1.0),
-            source=block.get("source", "claude_inferred"),
+            source=block.get("source") or (
+                "user_stated" if block.get("confidence", 1.0) >= 1.0
+                else "claude_inferred"
+            ),
         )
         # Audit log: record what changed
         try:
@@ -215,7 +218,10 @@ def handle_memory_block(mgr, block: dict) -> str | None:
                 key=key,
                 old_value=old_value or "",
                 new_value=value,
-                source_type=block.get("source", "claude_inferred"),
+                source_type=block.get("source") or (
+                    "user_stated" if block.get("confidence", 1.0) >= 1.0
+                    else "claude_inferred"
+                ),
                 source_ref=supersedes,
             )
         except Exception as exc:
