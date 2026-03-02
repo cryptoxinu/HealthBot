@@ -386,6 +386,51 @@ class TestUnpauseOverdueRouting:
         mock_session.unpause_overdue.assert_not_called()
 
 
+class TestVisualHealthPattern:
+    """_VISUAL_HEALTH_PATTERN matches and non-matches."""
+
+    def test_show_me_my_health_visually(self):
+        from healthbot.bot.message_router import _VISUAL_HEALTH_PATTERN
+
+        assert _VISUAL_HEALTH_PATTERN.search("show me my health visually")
+
+    def test_health_snapshot(self):
+        from healthbot.bot.message_router import _VISUAL_HEALTH_PATTERN
+
+        assert _VISUAL_HEALTH_PATTERN.search("health snapshot")
+
+    def test_visualize_my_data(self):
+        from healthbot.bot.message_router import _VISUAL_HEALTH_PATTERN
+
+        assert _VISUAL_HEALTH_PATTERN.search("visualize my data")
+
+    def test_shareable_health_card(self):
+        from healthbot.bot.message_router import _VISUAL_HEALTH_PATTERN
+
+        assert _VISUAL_HEALTH_PATTERN.search("shareable health card")
+
+    def test_show_my_health_graphically(self):
+        from healthbot.bot.message_router import _VISUAL_HEALTH_PATTERN
+
+        assert _VISUAL_HEALTH_PATTERN.search("show my health graphically")
+
+    def test_give_me_a_health_snapshot(self):
+        from healthbot.bot.message_router import _VISUAL_HEALTH_PATTERN
+
+        assert _VISUAL_HEALTH_PATTERN.search("give me a health snapshot")
+
+    def test_does_not_match_how_is_my_health(self):
+        """'how's my health' is _STATUS_CHECK_PATTERN, not visual."""
+        from healthbot.bot.message_router import _VISUAL_HEALTH_PATTERN
+
+        assert not _VISUAL_HEALTH_PATTERN.search("how's my health")
+
+    def test_does_not_match_plain_question(self):
+        from healthbot.bot.message_router import _VISUAL_HEALTH_PATTERN
+
+        assert not _VISUAL_HEALTH_PATTERN.search("what is my glucose?")
+
+
 class TestRestartRouting:
     @pytest.mark.asyncio
     async def test_restart_bot_routes(self, router):

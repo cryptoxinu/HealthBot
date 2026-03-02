@@ -138,6 +138,16 @@ _STATUS_CHECK_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+# Natural-language visual health request → health card / chart
+_VISUAL_HEALTH_PATTERN = re.compile(
+    r"(?:show\s+(?:me\s+)?(?:my\s+)?(?:health|data|labs?)(?:\s+(?:visually|graphically|chart|graph)))"
+    r"|visual(?:ize)?\s+(?:my\s+)?(?:health|data)"
+    r"|health\s+(?:snapshot|card|visual)"
+    r"|(?:give|send)\s+(?:me\s+)?(?:a\s+)?(?:health\s+)?(?:snapshot|card)"
+    r"|shareable\s+(?:health\s+)?(?:summary|snapshot|card)",
+    re.IGNORECASE,
+)
+
 # Natural-language phrases that should trigger /restart
 _RESTART_PATTERN = re.compile(
     r"^(?:please\s+)?(?:restart|reboot|bounce)"
@@ -603,6 +613,15 @@ class MessageRouter:
             await self._handle_status_check(update)
             return
 
+        # Visual health request → health card chart
+        if (
+            update.message.text
+            and self._km.is_unlocked
+            and _VISUAL_HEALTH_PATTERN.search(update.message.text)
+        ):
+            await self._handle_visual_health(update)
+            return
+
         # Upload mode: block free text, only allow document uploads
         if update.message.text and self._km.is_unlocked and self.upload_mode:
             await update.message.reply_text(
@@ -637,6 +656,34 @@ class MessageRouter:
             logger.error("Status check failed: %s", e)
             await update.message.reply_text(
                 "Couldn't build summary. Try /insights for details."
+            )
+
+    async def _handle_visual_health(self, update: Update) -> None:
+        """Handle visual health request — send a health card chart."""
+        try:
+            import io
+
+            user_id = update.effective_user.id if update.effective_user else 0
+            from healthbot.export.chart_dispatch import dispatch as chart_dispatch
+
+            chart_bytes = chart_dispatch(
+                {"type": "health_card"}, self._get_db(), user_id,
+            )
+            if chart_bytes:
+                img = io.BytesIO(chart_bytes)
+                img.name = "health_card.png"
+                await update.message.reply_photo(
+                    photo=img, caption="Your Health Snapshot",
+                )
+            else:
+                await update.message.reply_text(
+                    "Not enough data for a visual snapshot yet.\n"
+                    "Upload lab PDFs or sync wearable data to get started."
+                )
+        except Exception as e:
+            logger.error("Visual health card failed: %s", e)
+            await update.message.reply_text(
+                "Couldn't generate health snapshot. Try /insights for details."
             )
 
     async def _handle_wearable_status_query(
@@ -831,40 +878,22 @@ class MessageRouter:
 
             # Generate charts requested by Claude via CHART blocks
             for chart_req in getattr(claude, "_pending_charts", [])[:3]:
-                metric = ""
                 try:
                     import io
 
                     if not isinstance(chart_req, dict):
                         continue
-                    metric = chart_req.get("metric", "")
-                    source = chart_req.get("source", "wearable")
-                    days = chart_req.get("days", 90 if source == "wearable" else 730)
-                    db = self._get_db()
+                    from healthbot.export.chart_dispatch import dispatch as chart_dispatch
 
-                    if source == "wearable":
-                        from healthbot.reasoning.wearable_trends import WearableTrendAnalyzer
-                        analyzer = WearableTrendAnalyzer(db)
-                        result = analyzer.analyze_metric(
-                            metric, days=days, user_id=user_id,
-                        )
-                    else:
-                        from healthbot.reasoning.trends import TrendAnalyzer
-                        analyzer = TrendAnalyzer(db)
-                        result = analyzer.analyze_test(
-                            metric, months=max(1, days // 30),
-                            user_id=user_id,
-                        )
-
-                    if result and result.values and len(result.values) >= 2:
-                        from healthbot.export.chart_generator import trend_chart
-                        chart_bytes = trend_chart(result)
-                        if chart_bytes:
-                            img = io.BytesIO(chart_bytes)
-                            img.name = f"trend_{metric}.png"
-                            await update.message.reply_photo(photo=img)
+                    chart_bytes = chart_dispatch(chart_req, self._get_db(), user_id)
+                    if chart_bytes:
+                        chart_type = chart_req.get("type", "trend")
+                        label = chart_req.get("metric", chart_type)
+                        img = io.BytesIO(chart_bytes)
+                        img.name = f"{chart_type}_{label}.png"
+                        await update.message.reply_photo(photo=img)
                 except Exception as exc:
-                    logger.debug("CHART block for %s skipped: %s", metric, exc)
+                    logger.debug("CHART block skipped: %s", exc)
         except Exception as e:
             from healthbot.llm.claude_client import CLIAuthError
 

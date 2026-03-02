@@ -14,6 +14,7 @@ from healthbot.export.chart_generator_ext import (
     sleep_architecture_chart,
     wearable_sparklines_chart,
 )
+from healthbot.export.chart_health_card import health_card
 from healthbot.reasoning.health_score import CompositeHealthScore
 from healthbot.reasoning.insights import DomainScore
 from healthbot.reasoning.trends import TrendResult
@@ -375,3 +376,46 @@ class TestCorrelationScatter:
         y = [10.0, 8.0, 6.0, 4.0]
         result = correlation_scatter_chart(x, y, "Strain", "Recovery")
         assert result is not None
+
+
+# ── Health card tests (chart_health_card.py) ──────────────────────
+
+
+class TestHealthCard:
+    def test_full_data_returns_png(self):
+        composite = _make_composite_score()
+        scores = _make_scores()
+        wearable = _make_wearable_data(14)
+        trend = _make_trend()
+        result = health_card(composite, scores, wearable, trend)
+        assert result is not None
+        assert result[:4] == _PNG_HEADER
+
+    def test_partial_data_still_produces_png(self):
+        """At least one panel has data -> should produce a PNG."""
+        composite = _make_composite_score()
+        result = health_card(composite, None, None, None)
+        assert result is not None
+        assert result[:4] == _PNG_HEADER
+
+    def test_all_none_returns_none(self):
+        result = health_card(None, None, None, None)
+        assert result is None
+
+    def test_only_radar_data(self):
+        scores = _make_scores()
+        result = health_card(None, scores, None, None)
+        assert result is not None
+        assert result[:4] == _PNG_HEADER
+
+    def test_only_wearable_data(self):
+        wearable = _make_wearable_data(7)
+        result = health_card(None, None, wearable, None)
+        assert result is not None
+        assert result[:4] == _PNG_HEADER
+
+    def test_only_trend_data(self):
+        trend = _make_trend()
+        result = health_card(None, None, None, trend)
+        assert result is not None
+        assert result[:4] == _PNG_HEADER
