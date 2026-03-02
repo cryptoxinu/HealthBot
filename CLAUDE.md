@@ -23,7 +23,7 @@ HealthBot is a **personal medical advisor and health executive assistant**. It s
 
 ## What Is This
 
-HealthBot Terminal is a local-first, security-first personal health data management tool for macOS. It stores, organizes, and analyzes health data (lab results, medications, Apple Health, WHOOP wearables) in a two-tier encrypted vault. **Claude CLI is the sole analysis and conversation backend** — all free-text goes to Claude with enriched context from deterministic intelligence engines. Ollama is recommended for Layer 3 PII anonymization (catches names/cities/orgs that regex misses). All 93 `/commands` are 100% deterministic (no LLM). An **MCP server** exposes pre-anonymized health data to Claude Code and OpenClaw.
+HealthBot Terminal is a local-first, security-first personal health data management tool for macOS. It stores, organizes, and analyzes health data (lab results, medications, Apple Health, WHOOP wearables) in a two-tier encrypted vault. **Claude CLI is the sole analysis and conversation backend** — all free-text goes to Claude with enriched context from deterministic intelligence engines. Ollama is recommended for Layer 3 PII anonymization (catches names/cities/orgs that regex misses). All 103 `/commands` are 100% deterministic (no LLM). An **MCP server** exposes pre-anonymized health data to Claude Code and OpenClaw.
 
 ## What Leaves Your Machine vs. What Stays Local
 
@@ -222,15 +222,15 @@ python -m healthbot --clean-sync    # One-time raw vault → Clean DB sync (full
 python -m healthbot --mcp-register  # Print MCP registration JSON
 ```
 
-## Telegram Commands (95 total)
+## Telegram Commands (103 total)
 
 All `/commands` are 100% deterministic (no LLM). Free-text goes to Claude CLI (anonymized).
 
 **Session & System**
-`/start` `/help` `/unlock` `/lock` `/version` `/restart` `/debug` `/audit` `/backup` `/rekey` `/feedback` `/auth_status` `/pii_alerts` `/privacy` `/redacted` `/snooze` `/preferences`
+`/start` `/help` `/unlock` `/lock` `/version` `/restart` `/debug` `/audit` `/backup` `/rekey` `/feedback` `/auth_status` `/pii_alerts` `/privacy` `/redacted` `/snooze` `/preferences` `/deep` `/tokenusage`
 
 **Health Analysis**
-`/insights` `/dashboard` `/summary` `/trend` `/correlate` `/gaps` `/healthreview` `/ask` `/overdue` `/profile` `/labs` `/recommend` `/digest` `/memory` `/aboutme`
+`/insights` `/dashboard` `/summary` `/trend` `/correlate` `/gaps` `/healthreview` `/ask` `/overdue` `/profile` `/labs` `/recommend` `/digest` `/memory` `/aboutme` `/score` `/analyze`
 
 **Medical Tracking**
 `/hypotheses` `/evidence` `/template` `/interactions` `/log` `/undo` `/symptoms` `/comorbidity` `/genetics` `/doctors` `/appointments` `/emergency`
@@ -242,7 +242,7 @@ All `/commands` are 100% deterministic (no LLM). Free-text goes to Claude CLI (a
 `/stress` `/sleeprec` `/goals` `/timeline` `/workouts` `/remind` `/reminders`
 
 **Data Import/Export**
-`/sync` `/connectors` `/oura` `/apple_sync` `/import` `/mychart` `/fasten` `/ingest` `/upload` `/finish` `/export` `/ai_export` `/docs` `/report` `/doctorprep` `/doctorpacket` `/weeklyreport` `/monthlyreport` `/scrub_pii` `/cleansync` (fast/hybrid/full/rebuild) `/rescan`
+`/sync` `/connectors` `/oura` `/apple_sync` `/import` `/mychart` `/fasten` `/ingest` `/upload` `/finish` `/export` `/ai_export` `/docs` `/report` `/doctorprep` `/doctorpacket` `/weeklyreport` `/monthlyreport` `/scrub_pii` `/cleansync` (fast/hybrid/full/rebuild) `/rescan` `/savedmessages`
 
 **Wearables**
 `/whoop_auth` `/oura_auth` `/wearable_status`
@@ -256,8 +256,13 @@ All `/commands` are 100% deterministic (no LLM). Free-text goes to Claude CLI (a
 **System Maintenance**
 `/integrity`
 
+**Charts & Visualization**
+`/trends_chart` `/lab_heatmap` `/scatter` `/sleep_chart` `/wearable_chart`
+
 **Destructive (confirmation required)**
 `/reset` `/delete` `/delete_labs` `/delete_doc`
+
+**Natural language shortcuts**: "save this" / "unsave this" (or "forget this") work as alternatives to replying + commands — saves/unsaves the last bot response or a replied-to message.
 
 ## Architecture Overview
 
@@ -291,7 +296,7 @@ src/healthbot/                    # 15 packages
 ```
 User message (Telegram)
   -> Auth check (user ID allowlist + rate limit)
-  -> /command → deterministic handler (95 commands, NO LLM)
+  -> /command → deterministic handler (103 commands, NO LLM)
   -> Document upload → ingest pipeline (regex parsing, encrypted storage)
   -> Free text →
        1. Emergency triage (deterministic keyword check, NO LLM)

@@ -208,6 +208,8 @@ class MessageRouter:
         self._get_claude: callable | None = None  # Returns ClaudeConversationManager
         self._last_logged_obs: dict[int, str] = {}  # user_id -> obs_id for /undo
         self._exchange_cb: callable | None = None  # (user_text, response) tracker
+        self._last_user_input: str = ""
+        self._last_bot_response: str = ""
         self._post_ingest_cb: callable | None = None  # (lab_results, user_id) targeted analysis
         self._post_ingest_sync_cb: callable | None = None  # () -> None: clean sync + context refresh
         # Pending date reply: user_id -> blob_id of undated results
@@ -910,6 +912,8 @@ class MessageRouter:
 
             if self._exchange_cb:
                 self._exchange_cb(text, response)
+            self._last_user_input = text
+            self._last_bot_response = response
             response = strip_markdown(response)
             for page in paginate(response):
                 await update.message.reply_text(page)
@@ -2093,20 +2097,16 @@ class MessageRouter:
             replied = update.message.reply_to_message
             if replied.reply_to_message and replied.reply_to_message.text:
                 context_text = replied.reply_to_message.text
-            elif hasattr(self, "_exchange_cb") and self._exchange_cb:
-                # Fall back to last tracked user input
-                core = getattr(self, "_core", None)
-                if core:
-                    context_text = core._last_user_input or None
+            elif self._last_user_input:
+                context_text = self._last_user_input
         elif colon_text:
             # "save this: <pasted text>"
             save_text = colon_text.strip()
         else:
             # Fallback: save last bot response
-            core = getattr(self, "_core", None)
-            if core:
-                save_text = core._last_bot_response
-                context_text = core._last_user_input or None
+            if self._last_bot_response:
+                save_text = self._last_bot_response
+                context_text = self._last_user_input or None
 
         if not save_text:
             await update.message.reply_text(

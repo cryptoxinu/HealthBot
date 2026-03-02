@@ -27,7 +27,7 @@ Open Telegram, send `/start` to your bot, then `/unlock <passphrase>` to begin.
 
 | Interface | How | Setup |
 |-----------|-----|-------|
-| **Telegram** | Direct bot chat (95 commands + free text) | `python -m healthbot --setup` (choose Telegram) |
+| **Telegram** | Direct bot chat (103 commands + free text) | `python -m healthbot --setup` (choose Telegram) |
 | **OpenClaw** | AI agent with MCP tool access to health data | [OpenClaw setup guide](docs/OPENCLAW_SETUP.md) |
 | **Claude Code** | MCP tools during coding sessions | `python -m healthbot --mcp-register` |
 
@@ -44,7 +44,7 @@ Open Telegram, send `/start` to your bot, then `/unlock <passphrase>` to begin.
 - Auto-generates medical hypotheses from lab patterns
 - Generates doctor visit prep summaries, PDF packets, and discussion templates
 - Sanitized medical research via Claude CLI + PubMed (PHI hard-blocked)
-- 95 Telegram commands — all deterministic (no LLM required)
+- 103 Telegram commands — all deterministic (no LLM required)
 - MCP server for Claude Code / OpenClaw integration
 - Real-time PII leak alerting
 
@@ -81,7 +81,7 @@ YOU (Telegram)
  │              Anonymized prompt only ──────► Claude CLI       │
  │              (no names, SSN, DOB, etc)     (cloud, safe)    │
  │                                                             │
- └─ /commands (95 total) ──► 100% local, no AI ───────────────┘
+ └─ /commands (103 total) ──► 100% local, no AI ───────────────┘
 ```
 
 **The key guarantee**: Your identifiable medical data (names, SSN, DOB, addresses) is NEVER sent to any cloud service. PDFs are parsed with regex — no AI touches the raw file. Claude only sees anonymized summaries from the Clean DB.
