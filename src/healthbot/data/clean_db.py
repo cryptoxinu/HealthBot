@@ -451,10 +451,26 @@ class CleanDB:
     # ── PII validation ──────────────────────────────────
 
     def _assert_no_phi(self, text: str, context: str = "") -> None:
-        """Raise PhiDetectedError if text contains PII."""
-        if text and self._fw.contains_phi(text):
+        """Raise PhiDetectedError if text contains base PII patterns.
+
+        Skips identity-specific patterns (id_* prefix) — these are handled
+        by the anonymizer during text cleaning. Running them again in the
+        belt-and-suspenders check causes false positives on medical text
+        (e.g., user's last name matching a medical term like "White").
+        """
+        if not text:
+            return
+        matches = self._fw.scan(text)
+        # Filter out identity-specific patterns — already handled by anonymizer
+        base_matches = [m for m in matches if not m.category.startswith("id_")]
+        if base_matches:
+            categories = {m.category for m in base_matches}
+            logger.warning(
+                "PII in clean store write (%s): categories=%s",
+                context, categories,
+            )
             raise PhiDetectedError(
-                f"PII detected in clean store write ({context}): blocked"
+                f"PII detected ({', '.join(categories)}) in {context}: blocked"
             )
 
     def _validate_text_fields(self, fields: dict[str, str], context: str) -> None:

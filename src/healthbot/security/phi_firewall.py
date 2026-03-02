@@ -54,17 +54,18 @@ PHI_PATTERNS: dict[str, re.Pattern[str]] = {
         r"[A-Z]{2,}(?:[,\s]+[A-Z]{2,})+(?:\s+[A-Z]\.?)?\b"
     ),
     # Self-introduction: "My name is John", "I'm John Smith", "I am Sarah Jones"
-    # Includes common non-English intro patterns
+    # Includes common non-English intro patterns.
+    # Intro phrases are case-insensitive via (?i:...), but the name part
+    # requires Title Case to avoid matching "I am taking" or "I am allergic".
     "name_intro": re.compile(
-        r"\b(?:my name is|I'm|I am"
-        r"|me llamo|mi nombre es"       # Spanish
+        r"(?i:\b(?:my name is|I'm|I am"
+        r"|me llamo|mi nombre es"        # Spanish
         r"|je m'appelle|je suis"         # French
         r"|ich bin|mein Name ist"        # German
         r"|mi chiamo|io sono"            # Italian
         r"|eu sou|meu nome [eé]"         # Portuguese
-        r")\s+"
+        r"))\s+"
         r"[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?\b",
-        re.IGNORECASE,
     ),
     # Doctor/provider names: "Dr. Sarah Johnson", "Doctor Jane Doe"
     "doctor_name": re.compile(
