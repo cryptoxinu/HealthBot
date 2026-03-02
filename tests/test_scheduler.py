@@ -84,8 +84,8 @@ class TestAlertScheduler:
     def test_on_lock_clears_state(self) -> None:
         """on_lock should clear sent keys and close the database."""
         scheduler, _, _ = self._make_scheduler()
-        scheduler._sent_keys.add("key1")
-        scheduler._sent_keys.add("key2")
+        scheduler._sent_keys["key1"] = 1.0
+        scheduler._sent_keys["key2"] = 2.0
         mock_db = MagicMock()
         scheduler._db = mock_db
 

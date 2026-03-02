@@ -154,14 +154,26 @@ class GeneticParser:
         )
 
     def _detect_format(self, lines: list[str]) -> str:
-        """Detect file format from header/comment lines."""
+        """Detect file format from header/comment lines.
+
+        Requires both a recognized header pattern AND a minimum column
+        count (>=4 for standard, >=5 for AncestryDNA) to avoid
+        false-positives on arbitrary TSV files containing "rs".
+        """
+        expected_headers = {"rsid", "genotype", "chromosome", "position", "allele1", "allele2"}
         for line in lines[:50]:
             line = line.strip()
             if not line:
                 continue
             if _ANCESTRY_HEADER.search(line):
-                return "ancestry"
+                cols = re.split(r"[\t,]+", line)
+                if len(cols) >= 5:
+                    return "ancestry"
             if _TELLMEGEN_HEADER.search(line) or _23ANDME_HEADER.search(line):
+                cols = re.split(r"[\t,]+", line)
+                col_names = {c.strip().lower() for c in cols}
+                if len(cols) < 4 or not col_names & expected_headers:
+                    continue
                 # TellMeGen and 23andMe use the same format
                 if "tellmegen" in line.lower() or "tell me gen" in line.lower():
                     return "tellmegen"

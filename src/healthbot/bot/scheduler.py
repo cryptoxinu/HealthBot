@@ -87,7 +87,9 @@ class AlertScheduler:
         self._chat_id = chat_id
         self._memory_store = memory_store
         self._fw = phi_firewall
-        self._sent_keys: set[str] = set()  # In-memory dedup
+        self._sent_keys: dict[str, float] = {}  # In-memory dedup: key -> timestamp
+        self._sent_keys_max = 5000  # Max entries before forced eviction
+        self._sent_keys_ttl = 24 * 3600  # 24-hour TTL for dedup keys
         self._db: HealthDB | None = None
         self._message_tracker: callable | None = None
         self._warned_5min: bool = False
@@ -96,6 +98,7 @@ class AlertScheduler:
         self.upload_mode: bool = False
         self._cached_conditions: list[str] = []  # Cached on lock for research
         self._timeout_wipe_cb: object | None = None  # async cb(bot) for chat wipe
+        self._timeout_wiped: bool = False  # Prevents repeated wipe on timeout
         self._claude_getter: object | None = None  # callable → ClaudeConversationManager
 
     @property
@@ -108,6 +111,27 @@ class AlertScheduler:
     def set_message_tracker(self, tracker: callable) -> None:
         """Set callback to track outgoing messages for session chat wipe."""
         self._message_tracker = tracker
+
+    def _record_sent_key(self, key: str) -> None:
+        """Record a dedup key with timestamp, evicting stale entries if needed."""
+        now = time.time()
+        # Periodic eviction: remove expired entries when nearing max size
+        if len(self._sent_keys) >= self._sent_keys_max:
+            cutoff = now - self._sent_keys_ttl
+            self._sent_keys = {
+                k: ts for k, ts in self._sent_keys.items() if ts > cutoff
+            }
+        self._sent_keys[key] = now
+
+    def _has_sent_key(self, key: str) -> bool:
+        """Check if a dedup key exists and is still within TTL."""
+        ts = self._sent_keys.get(key)
+        if ts is None:
+            return False
+        if time.time() - ts > self._sent_keys_ttl:
+            del self._sent_keys[key]
+            return False
+        return True
 
 
     def set_claude_getter(self, getter: object) -> None:
@@ -296,6 +320,7 @@ class AlertScheduler:
                 try:
                     count = await client.sync_daily(
                         db, days=7, clean_db=clean,
+                        user_id=self._primary_user_id,
                     ) or 0
                 finally:
                     if clean:
@@ -647,7 +672,8 @@ class AlertScheduler:
             # reliable than the fire-and-forget task in _on_vault_lock.
             self._warned_5min = False
             self._warned_1min = False
-            if self._timeout_wipe_cb:
+            if self._timeout_wipe_cb and not self._timeout_wiped:
+                self._timeout_wiped = True  # Prevent repeated wipe calls
                 try:
                     await self._timeout_wipe_cb(context.bot)
                 except Exception as e:
@@ -660,6 +686,7 @@ class AlertScheduler:
             # Activity refreshed — reset warning flags
             self._warned_5min = False
             self._warned_1min = False
+            self._timeout_wiped = False
         elif remaining <= 300 and not self._warned_5min:
             self._warned_5min = True
             await self._tracked_send(
@@ -686,6 +713,14 @@ class AlertScheduler:
             logger.info("Daily backup: %s (pruned %d old)", path.name, pruned)
         except Exception as e:
             logger.warning("Daily backup failed: %s", e)
+            # Notify user via Telegram so backup failures are not silently lost
+            try:
+                await self._tracked_send(
+                    context.bot,
+                    f"Daily backup failed: {e}. Check logs for details.",
+                )
+            except Exception:
+                pass  # Notification is best-effort
 
     async def _auto_ai_export(
         self, context: ContextTypes.DEFAULT_TYPE,
@@ -717,6 +752,7 @@ class AlertScheduler:
 
             import io
 
+            # Send via in-memory buffer (avoid leaving unencrypted file on disk)
             doc = io.BytesIO(result.markdown.encode("utf-8"))
             doc.name = result.file_path.name
             await context.bot.send_document(
@@ -726,6 +762,12 @@ class AlertScheduler:
                 context.bot,
                 f"Auto AI export complete.\n{result.validation.summary()}",
             )
+            # Remove unencrypted export file from disk immediately
+            try:
+                if result.file_path and result.file_path.exists():
+                    result.file_path.unlink()
+            except OSError as cleanup_err:
+                logger.warning("Failed to remove export file: %s", cleanup_err)
         except Exception as e:
             logger.warning("Auto AI export failed: %s", e)
 
@@ -736,11 +778,11 @@ class AlertScheduler:
         overdue_paused = is_overdue_paused(self._config)
         sent_overdue = False
         for alert in alerts:
-            if alert.dedup_key in self._sent_keys:
+            if self._has_sent_key(alert.dedup_key):
                 continue
             if alert.alert_type == "overdue" and overdue_paused:
                 continue
-            self._sent_keys.add(alert.dedup_key)
+            self._record_sent_key(alert.dedup_key)
             icon = {"urgent": "!", "watch": "~", "info": ""}.get(alert.severity, "")
             msg = f"{icon} {alert.title}\n{alert.body}"
             for page in paginate(msg):
@@ -930,7 +972,7 @@ class AlertScheduler:
 
             kc = Keychain()
             hints: list[str] = []
-            for name, cred_key, _sync_cmd, auth_cmd, desc in [
+            for name, cred_key, _sync_cmd, auth_cmd, _desc in [
                 ("WHOOP", "whoop_client_id", "/sync", "/whoop_auth",
                  "sleep, recovery, strain"),
                 ("Oura Ring", "oura_client_id", "/oura", "/oura_auth",
@@ -1287,9 +1329,9 @@ class AlertScheduler:
             for reminder in due:
                 # Dedup: only send each reminder once per minute
                 dedup = f"med_reminder_{reminder.med_name}_{reminder.time}"
-                if dedup in self._sent_keys:
+                if self._has_sent_key(dedup):
                     continue
-                self._sent_keys.add(dedup)
+                self._record_sent_key(dedup)
                 msg = format_reminder(reminder)
                 await self._tracked_send(context.bot, msg)
         except Exception as e:
@@ -1358,9 +1400,9 @@ class AlertScheduler:
                 gap_days = (date.today() - last_date).days
                 if gap_days >= WEARABLE_GAP_THRESHOLD_DAYS:
                     dedup = f"wearable_gap_{provider}_{last_date_str}"
-                    if dedup in self._sent_keys:
+                    if self._has_sent_key(dedup):
                         continue
-                    self._sent_keys.add(dedup)
+                    self._record_sent_key(dedup)
 
                     name = provider.upper() if provider == "whoop" else provider.title()
                     await self._tracked_send(
@@ -1444,12 +1486,12 @@ class AlertScheduler:
                     continue  # Not configured — skip
 
                 dedup = f"auth_health_{name}"
-                if dedup in self._sent_keys:
+                if self._has_sent_key(dedup):
                     continue
 
                 # Validate credential format (catch corrupted values)
                 if " " in client_id or len(client_id) < 8:
-                    self._sent_keys.add(dedup)
+                    self._record_sent_key(dedup)
                     await self._tracked_send(
                         context.bot,
                         f"{name} client ID looks corrupted. "
@@ -1460,7 +1502,7 @@ class AlertScheduler:
                 # Check credentials exist
                 client_secret = kc.retrieve(secret_key)
                 if not client_secret:
-                    self._sent_keys.add(dedup)
+                    self._record_sent_key(dedup)
                     await self._tracked_send(
                         context.bot,
                         f"{name} credentials incomplete — client secret "
@@ -1474,7 +1516,7 @@ class AlertScheduler:
                     if not token:
                         raise ValueError("empty")
                 except Exception:
-                    self._sent_keys.add(dedup)
+                    self._record_sent_key(dedup)
                     await self._tracked_send(
                         context.bot,
                         f"{name} auth token expired or missing. "
@@ -1482,43 +1524,26 @@ class AlertScheduler:
                     )
                     continue
 
-                # Try token refresh
+                # Check token validity without refreshing
                 try:
-                    import httpx
-
-                    token_url = (
-                        "https://api.prod.whoop.com/oauth/oauth2/token"
-                        if name == "WHOOP"
-                        else "https://api.ouraring.com/oauth/token"
+                    # Token exists and credentials are present — check
+                    # if the token looks valid (non-empty, decodable).
+                    # Only flag if the token is clearly broken. Do NOT
+                    # call the refresh endpoint — that consumes the
+                    # token and should only happen during actual sync.
+                    token_str = (
+                        token.decode() if isinstance(token, bytes)
+                        else token
                     )
-                    async with httpx.AsyncClient(timeout=15) as http:
-                        resp = await http.post(
-                            token_url,
-                            data={
-                                "grant_type": "refresh_token",
-                                "refresh_token": token.decode()
-                                if isinstance(token, bytes) else token,
-                                "client_id": client_id,
-                                "client_secret": client_secret,
-                            },
-                        )
-                    if resp.status_code >= 400:
-                        self._sent_keys.add(dedup)
+                    if not token_str or len(token_str) < 10:
+                        self._record_sent_key(dedup)
                         await self._tracked_send(
                             context.bot,
-                            f"{name} token refresh failed (HTTP "
-                            f"{resp.status_code}). Run {auth_cmd} "
-                            f"to re-authorize.",
+                            f"{name} refresh token looks corrupted "
+                            f"(too short). Run {auth_cmd} to "
+                            f"re-authorize.",
                         )
                     else:
-                        # Token still valid — store refreshed token
-                        data = resp.json()
-                        new_refresh = data.get("refresh_token")
-                        if new_refresh:
-                            vault.store_blob(
-                                new_refresh.encode(),
-                                blob_id=token_blob,
-                            )
                         logger.info("%s auth health check: OK", name)
                 except Exception as e:
                     logger.warning(

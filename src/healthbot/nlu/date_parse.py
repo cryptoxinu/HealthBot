@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import calendar
 import re
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import TypedDict
 
 # Weekday name -> weekday number (Monday=0 ... Sunday=6)
@@ -131,7 +131,7 @@ def parse_date(text: str) -> date | None:
         return None
 
     stripped = text.strip().lower()
-    today = date.today()
+    today = datetime.now(tz=UTC).date()
 
     # --- Simple relative words (search within text) ---
     # "day before yesterday" must be checked before "yesterday"
@@ -197,7 +197,15 @@ def parse_date(text: str) -> date | None:
         from dateutil.parser import parse as dateutil_parse
 
         result = dateutil_parse(text, fuzzy=True)
-        return result.date()
+        parsed = result.date()
+        # Validate: reject phantom dates from fuzzy parsing.
+        # Dates before 1900 or more than 2 years in the future are almost
+        # certainly artifacts of fuzzy matching on random text.
+        if parsed.year < 1900:
+            return None
+        if parsed > today + timedelta(days=730):
+            return None
+        return parsed
     except Exception:
         return None
 
@@ -273,7 +281,7 @@ def resolve_temporal(query: str) -> TemporalRange | None:
         return None
 
     text = query.strip().lower()
-    today = date.today()
+    today = datetime.now(tz=UTC).date()
 
     # --- "last/past N days/weeks/months/years" ---
     m = _LAST_N_RE.search(text)
@@ -313,7 +321,8 @@ def resolve_temporal(query: str) -> TemporalRange | None:
     if m:
         month_num = _MONTH_NAMES.get(m.group(1).lower())
         if month_num:
-            year = int(m.group(2)) if m.group(2) else _resolve_year(month_num, today)
+            year = (int(m.group(2)) if m.group(2)
+                    else _resolve_year(month_num, today, preposition="since"))
             start = date(year, month_num, 1)
             return {
                 "start": start.isoformat(),
@@ -326,7 +335,8 @@ def resolve_temporal(query: str) -> TemporalRange | None:
     if m:
         month_num = _MONTH_NAMES.get(m.group(1).lower())
         if month_num:
-            year = int(m.group(2)) if m.group(2) else _resolve_year(month_num, today)
+            year = (int(m.group(2)) if m.group(2)
+                    else _resolve_year(month_num, today, preposition="in"))
             start = date(year, month_num, 1)
             last_day = calendar.monthrange(year, month_num)[1]
             end = date(year, month_num, last_day)
@@ -410,11 +420,23 @@ def _subtract_unit(today: date, amount: int, unit: str) -> date:
     return today
 
 
-def _resolve_year(month_num: int, today: date) -> int:
+def _resolve_year(
+    month_num: int, today: date, preposition: str = "in",
+) -> int:
     """Resolve which year a bare month name refers to.
 
-    If the month hasn't occurred yet this year, assume last year.
+    Uses the preposition to disambiguate:
+    - "since March" always refers to the past (last year if month > current)
+    - "in March" refers to the current year if the month hasn't passed,
+      otherwise last year (assumes the most recent occurrence)
     """
+    preposition = preposition.lower().strip()
+    if preposition == "since":
+        # "since" always means past — if month hasn't occurred yet, last year
+        if month_num > today.month:
+            return today.year - 1
+        return today.year
+    # "in" — default: assume most recent past occurrence
     if month_num > today.month:
         return today.year - 1
     return today.year

@@ -202,10 +202,11 @@ class InteractionChecker:
         if lower in all_substance_keys:
             return lower
 
-        # 3. Partial match: check if name starts with or contains a known alias
-        #    (handles "atorvastatin 40mg" -> "atorvastatin" -> "statin")
+        # 3. Word-boundary match: check if name contains a known alias as a
+        #    whole word (handles "atorvastatin 40mg" -> "atorvastatin" -> "statin"
+        #    but avoids false positives from short aliases like "ca" matching "calcium")
         for alias, key in SUBSTANCE_ALIASES.items():
-            if lower.startswith(alias):
+            if re.search(rf"\b{re.escape(alias)}\b", lower):
                 return key
 
         return None

@@ -125,10 +125,11 @@ class AnonymizePipeline:
                     current, had_phi, pass_num, layer_hits, all_events,
                 )
 
-        # Should not reach here, but safety net
+        # Should not reach here, but safety net — mark as unverified
         return RedactionResult(
-            text=current, had_phi=had_phi, passes=self._max_passes,
-            layer_hits=layer_hits, audit_trail=all_events,
+            text="[REDACTED]", had_phi=True, passes=self._max_passes,
+            layer_hits=layer_hits, redaction_score=0.0,
+            audit_trail=all_events,
         )
 
     def process_batch(
@@ -205,12 +206,19 @@ class AnonymizePipeline:
             logger.warning(
                 "Aggressive re-anonymization after %d passes", passes,
             )
+            try:
+                self._anon.assert_safe(cleaned)
+            except AnonymizationError:
+                logger.error(
+                    "PII remains after aggressive re-anonymization, blocking",
+                )
+                raise
             return RedactionResult(
                 text=cleaned,
                 had_phi=True,
                 passes=passes + 1,
                 layer_hits=layer_hits,
-                redaction_score=0.0,
+                redaction_score=1.0,
                 audit_trail=events,
             )
 

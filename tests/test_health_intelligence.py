@@ -340,9 +340,21 @@ class TestContextInjection:
 
 
 class TestClinicalDocRouter:
-    def test_route_mixed_blocks(self):
-        """Mock Claude response with mixed blocks routes to correct tables."""
+    @patch("healthbot.llm.anonymizer.Anonymizer")
+    def test_route_mixed_blocks(self, mock_anon_cls):
+        """Mock Claude response with mixed blocks routes to correct tables.
+
+        ClinicalDocRouter now anonymizes text before sending to Claude (M25).
+        We mock the Anonymizer to avoid canary token checks in tests.
+        """
         from healthbot.ingest.clinical_doc_router import ClinicalDocRouter
+
+        # Mock Anonymizer so anonymize() returns text unchanged and
+        # assert_safe() does not raise
+        mock_anon = MagicMock(spec=[])
+        mock_anon.anonymize = MagicMock(return_value=("Sample text", False))
+        mock_anon.assert_safe = MagicMock(return_value=None)
+        mock_anon_cls.return_value = mock_anon
 
         mock_claude = MagicMock()
         mock_claude.send.return_value = (

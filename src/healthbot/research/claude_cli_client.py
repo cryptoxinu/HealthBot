@@ -9,12 +9,12 @@ from __future__ import annotations
 import hashlib
 import logging
 import subprocess
+from collections import OrderedDict
 from pathlib import Path
 
 from healthbot.config import Config
 from healthbot.llm.claude_client import (
     _CLAUDE_SEMAPHORE,
-    _FIX_TOOL_FLAGS,
     _PRIVACY_FLAGS,
     _PRIVACY_PREAMBLE,
     _TOOL_FLAGS,
@@ -26,15 +26,24 @@ from healthbot.security.phi_firewall import PhiFirewall
 
 logger = logging.getLogger("healthbot")
 
+# Read-only tools for debug/diagnosis — no Write, Edit, or Bash to prevent
+# accidental modifications when invoked from the research client.
+_READ_ONLY_TOOL_FLAGS: list[str] = [
+    "--tools", "Read,Glob,Grep,WebSearch,WebFetch",
+    "--allowedTools", "Read,Glob,Grep,WebSearch,WebFetch",
+]
+
 
 class ClaudeCLIResearchClient:
     """Research health questions using Claude CLI."""
+
+    _CACHE_MAX_SIZE = 100
 
     def __init__(self, config: Config, firewall: PhiFirewall) -> None:
         self._config = config
         self._firewall = firewall
         self._cli_path = resolve_cli(config.claude_cli_path)
-        self._cache: dict[str, str] = {}
+        self._cache: OrderedDict[str, str] = OrderedDict()
         self._api_key: str | None = self._load_api_key()
 
     @staticmethod
@@ -59,8 +68,9 @@ class ClaudeCLIResearchClient:
         if packet.blocked:
             return f"Research blocked: {packet.block_reason}"
 
-        # Check cache
+        # Check cache (move to end on access for LRU ordering)
         if packet.query_hash in self._cache:
+            self._cache.move_to_end(packet.query_hash)
             return self._cache[packet.query_hash]
 
         if not self._cli_path:
@@ -107,8 +117,10 @@ class ClaudeCLIResearchClient:
         if self._firewall.contains_phi(response):
             response = self._firewall.redact(response)
 
-        # Cache
+        # Cache with LRU eviction
         self._cache[packet.query_hash] = response
+        if len(self._cache) > self._CACHE_MAX_SIZE:
+            self._cache.popitem(last=False)
 
         return response
 
@@ -152,7 +164,7 @@ class ClaudeCLIResearchClient:
 
             result = subprocess.run(
                 [str(self._cli_path), "--print", "--model", "claude-opus-4-6",
-                 *_PRIVACY_FLAGS, *_FIX_TOOL_FLAGS],
+                 *_PRIVACY_FLAGS, *_READ_ONLY_TOOL_FLAGS],
                 input=prompt,
                 capture_output=True,
                 text=True,

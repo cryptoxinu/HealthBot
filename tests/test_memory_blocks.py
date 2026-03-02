@@ -454,7 +454,7 @@ class TestHandleMemoryBlockFeedback:
             "value": "espresso",
             "category": "preference",
         })
-        assert feedback == "Remembered: favorite_coffee"
+        assert feedback == "Preference updated: favorite coffee"
         cdb.upsert_user_memory.assert_called_once()
         mgr.invalidate_memory_cache.assert_called_once()
 

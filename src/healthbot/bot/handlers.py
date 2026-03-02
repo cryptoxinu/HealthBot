@@ -101,11 +101,20 @@ class Handlers:
 
     # -- Special routing (not standard sub-handler delegation) --
 
+    @property
+    def _reset_handlers(self):
+        """Direct access to reset handlers, avoiding deep coupling."""
+        return self._core._router._reset_handlers
+
     async def delete_labs(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        await self._core._router._reset_handlers.delete_labs(update, context)
+        rh = self._reset_handlers
+        if rh:
+            await rh.delete_labs(update, context)
 
     async def delete_doc(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-        await self._core._router._reset_handlers.delete_doc(update, context)
+        rh = self._reset_handlers
+        if rh:
+            await rh.delete_doc(update, context)
 
     # -- Identity commands (delegated to IdentityHandlers via app.py) --
     # /identity, /identity_check, /identity_clear are registered directly

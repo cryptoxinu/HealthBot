@@ -140,7 +140,9 @@ class TrendAnalyzer:
                 except (ValueError, TypeError):
                     continue
 
-        if len(points) < 2:
+        if len(points) < 3:
+            # Require minimum 3 data points for meaningful regression.
+            # With only 2 points, R-squared is always 1.0 (meaningless).
             return None
 
         # Sort by date
@@ -168,22 +170,32 @@ class TrendAnalyzer:
         r_squared = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0.0
 
         # Direction
-        pct_change = (
-            (points[-1][1] - points[0][1]) / points[0][1] * 100
-            if points[0][1] != 0
-            else 0.0
-        )
-
-        if abs(pct_change) < 5 or r_squared < 0.1:
-            direction = "stable"
-        elif slope > 0:
-            direction = "increasing"
+        baseline = points[0][1]
+        current = points[-1][1]
+        if baseline == 0:
+            # Use absolute delta when baseline is zero to avoid division by zero.
+            # Any non-zero change from a zero baseline is clinically significant
+            # (e.g., troponin rising from 0).
+            abs_delta = current - baseline
+            pct_change = 0.0  # Not meaningful for zero baseline
+            if abs(abs_delta) < 1e-9 or r_squared < 0.1:
+                direction = "stable"
+            elif abs_delta > 0:
+                direction = "increasing"
+            else:
+                direction = "decreasing"
         else:
-            direction = "decreasing"
+            pct_change = (current - baseline) / baseline * 100
+            if abs(pct_change) < 5 or r_squared < 0.1:
+                direction = "stable"
+            elif slope > 0:
+                direction = "increasing"
+            else:
+                direction = "decreasing"
 
         test_name = rows[0].get("test_name", canonical_name) if rows else canonical_name
 
-        return TrendResult(
+        result = TrendResult(
             test_name=test_name,
             canonical_name=canonical_name,
             direction=direction,
@@ -197,6 +209,11 @@ class TrendAnalyzer:
             pct_change=pct_change,
             values=points,
         )
+
+        # Add age-contextualized interpretation if available
+        result.age_context = self.age_contextualize(result)
+
+        return result
 
     def detect_all_trends(
         self, months: int = 24, user_id: int | None = None,
@@ -298,30 +315,30 @@ class TrendAnalyzer:
         self, canonical_name: str, user_id: int | None,
     ) -> TrendResult | None:
         """Retrieve cached trend result."""
+        # Skip caching if user_id is None to prevent cross-user cache hits
+        if user_id is None:
+            return None
         try:
             sql = (
                 "SELECT * FROM trend_cache "
-                "WHERE canonical_name = ?"
+                "WHERE canonical_name = ? AND user_id = ?"
             )
-            params: list = [canonical_name]
-            if user_id is not None:
-                sql += " AND user_id = ?"
-                params.append(user_id)
+            params: list = [canonical_name, user_id]
             row = self._db.conn.execute(sql, params).fetchone()
             if not row:
                 return None
             return TrendResult(
                 test_name=canonical_name,
                 canonical_name=canonical_name,
-                direction=row["direction"] or "stable",
-                slope=row["slope"] or 0.0,
-                r_squared=row["r_squared"] or 0.0,
-                data_points=row["data_points"] or 0,
-                first_date=row["first_date"] or "",
-                last_date=row["last_date"] or "",
-                first_value=row["first_value"] or 0.0,
-                last_value=row["last_value"] or 0.0,
-                pct_change=row["pct_change"] or 0.0,
+                direction=row["direction"] if row["direction"] is not None else "stable",
+                slope=row["slope"] if row["slope"] is not None else 0.0,
+                r_squared=row["r_squared"] if row["r_squared"] is not None else 0.0,
+                data_points=row["data_points"] if row["data_points"] is not None else 0,
+                first_date=row["first_date"] if row["first_date"] is not None else "",
+                last_date=row["last_date"] if row["last_date"] is not None else "",
+                first_value=row["first_value"] if row["first_value"] is not None else 0.0,
+                last_value=row["last_value"] if row["last_value"] is not None else 0.0,
+                pct_change=row["pct_change"] if row["pct_change"] is not None else 0.0,
                 values=[],  # Not stored in cache
             )
         except Exception:
@@ -331,10 +348,13 @@ class TrendAnalyzer:
         self, trend: TrendResult, user_id: int | None,
     ) -> None:
         """Store trend result in cache (upsert)."""
+        # Skip caching if user_id is None to prevent cross-user cache collisions
+        if user_id is None:
+            return
         try:
             cache_id = uuid.uuid4().hex
             now = datetime.now(UTC).isoformat()
-            uid = user_id or 0
+            uid = user_id
             aad = f"trend_cache.encrypted_data.{cache_id}"
             enc_data = self._db._encrypt(
                 {"canonical_name": trend.canonical_name}, aad,

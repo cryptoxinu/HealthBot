@@ -580,8 +580,24 @@ class MedicalHandlers:
             args = context.args or []
 
             if args and args[0].lower() == "add" and len(args) >= 3:
+                import unicodedata
+
                 name = args[1]
                 specialty = " ".join(args[2:])
+                # Sanitize: strip control characters and limit length
+                name = "".join(
+                    ch for ch in name
+                    if unicodedata.category(ch)[0] != "C"
+                )[:100]
+                specialty = "".join(
+                    ch for ch in specialty
+                    if unicodedata.category(ch)[0] != "C"
+                )[:200]
+                if not name:
+                    await update.message.reply_text(
+                        "Invalid provider name."
+                    )
+                    return
                 db.insert_provider(uid, {
                     "name": name,
                     "specialty": specialty,

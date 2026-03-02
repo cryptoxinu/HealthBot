@@ -506,9 +506,32 @@ class AppleHealthImporter:
         except (ValueError, TypeError):
             return None
 
-    def _parse_date(self, date_str: str) -> datetime | None:
-        """Parse Apple Health date format."""
-        # Format: 2024-01-15 08:30:00 -0500
+    @staticmethod
+    def _parse_date(date_str: str) -> datetime | None:
+        """Parse Apple Health date format.
+
+        Handles both space-separated tz offsets (2024-01-15 08:30:00 -0500)
+        and ISO 8601 formats. Uses datetime.fromisoformat() for robust
+        timezone-aware parsing.
+        """
+        if not date_str:
+            return None
+        # Apple Health uses "2024-01-15 08:30:00 -0500" — normalize to ISO
+        # by replacing space before tz offset with no separator for fromisoformat
+        normalized = date_str.strip()
+        # "2024-01-15 08:30:00 -0500" -> "2024-01-15T08:30:00-0500"
+        # Replace first space with T, remove space before tz offset
+        if len(normalized) > 19 and normalized[10] == " ":
+            # Has date + time + possibly tz
+            normalized = normalized[:10] + "T" + normalized[11:]
+            # Remove space before tz offset: "T08:30:00 -0500" -> "T08:30:00-0500"
+            if len(normalized) > 19 and normalized[19] == " ":
+                normalized = normalized[:19] + normalized[20:]
+        try:
+            return datetime.fromisoformat(normalized)
+        except ValueError:
+            pass
+        # Fallback to strptime for edge cases
         for fmt in (
             "%Y-%m-%d %H:%M:%S %z",
             "%Y-%m-%d %H:%M:%S",
@@ -542,7 +565,7 @@ class AppleHealthImporter:
                     self._process_clinical_record(elem, user_id, result)
                 except Exception as e:
                     logger.debug("Clinical record parse error: %s", e)
-                elem.clear()
+            elem.clear()  # Free memory for all elements
 
     def _process_clinical_record(
         self,

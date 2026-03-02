@@ -8,8 +8,15 @@ from __future__ import annotations
 import logging
 
 from healthbot.data.db import HealthDB
+from healthbot.data.db_memory import MemoryMixin
 from healthbot.data.models import LabResult
+from healthbot.reasoning.overdue import OverdueDetector
+from healthbot.reasoning.recovery_readiness import RecoveryReadinessEngine
+from healthbot.reasoning.reference_ranges import get_range
+from healthbot.reasoning.sleep_analysis import SleepArchitectureAnalyzer
+from healthbot.reasoning.trends import TrendAnalyzer
 from healthbot.reasoning.triage import TriageEngine
+from healthbot.reasoning.wearable_trends import WearableTrendAnalyzer
 
 logger = logging.getLogger("healthbot")
 
@@ -34,6 +41,9 @@ class ProactiveInsightEngine:
 
         Returns formatted insight text, or None if nothing notable.
         """
+        if not labs:
+            return None
+
         # Get demographics for age-aware analysis
         demographics = self._db.get_user_demographics(user_id)
 
@@ -59,11 +69,11 @@ class ProactiveInsightEngine:
 
         # Triage
         triage_summary = self._triage.get_triage_summary(labs)
-        if "CRITICAL" in triage_summary or "URGENT" in triage_summary:
+        triage_upper = triage_summary.upper()
+        if "CRITICAL" in triage_upper or "URGENT" in triage_upper:
             signals.append(f"TRIAGE FINDINGS:\n{triage_summary}")
 
         # Age-aware range checks (when lab has no ref ranges from PDF)
-        from healthbot.reasoning.reference_ranges import get_range
         dob = demo.get("dob")
         sex = demo.get("sex")
         for lab in labs:
@@ -75,7 +85,6 @@ class ProactiveInsightEngine:
             # Compute age at time of lab collection
             age = demo.get("age")
             if dob and lab.date_collected:
-                from healthbot.data.db_memory import MemoryMixin
                 age = MemoryMixin.age_at_date(dob, lab.date_collected)
             ref = get_range(lab.canonical_name, sex=sex, age=age)
             if not ref:
@@ -94,7 +103,6 @@ class ProactiveInsightEngine:
                 )
 
         # Trends for each lab test
-        from healthbot.reasoning.trends import TrendAnalyzer
         analyzer = TrendAnalyzer(self._db)
         for lab in labs:
             if not lab.canonical_name:
@@ -108,7 +116,6 @@ class ProactiveInsightEngine:
                 )
 
         # Overdue checks
-        from healthbot.reasoning.overdue import OverdueDetector
         detector = OverdueDetector(self._db)
         overdue = detector.check_overdue(user_id=user_id)
         if overdue:
@@ -132,13 +139,6 @@ class ProactiveInsightEngine:
         self, user_id: int = 0, demographics: dict | None = None,
     ) -> list[str]:
         """Gather deterministic signals from wearable data."""
-        from healthbot.reasoning.recovery_readiness import (
-            RecoveryReadinessEngine,
-        )
-        from healthbot.reasoning.wearable_trends import (
-            WearableTrendAnalyzer,
-        )
-
         signals: list[str] = []
 
         # Trends (14-day)
@@ -175,24 +175,21 @@ class ProactiveInsightEngine:
 
         # Sleep architecture (if stage data available)
         try:
-            from healthbot.reasoning.sleep_analysis import (
-                SleepArchitectureAnalyzer,
-            )
             sleep = SleepArchitectureAnalyzer(self._db)
             trends = sleep.analyze_trends(days=14, user_id=user_id)
             for t in trends:
                 concern = getattr(t, "concern", None)
                 if concern:
                     signals.append(f"SLEEP: {concern}")
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.warning("Sleep analysis failed: %s", exc)
 
         return signals
 
     def _format_raw_signals(self, signals: list[str]) -> str:
         """Format signals as plain text without LLM interpretation."""
         lines = list(signals)
-        has_critical = any("CRITICAL" in s for s in signals)
+        has_critical = any("CRITICAL" in s.upper() for s in signals)
         if has_critical:
             lines.append(
                 "\nThese findings are clinically significant and "

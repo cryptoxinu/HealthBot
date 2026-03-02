@@ -111,6 +111,7 @@ class DerivedMarkerEngine:
 
         Assesses insulin resistance. <1.0 optimal, 1.0-1.9 early IR,
         2.0-2.9 significant IR, >=3.0 severe IR.
+        Requires fasting samples; non-fasting glucose invalidates the result.
         """
         glucose = labs.get("glucose")
         insulin = labs.get("insulin")
@@ -118,6 +119,15 @@ class DerivedMarkerEngine:
             return None
         if insulin <= 0 or glucose <= 0:
             return None
+
+        # Check fasting status from the glucose observation metadata
+        is_fasting = self._check_fasting_status("glucose")
+        non_fasting_warning = ""
+        if is_fasting is False:
+            non_fasting_warning = (
+                " (WARNING: calculated from non-fasting glucose — "
+                "result is unreliable; repeat with fasting sample)"
+            )
 
         homa = (glucose * insulin) / 405.0
         homa = round(homa, 2)
@@ -134,6 +144,8 @@ class DerivedMarkerEngine:
             interp = "high"
             note = "Severe insulin resistance — evaluate for metabolic syndrome"
 
+        note += non_fasting_warning
+
         return DerivedMarker(
             name="HOMA-IR",
             value=homa,
@@ -142,6 +154,25 @@ class DerivedMarkerEngine:
             clinical_note=note,
             components={"glucose": glucose, "insulin": insulin},
         )
+
+    def _check_fasting_status(self, canonical_name: str) -> bool | None:
+        """Check if the most recent observation for a test was fasting.
+
+        Returns True if fasting, False if non-fasting, None if unknown.
+        """
+        obs = self._db.query_observations(
+            record_type="lab_result",
+            canonical_name=canonical_name,
+            limit=1,
+            user_id=self._current_user_id,
+        )
+        if not obs:
+            return None
+        meta = obs[0].get("_meta", {})
+        is_fasting = meta.get("is_fasting", obs[0].get("is_fasting"))
+        if is_fasting is None:
+            return None
+        return bool(is_fasting)
 
     def _tg_hdl_ratio(self, labs: dict[str, float]) -> DerivedMarker | None:
         """TG/HDL ratio — surrogate for insulin resistance and small dense LDL.
@@ -370,16 +401,17 @@ class DerivedMarkerEngine:
             interp, note = "normal", "Normal kidney function (G1)"
         elif egfr >= 60:
             interp = "borderline"
-            note = "Mildly decreased kidney function (G2) — monitor annually"
+            note = "Mildly reduced kidney function (G2) — monitor annually"
         elif egfr >= 45:
-            interp = "elevated"
-            note = "Mild-to-moderate decrease (G3a) — nephrology referral"
+            interp = "low"
+            note = "Mild-to-moderate reduction (G3a) — reduced kidney function, nephrology referral"
         elif egfr >= 30:
-            interp = "elevated"
-            note = "Moderate-to-severe decrease (G3b) — nephrology evaluation"
+            interp = "low"
+            note = ("Moderate-to-severe reduction (G3b) — reduced kidney"
+                    " function, nephrology evaluation")
         else:
-            interp = "high"
-            note = "Severely decreased kidney function (G4-G5) — urgent referral"
+            interp = "low"
+            note = "Severely reduced kidney function (G4-G5) — urgent referral"
 
         return DerivedMarker(
             name="eGFR (CKD-EPI 2021)",

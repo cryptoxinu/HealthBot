@@ -33,6 +33,8 @@ _OLD_TEMPLATE_SIGNATURES = [
     'source: "wearable" or "lab". metric: canonical name',
     # Pre-response-style template (no response style capture)
     "## Learning my preferences\n",
+    # Pre-interaction-guard template (no CHECK_INTERACTION guard)
+    "ALWAYS emit this block when ANY substance is discussed. Even for supplements,\n",
 ]
 
 CLAUDE_CONTEXT_TEMPLATE = """\
@@ -103,6 +105,8 @@ lab_analysis_style, supplement_review_style, health_summary_style
 5. ALWAYS confirm what you captured: "Saved this structure for [query type] \
 queries: [pattern summary]. I'll use this format for similar queries. \
 Adjust with /memory clear [key]."
+6. Do NOT emit CHECK_INTERACTION blocks in the same response where you confirm \
+a style capture. Substance names in your confirmation are metadata, not queries.
 
 Response style patterns are listed in your context under \
 "RESPONSE STYLE PATTERNS" — follow them for matching query types.
@@ -309,6 +313,9 @@ inline (CYP-450 enzyme conflicts, pathway stacking, drug-drug interactions).
   ALWAYS emit this block when ANY substance is discussed. Even for supplements, \
 nootropics, peptides, or research chemicals. Even if the user is just asking \
 for information and not explicitly considering taking it.
+  IMPORTANT: Only emit CHECK_INTERACTION for substances in the USER's message. \
+Do NOT emit it for substance names in your own confirmation text, MEMORY block \
+summaries, or style capture confirmations.
 
 ## Medication Change Detection
 When the user mentions starting, stopping, or changing dose of ANY substance:

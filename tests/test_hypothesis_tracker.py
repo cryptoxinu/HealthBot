@@ -78,7 +78,8 @@ class TestUpsertHypothesis:
         hyps = db.get_active_hypotheses(user_id)
         assert len(hyps) == 1
         h = hyps[0]
-        assert h.get("confidence") == 0.7  # Takes higher
+        # Weighted average: 0.5 * 0.7 + 0.7 * 0.3 = 0.56
+        assert abs(h.get("confidence") - 0.56) < 0.01
         assert "glucose 108" in h.get("evidence_for", [])
         assert "glucose trending up" in h.get("evidence_for", [])
         assert "normal fasting" in h.get("evidence_against", [])
@@ -118,7 +119,7 @@ class TestCheckFulfilledTests:
             "missing_tests": ["TSH", "Free T4"],
         })
 
-        mock_has_lab.side_effect = lambda name: name == "TSH"
+        mock_has_lab.side_effect = lambda name, user_id=None: name == "TSH"
 
         updated = tracker.check_fulfilled_tests(user_id)
         assert len(updated) == 1

@@ -364,15 +364,11 @@ class DataHandlers:
         # Include total DB record count so Claude knows the full picture
         total_info = ""
         try:
-            stats = db.conn.execute(
-                "SELECT COUNT(*) as cnt, MIN(date) as first, MAX(date) as last "
-                "FROM wearable_daily WHERE provider = ?",
-                (provider.lower(),),
-            ).fetchone()
-            if stats and stats["cnt"]:
+            stats = db.query_wearable_stats(provider.lower())
+            if stats:
                 total_info = (
-                    f"Total in database: {stats['cnt']} records "
-                    f"({stats['first']} to {stats['last']}). "
+                    f"Total in database: {stats['count']} records "
+                    f"({stats['first_date']} to {stats['last_date']}). "
                 )
         except Exception:
             pass

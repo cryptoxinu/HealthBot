@@ -32,7 +32,7 @@ class KeyManager:
         self._master_key: bytearray | None = None
         self._last_activity: float = 0.0
         self._on_lock: Callable[[], None] | None = None
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
 
     def set_on_lock(self, callback: Callable[[], None] | None) -> None:
         """Register a callback that fires BEFORE the key is zeroed on lock.
@@ -47,21 +47,24 @@ class KeyManager:
         """Check if vault is currently unlocked and session is active.
 
         Called from the main event loop. Triggers lock cascade on timeout.
+        Uses RLock so lock() can be safely called while holding self._lock.
         """
         with self._lock:
             if self._master_key is None:
                 return False
             if time.time() - self._last_activity > self._config.session_timeout_seconds:
-                pass  # Fall through to lock() outside the lock
-            else:
-                return True
-        # Timed out — trigger full lock cascade (outside self._lock to avoid
-        # deadlock since lock() acquires self._lock internally)
-        self.lock()
-        return False
+                # Timed out — trigger full lock cascade while holding lock
+                # (RLock allows re-entrant acquisition by lock())
+                self.lock()
+                return False
+            return True
 
-    def derive_key(self, passphrase: str, salt: bytes) -> bytes:
-        """Derive 256-bit key from passphrase using Argon2id."""
+    def derive_key(self, passphrase: str, salt: bytes) -> bytearray:
+        """Derive 256-bit key from passphrase using Argon2id.
+
+        Returns a mutable bytearray so callers can zero it after use.
+        The intermediate immutable bytes from Argon2 are discarded.
+        """
         raw = hash_secret_raw(
             secret=passphrase.encode("utf-8"),
             salt=salt,
@@ -71,7 +74,10 @@ class KeyManager:
             hash_len=self._config.argon2_hash_len,
             type=Type.ID,
         )
-        return raw
+        # Convert to mutable bytearray and discard the immutable original
+        result = bytearray(raw)
+        del raw
+        return result
 
     def setup(self, passphrase: str) -> None:
         """First-time vault setup. Generate salt, store manifest."""
@@ -144,6 +150,7 @@ class KeyManager:
 
         Used by /rekey to confirm the user knows the current passphrase
         before allowing re-encryption. Does NOT modify _master_key.
+        Zeros the derived key after verification to limit exposure.
         """
         manifest_path = self._config.manifest_path
         if not manifest_path.exists():
@@ -153,41 +160,47 @@ class KeyManager:
         kdf = manifest["kdf"]
         salt = bytes.fromhex(kdf["salt"])
 
-        key = self.derive_key(passphrase, salt)
+        derived = bytearray(self.derive_key(passphrase, salt))
 
         from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
         nonce = bytes.fromhex(manifest["verify_nonce"])
         verify_ct = bytes.fromhex(manifest["verify_ct"])
-        aesgcm = AESGCM(key)
+        aesgcm = AESGCM(derived)
         try:
             plaintext = aesgcm.decrypt(nonce, verify_ct, b"verify")
-            return plaintext == b"HEALTHBOT_VERIFY"
+            result = plaintext == b"HEALTHBOT_VERIFY"
         except Exception:
-            return False
+            result = False
+        finally:
+            # Zero the derived key material after use
+            derived[:] = b'\x00' * len(derived)
+        return result
 
     def lock(self) -> None:
         """Fire on_lock callback, then zero the master key and clear session state.
 
         The callback runs BEFORE the key is zeroed so it can still access
-        encrypted data (e.g. for memory consolidation).
+        encrypted data (e.g. for memory consolidation). Both the callback
+        and the key zeroing run under self._lock (RLock) to prevent races.
         """
-        if self._on_lock:
-            try:
-                self._on_lock()
-            except Exception as e:
-                logger.warning("on_lock callback failed: %s", e)
         with self._lock:
+            if self._on_lock:
+                try:
+                    self._on_lock()
+                except Exception as e:
+                    logger.warning("on_lock callback failed: %s", e)
             if self._master_key is not None:
                 self._zero_bytearray(self._master_key)
                 self._master_key = None
             self._last_activity = 0.0
 
-    def get_clean_key(self) -> bytes:
+    def get_clean_key(self) -> bytearray:
         """Derive a secondary key for the clean (anonymized) data store.
 
         Uses HKDF with 'healthbot-clean-v1' context for cryptographic
-        separation from the master key.
+        separation from the master key. Returns a mutable bytearray
+        so the caller can zero it after use.
         """
         from cryptography.hazmat.primitives.hashes import SHA256
         from cryptography.hazmat.primitives.kdf.hkdf import HKDF
@@ -199,7 +212,11 @@ class KeyManager:
             salt=None,
             info=b"healthbot-clean-v1",
         )
-        return hkdf.derive(master)
+        derived = hkdf.derive(master)
+        result = bytearray(derived)
+        # Zero the intermediate immutable bytes (best-effort)
+        del derived
+        return result
 
     def get_key(self) -> bytes:
         """Return master key if session is active. Raises LockedError if not.

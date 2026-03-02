@@ -173,6 +173,7 @@ class TestFilterValidResults:
         ref_low=None, ref_high=None, reference_text="",
     ):
         import uuid
+
         from healthbot.data.models import LabResult
 
         return LabResult(

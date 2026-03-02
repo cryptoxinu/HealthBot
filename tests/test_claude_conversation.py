@@ -162,7 +162,8 @@ class TestClaudePIIMonitoring:
         assert response == "Your SSN 123-45-6789 was found in records."
         assert warnings == []
 
-    def test_outbound_hypothesis_anonymized(self, tmp_path):
+    @patch("healthbot.llm.anonymizer.Anonymizer._verify_canary")
+    def test_outbound_hypothesis_anonymized(self, _mock_canary, tmp_path):
         """Hypotheses from raw Tier 1 DB are anonymized + assert_safe before Claude."""
         mgr, mock_client = _make_manager(tmp_path, "Analysis complete.")
         mgr._db = MagicMock()
@@ -176,7 +177,8 @@ class TestClaudePIIMonitoring:
         # Should have content (hypothesis was appended)
         assert any("Test hypothesis" in p for p in parts)
 
-    def test_outbound_kb_findings_anonymized(self, tmp_path):
+    @patch("healthbot.llm.anonymizer.Anonymizer._verify_canary")
+    def test_outbound_kb_findings_anonymized(self, _mock_canary, tmp_path):
         """KB findings from raw Tier 1 DB are anonymized + assert_safe before Claude."""
         mgr, _ = _make_manager(tmp_path, "OK.")
         mgr._db = MagicMock()
@@ -296,7 +298,8 @@ class TestClaudeMemory:
 class TestClaudeDataRefresh:
     """Data refresh via AiExporter."""
 
-    def test_refresh_creates_health_data(self, tmp_path):
+    @patch("healthbot.llm.anonymizer.Anonymizer._verify_canary")
+    def test_refresh_creates_health_data(self, _mock_canary, tmp_path):
         mgr, _, km = _make_manager_encrypted(tmp_path)
         db = MagicMock()
         db.get_user_demographics.return_value = {}
@@ -761,10 +764,11 @@ class TestDataQualityBlock:
 
 
 @pytest.mark.slow
+@patch("healthbot.llm.anonymizer.Anonymizer._verify_canary")
 class TestPromptEnrichment:
     """Test that hypotheses and KB findings are included in prompts."""
 
-    def test_hypotheses_phi_anonymized(self, tmp_path):
+    def test_hypotheses_phi_anonymized(self, _mock_canary, tmp_path):
         """PHI in hypothesis titles/evidence should be anonymized."""
         mgr, claude = _make_manager(tmp_path)
         mock_db = MagicMock()
@@ -789,7 +793,7 @@ class TestPromptEnrichment:
         # Medical content should survive
         assert "iron deficiency" in call_str
 
-    def test_hypotheses_in_prompt(self, tmp_path):
+    def test_hypotheses_in_prompt(self, _mock_canary, tmp_path):
         mgr, claude = _make_manager(tmp_path)
         mock_db = MagicMock()
         mock_db.get_active_hypotheses.return_value = [
@@ -810,7 +814,7 @@ class TestPromptEnrichment:
         assert "Insulin resistance" in call_str
         assert "ACTIVE HYPOTHESES" in call_str
 
-    def test_kb_findings_phi_anonymized(self, tmp_path):
+    def test_kb_findings_phi_anonymized(self, _mock_canary, tmp_path):
         """PHI in KB findings should be anonymized via full anonymizer."""
         mgr, claude = _make_manager(tmp_path)
         mock_db = MagicMock()
@@ -841,7 +845,7 @@ class TestPromptEnrichment:
         finally:
             kb_mod.KnowledgeBase = orig
 
-    def test_kb_findings_in_prompt(self, tmp_path):
+    def test_kb_findings_in_prompt(self, _mock_canary, tmp_path):
         mgr, claude = _make_manager(tmp_path)
         mock_db = MagicMock()
         mock_db.get_active_hypotheses.return_value = []
@@ -867,7 +871,7 @@ class TestPromptEnrichment:
         finally:
             kb_mod.KnowledgeBase = orig
 
-    def test_kb_corrections_in_prompt(self, tmp_path):
+    def test_kb_corrections_in_prompt(self, _mock_canary, tmp_path):
         """KB corrections should appear in the prompt."""
         mgr, claude = _make_manager(tmp_path)
         mock_db = MagicMock()
@@ -897,7 +901,7 @@ class TestPromptEnrichment:
         finally:
             kb_mod.KnowledgeBase = orig
 
-    def test_no_db_skips_enrichment(self, tmp_path):
+    def test_no_db_skips_enrichment(self, _mock_canary, tmp_path):
         """Without a DB reference, hypotheses/KB are skipped gracefully."""
         mgr, claude = _make_manager(tmp_path)
         assert mgr._db is None
@@ -948,7 +952,8 @@ class TestClaudeEncryption:
         assert len(mgr2._memory) == 1
         assert mgr2._memory[0]["fact"] == "Roundtrip fact"
 
-    def test_health_data_saved_encrypted(self, tmp_path):
+    @patch("healthbot.llm.anonymizer.Anonymizer._verify_canary")
+    def test_health_data_saved_encrypted(self, _mock_canary, tmp_path):
         """refresh_data saves health_data.enc, not .md."""
         mgr, _, km = _make_manager_encrypted(tmp_path)
 

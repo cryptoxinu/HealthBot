@@ -67,6 +67,30 @@ EMERGENCY_PATTERNS: list[tuple[re.Pattern[str], str]] = [
         "If you suspect an overdose or poisoning, call 911 or Poison "
         "Control (1-800-222-1222) immediately.",
     ),
+    (
+        re.compile(
+            r"\b(?:anaphylax\w*|severe\s+allergic\s+reaction|throat\s+(?:closing|swelling))\b",
+            re.IGNORECASE,
+        ),
+        "If you are experiencing anaphylaxis or a severe allergic reaction "
+        "(throat swelling, difficulty breathing), use an EpiPen if available "
+        "and call 911 immediately.",
+    ),
+    (
+        re.compile(r"\b(?:seizure|convuls\w*|having\s+a\s+fit)\b", re.IGNORECASE),
+        "If someone is having a seizure, keep them safe from injury, do not "
+        "restrain them, and call 911 if it lasts more than 5 minutes or they "
+        "don't regain consciousness.",
+    ),
+    (
+        re.compile(
+            r"\b(?:hemorrhag\w*|uncontrolled\s+bleeding|severe\s+bleeding|"
+            r"bleeding\s+(?:won'?t|doesn'?t|cannot|can'?t)\s+stop)\b",
+            re.IGNORECASE,
+        ),
+        "If you are experiencing uncontrolled or severe bleeding, apply direct "
+        "pressure and call 911 immediately.",
+    ),
 ]
 
 

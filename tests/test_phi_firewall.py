@@ -35,10 +35,10 @@ class TestPhiDetection:
         assert fw.contains_phi("Date of Birth: 12/31/1990")
 
     def test_detects_dob_slash_single_digit(self, fw: PhiFirewall) -> None:
-        """Single-digit month/day DOBs without leading zeros."""
+        """Single-digit month/day DOBs without leading zeros (requires context keyword)."""
         assert fw.contains_phi("born on 1/5/1990")
-        assert fw.contains_phi("date was 3/15/1985")
-        assert fw.contains_phi("seen on 9/1/2001")
+        assert fw.contains_phi("Patient DOB 3/15/1985")
+        assert fw.contains_phi("born on 9/1/2001")
 
     def test_detects_labeled_name(self, fw: PhiFirewall) -> None:
         assert fw.contains_phi("Patient: John Smith")
@@ -129,6 +129,6 @@ class TestPhiAssert:
 
     def test_blocks_outbound_research(self, fw: PhiFirewall) -> None:
         """PHI in research query must be hard-blocked, not sanitized."""
-        query = "What does John Smith's glucose of 250 on 01/15/2024 mean?"
+        query = "What does Patient: John Smith glucose of 250 on DOB 01/15/2024 mean?"
         with pytest.raises(PhiDetectedError):
             fw.assert_no_phi(query, context="research_query")

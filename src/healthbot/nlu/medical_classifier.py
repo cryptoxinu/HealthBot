@@ -29,14 +29,18 @@ _MEDICAL_PATTERNS: list[re.Pattern[str]] = [
         r"intolerance|sensitivity|anaphylaxis)\b",
         r"\b(?:diet|exercise|sleep|weight|blood pressure|heart rate|"
         r"cholesterol|glucose|insulin|thyroid|hormone)\b",
-        r"\b(?:family history|hereditary|genetic|parent|mother|father|"
-        r"sibling|brother|sister|grandparent)\b",
+        r"\b(?:family history\s+(?:of|includes?)|runs?\s+in\s+(?:my|the)\s+family|"
+        r"hereditary|genetic|(?:my\s+)?(?:parent|mother|father|"
+        r"sibling|brother|sister|grandparent)\s+(?:has|had|was|were|diagnosed))\b",
         r"\b(?:pregnant|pregnancy|fertility|menstrual|period|ovulation)\b",
         r"\b(?:ferritin|hemoglobin|hba1c|tsh|ldl|hdl|triglyceride|"
         r"creatinine|alt|ast|egfr|psa|vitamin[_ ]?d|vitamin[_ ]?b12|"
         r"iron|calcium|potassium|sodium|magnesium)\b",
         r"\b(?:anemia|diabetes|prediabetes|hypothyroid|hyperthyroid|"
         r"hypertension|pots|fibromyalgia|ibs|celiac|crohn)\b",
+        r"\b(?:depression|anxiety|SSRI|SNRI|antidepressant|therapy|"
+        r"counseling|bipolar|ADHD|OCD|PTSD|panic|mental\s+health)\b",
+        r"\b(?:mammogram|colonoscopy|PSA|screening|preventive)\b",
     ]
 ]
 
@@ -100,6 +104,12 @@ def is_medically_relevant(text: str) -> bool:
 def classify_medical_category(text: str) -> str:
     """Classify into: symptom_report, medication_change, doctor_visit, lab_discussion, general."""
     for category, pattern in _CATEGORY_PATTERNS:
-        if pattern.search(text):
+        if category == "lab_discussion":
+            # Require 2+ medical terms to classify as lab_discussion
+            # to avoid false positives on common words like "high" or "low"
+            matches = pattern.findall(text)
+            if len(matches) >= 2:
+                return category
+        elif pattern.search(text):
             return category
     return "general"

@@ -236,6 +236,13 @@ class FamilyRiskSkill:
         return ctx.db is not None
 
     def run(self, ctx: HealthContext) -> SkillResult:
+        if ctx.db is None:
+            return SkillResult(
+                skill_name=self.name,
+                summary="No database available for family risk analysis.",
+                policy=ToolPolicy.MEDIUM,
+            )
+
         from healthbot.reasoning.family_risk import (
             FamilyRiskEngine,
             parse_family_history,
@@ -286,8 +293,8 @@ class WearableTrendSkill:
         from healthbot.reasoning.wearable_trends import WearableTrendAnalyzer
 
         engine = WearableTrendAnalyzer(ctx.db)
-        trends = engine.detect_all_trends(user_id=ctx.user_id)
-        anomalies = engine.detect_anomalies(user_id=ctx.user_id)
+        trends = engine.detect_all_trends(days=14, user_id=ctx.user_id)
+        anomalies = engine.detect_anomalies(days=1, user_id=ctx.user_id)
         if not trends and not anomalies:
             return SkillResult(
                 skill_name=self.name,

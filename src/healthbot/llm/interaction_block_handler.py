@@ -7,6 +7,7 @@ Also provides a fallback scanner for when Claude doesn't emit the block.
 from __future__ import annotations
 
 import logging
+import re
 
 from healthbot.reasoning.interaction_kb import SUBSTANCE_ALIASES
 
@@ -33,9 +34,9 @@ def handle_check_interaction(mgr, block: dict) -> list[str]:
     results: list[str] = []
 
     # Get active medications
-    active_meds = _get_active_medications(mgr)
+    active_meds = get_active_medications(mgr)
     if not active_meds:
-        return [f"No active medications on file to check {substance} against."]
+        return []
 
     # 1. Existing drug-drug interactions
     dd_results = _check_drug_drug(substance, active_meds)
@@ -63,8 +64,14 @@ def handle_check_interaction(mgr, block: dict) -> list[str]:
     return results
 
 
-def _get_active_medications(mgr) -> list[str]:
-    """Get list of active medication names from CleanDB."""
+def get_active_medications(mgr) -> list[str]:
+    """Get list of active medication names from CleanDB.
+
+    Tries three sources in order:
+    1. clean_medications table (temporal medication tracking)
+    2. clean_user_memory with category medication/supplement
+    3. clean_health_records_ext with data_type medication/supplement
+    """
     user_id = getattr(mgr, "_user_id", 0)
     if user_id in _ACTIVE_MED_CACHE:
         return _ACTIVE_MED_CACHE[user_id]
@@ -75,17 +82,42 @@ def _get_active_medications(mgr) -> list[str]:
         if not clean_db:
             return []
         try:
-            meds = clean_db.get_medications()
-            names = [m.get("name", "") for m in meds if m.get("name")]
+            # Normalize helper — lowercase + strip for dedup
+            seen: set[str] = set()
+            names: list[str] = []
 
-            # Fallback: if clean_medications is empty, pull from user_memory
+            def _add(name: str) -> None:
+                norm = name.lower().strip()
+                if norm and norm not in seen:
+                    seen.add(norm)
+                    names.append(norm)
+
+            # Source 1: clean_medications table
+            meds = clean_db.get_medications()
+            for m in meds:
+                _add(m.get("name", ""))
+
+            # Source 2: user_memory with medication/supplement category
             if not names:
                 mem_meds = clean_db.get_user_memory(category="medication")
                 mem_supps = clean_db.get_user_memory(category="supplement")
                 for mem in mem_meds + mem_supps:
-                    name = mem.get("key", "").replace("_", " ").strip()
-                    if name and name not in names:
-                        names.append(name)
+                    # The key IS the substance name (e.g. "bromantane")
+                    _add(mem.get("key", ""))
+
+            # Source 3: health_records_ext (condition/supplement records)
+            if not names:
+                try:
+                    records = clean_db.get_health_records_ext(
+                        data_type="medication",
+                    )
+                    records += clean_db.get_health_records_ext(
+                        data_type="supplement",
+                    )
+                    for rec in records:
+                        _add(rec.get("label", ""))
+                except Exception:
+                    pass  # Table may not exist
 
             _ACTIVE_MED_CACHE[user_id] = names
             return names
@@ -204,6 +236,26 @@ def _check_substance_profile(mgr, substance: str) -> str | None:
         return None
 
 
+_MIN_ALIAS_LEN = 4
+
+# Common English words that happen to be substance aliases — only match these
+# when the message has explicit medical/substance context.
+_STOPWORDS: set[str] = {"same", "iron", "ace", "amp", "milk", "soy", "oral"}
+
+# Context words that signal the user is discussing substances/medications.
+_CONTEXT_WORDS = re.compile(
+    r"\b(?:taking|supplement|started|dose|dosage|mg|mcg|iu|interaction|"
+    r"medication|stack|cycle|taper|titrat|prescri|started|stopped|"
+    r"discontinue|combine|mixing|adding)\b",
+    re.IGNORECASE,
+)
+
+
+def _has_substance_context(text: str) -> bool:
+    """Return True if text contains words indicating substance discussion."""
+    return bool(_CONTEXT_WORDS.search(text))
+
+
 def scan_for_substance_mentions(
     user_text: str,
     active_med_names: list[str] | None = None,
@@ -215,15 +267,21 @@ def scan_for_substance_mentions(
     """
     text_lower = user_text.lower()
     active_set = {m.lower() for m in (active_med_names or [])}
+    has_context = _has_substance_context(text_lower)
 
     detected: list[str] = []
     # Check against all known substance aliases
     for alias, canonical in SUBSTANCE_ALIASES.items():
-        if len(alias) < 3:
-            continue  # Skip very short aliases to avoid false positives
+        if len(alias) < _MIN_ALIAS_LEN:
+            continue  # Skip short aliases to avoid false positives
+        # Stopword aliases require explicit medical context
+        if alias in _STOPWORDS and not has_context:
+            continue
+        # Short aliases (< 6 chars) that aren't stopwords still need context
+        if len(alias) < 6 and not has_context:
+            continue
         if alias in text_lower and canonical not in active_set:
             # Verify it's a word boundary match
-            import re
             if re.search(rf"\b{re.escape(alias)}\b", text_lower):
                 if canonical not in [
                     SUBSTANCE_ALIASES.get(d, d) for d in detected

@@ -161,9 +161,15 @@ class MyChartImporter:
                         low = rr_value.find(f"{{{ns}}}low")
                         high = rr_value.find(f"{{{ns}}}high")
                         if low is not None and low.get("value"):
-                            ref_low = float(low.get("value"))
+                            try:
+                                ref_low = float(low.get("value"))
+                            except (ValueError, TypeError):
+                                pass  # Skip malformed reference range
                         if high is not None and high.get("value"):
-                            ref_high = float(high.get("value"))
+                            try:
+                                ref_high = float(high.get("value"))
+                            except (ValueError, TypeError):
+                                pass  # Skip malformed reference range
                     text_elem = obs_range.find(f"{{{ns}}}text")
                     if text_elem is not None and text_elem.text:
                         ref_text = text_elem.text
@@ -356,9 +362,15 @@ class MyChartImporter:
             low = rr.get("low", {})
             high = rr.get("high", {})
             if low.get("value") is not None:
-                ref_low = float(low["value"])
+                try:
+                    ref_low = float(low["value"])
+                except (ValueError, TypeError):
+                    pass  # Skip malformed reference range
             if high.get("value") is not None:
-                ref_high = float(high["value"])
+                try:
+                    ref_high = float(high["value"])
+                except (ValueError, TypeError):
+                    pass  # Skip malformed reference range
             ref_text = rr.get("text", "")
 
         # Interpretation flag

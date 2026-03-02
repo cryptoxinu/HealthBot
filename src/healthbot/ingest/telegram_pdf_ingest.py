@@ -393,7 +393,7 @@ class TelegramPdfIngest:
         # Belt-and-suspenders: run full 3-layer anonymizer on extracted text.
         # The PDF redaction (black boxes) is the first pass; this catches
         # anything that slipped through using NER + regex + Ollama LLM.
-        from healthbot.llm.anonymizer import Anonymizer
+        from healthbot.llm.anonymizer import AnonymizationError, Anonymizer
 
         anon = Anonymizer(
             phi_firewall=self._fw,
@@ -429,6 +429,12 @@ class TelegramPdfIngest:
         except Exception:
             logger.warning("assert_safe failed after PDF redaction, applying text-level redaction")
             clean_text, _ = anon.anonymize(clean_text)
+            try:
+                anon.assert_safe(clean_text)
+            except Exception:
+                raise AnonymizationError(
+                    "PII remains after two anonymization attempts on PDF text"
+                ) from None
 
         from healthbot.llm.claude_client import (
             _CLI_ERROR_RESPONSE,
@@ -896,11 +902,11 @@ class TelegramPdfIngest:
         # confirm they're the same specimen).
         if not result.is_rescan and labs:
             try:
-                dated_labs = [l for l in labs if l.date_collected]
+                dated_labs = [lr for lr in labs if lr.date_collected]
                 if dated_labs:
                     batch_names = list({
-                        l.canonical_name or l.test_name.lower()
-                        for l in dated_labs
+                        lr.canonical_name or lr.test_name.lower()
+                        for lr in dated_labs
                     })
                     existing_keys = self._db.get_existing_observation_keys(
                         record_type="lab_result",
@@ -1276,7 +1282,7 @@ class TelegramPdfIngest:
             # before storing. This redacts names/cities instead of blocking
             # the entire fact.
             try:
-                from healthbot.llm.anonymizer import Anonymizer, AnonymizationError
+                from healthbot.llm.anonymizer import AnonymizationError, Anonymizer
                 from healthbot.security.phi_firewall import PhiFirewall
 
                 fw = self._fw or PhiFirewall()

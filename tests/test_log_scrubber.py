@@ -36,10 +36,10 @@ class TestLogScrubber:
         filt = PhiScrubFilter(fw)
         record = logging.LogRecord(
             name="test", level=logging.INFO, pathname="", lineno=0,
-            msg="Data: %s", args=("SSN: 999-88-7777",), exc_info=None,
+            msg="Data: %s", args=("SSN: 078-05-1120",), exc_info=None,
         )
         filt.filter(record)
-        assert "999-88-7777" not in str(record.args)
+        assert "078-05-1120" not in str(record.args)
 
     def test_clean_logs_unchanged(self) -> None:
         fw = PhiFirewall()

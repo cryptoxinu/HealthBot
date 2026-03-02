@@ -153,7 +153,12 @@ class HealthReviewEngine:
             if trend and trend.direction != "stable":
                 ref = DEFAULT_RANGES.get(test_name)
                 if ref:
-                    mid = (ref["low"] + ref["high"]) / 2
+                    ref_low = ref.get("low")
+                    ref_high = ref.get("high")
+                    # Skip midpoint calculation if either bound is None
+                    if ref_low is None or ref_high is None:
+                        continue
+                    mid = (ref_low + ref_high) / 2
                     moving_away = (
                         (trend.direction == "increasing" and trend.last_value > mid)
                         or (trend.direction == "decreasing" and trend.last_value < mid)
@@ -206,7 +211,11 @@ class HealthReviewEngine:
             ref = DEFAULT_RANGES.get(t.canonical_name)
             if not ref:
                 continue
-            mid = (ref["low"] + ref["high"]) / 2
+            ref_low = ref.get("low")
+            ref_high = ref.get("high")
+            if ref_low is None or ref_high is None:
+                continue
+            mid = (ref_low + ref_high) / 2
             moving_away = (
                 (t.direction == "increasing" and t.last_value > mid)
                 or (t.direction == "decreasing" and t.last_value < mid)

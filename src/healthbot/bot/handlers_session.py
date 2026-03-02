@@ -211,17 +211,24 @@ class SessionHandlers:
             await update.message.reply_text(
                 "No previous response to attach. Feedback noted."
             )
+            return
 
         import json
         from datetime import UTC, datetime
         from pathlib import Path
 
+        # Scrub PHI before writing feedback to disk
+        fw = self._core._fw
+        scrubbed_input = fw.redact(last_input) if last_input else ""
+        scrubbed_response = fw.redact(last_response) if last_response else ""
+        scrubbed_feedback = fw.redact(user_feedback) if user_feedback else ""
+
         entry = {
             "id": f"user_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}",
             "category": "user_report",
-            "input": last_input,
-            "bot_response": last_response,
-            "user_feedback": user_feedback,
+            "input": scrubbed_input,
+            "bot_response": scrubbed_response,
+            "user_feedback": scrubbed_feedback,
             "timestamp": datetime.now(UTC).isoformat(),
             "status": "new",
         }
@@ -233,6 +240,7 @@ class SessionHandlers:
         await update.message.reply_text("Thanks — feedback captured for review.")
 
     @require_unlocked
+    @rate_limited(max_per_minute=3)
     async def backup(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle /backup command."""
         await update.message.reply_text("Creating encrypted backup...")
@@ -378,6 +386,7 @@ class SessionHandlers:
         await update.message.reply_text("\n".join(lines))
 
     @require_unlocked
+    @rate_limited(max_per_minute=3)
     async def digest(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle /digest — show or configure daily health digest.
 
@@ -788,6 +797,7 @@ class SessionHandlers:
         )
 
     @require_auth
+    @rate_limited(max_per_minute=3)
     async def audit(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
@@ -813,6 +823,7 @@ class SessionHandlers:
             await update.message.reply_text(f"Audit failed: {type(e).__name__}")
 
     @require_unlocked
+    @rate_limited(max_per_minute=3)
     async def integrity(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE,
     ) -> None:
@@ -826,6 +837,7 @@ class SessionHandlers:
         await update.message.reply_text(checker.format_report(report))
 
     @require_unlocked
+    @rate_limited(max_per_minute=3)
     async def refresh(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE,
     ) -> None:
@@ -1500,6 +1512,11 @@ class SessionHandlers:
         self, update: Update, context: ContextTypes.DEFAULT_TYPE,
     ) -> None:
         """Handle inline keyboard callbacks for saved messages browser."""
+        if not self._check_auth(update):
+            query = update.callback_query
+            await query.answer()
+            await query.edit_message_text("Unauthorized.")
+            return
         query = update.callback_query
         await query.answer()
         data = query.data or ""

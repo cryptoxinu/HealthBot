@@ -24,11 +24,11 @@ def _mock_config(tmp_path):
 
 
 class TestKeyDerivation:
-    def test_derive_key_returns_bytes(self, tmp_path):
+    def test_derive_key_returns_bytearray(self, tmp_path):
         config = _mock_config(tmp_path)
         km = KeyManager(config)
         key = km.derive_key("passphrase", b"\x00" * 16)
-        assert isinstance(key, bytes)
+        assert isinstance(key, bytearray)
         assert len(key) == 32
 
     def test_derive_key_deterministic(self, tmp_path):

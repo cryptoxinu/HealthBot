@@ -98,6 +98,11 @@ class HealthDB(MemoryMixin):
             local_conn = getattr(self._local, "conn", None)
             if local_conn is None:
                 self._local.conn = self._make_conn()
+                self._local.migrations_checked = False
+            if not getattr(self._local, "migrations_checked", False):
+                self._local.migrations_checked = True
+                self._local.conn.executescript(CREATE_TABLES)
+                self.run_migrations()
             return self._local.conn
         return self._conn
 
@@ -412,10 +417,14 @@ class HealthDB(MemoryMixin):
         enc_data = self._encrypt(data, aad)
         now = self._now()
         self.conn.execute(
-            """INSERT OR REPLACE INTO substance_knowledge
+            """INSERT INTO substance_knowledge
                (id, user_id, name, created_at, updated_at, quality_score,
                 encrypted_data)
-               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(user_id, name) DO UPDATE SET
+                 updated_at = excluded.updated_at,
+                 quality_score = excluded.quality_score,
+                 encrypted_data = excluded.encrypted_data""",
             (sk_id, user_id, name.lower(), now, now, quality_score, enc_data),
         )
         self.conn.commit()
@@ -617,6 +626,20 @@ class HealthDB(MemoryMixin):
         )
         self.conn.commit()
         return cursor.rowcount > 0
+
+    def stamp_collection_date(self, source_doc_id: str, date_iso: str) -> int:
+        """Set date_effective on undated observations for a given document.
+
+        Returns the number of rows updated.
+        """
+        cursor = self.conn.execute(
+            "UPDATE observations SET date_effective = ? "
+            "WHERE source_doc_id = ? AND "
+            "(date_effective IS NULL OR date_effective = '')",
+            (date_iso, source_doc_id),
+        )
+        self.conn.commit()
+        return cursor.rowcount
 
     # --- Workouts ---
 
@@ -878,8 +901,14 @@ class HealthDB(MemoryMixin):
         results = []
         for row in rows:
             aad = f"medications.encrypted_data.{row['med_id']}"
-            data = self._decrypt(row["encrypted_data"], aad)
-            results.append(data)
+            try:
+                data = self._decrypt(row["encrypted_data"], aad)
+                results.append(data)
+            except Exception as exc:
+                logger.warning(
+                    "Skipping corrupt medication row %s: %s",
+                    row["med_id"], exc,
+                )
         return results
 
     # --- Medication Reminders ---
@@ -888,26 +917,27 @@ class HealthDB(MemoryMixin):
         self, user_id: int, med_name: str, time: str, notes: str = "",
     ) -> str:
         """Insert or update a medication reminder (encrypted)."""
-        reminder_id = uuid.uuid4().hex
-        aad = f"med_reminders.encrypted_data.{reminder_id}"
         data = {"med_name": med_name, "notes": notes}
-        enc_data = self._encrypt(data, aad)
 
         # Check if reminder already exists for this med
         existing = self.get_med_reminders(user_id)
         for r in existing:
             if r.get("med_name", "").lower() == med_name.lower():
-                # Update existing
+                # Update existing — encrypt once with the existing row's AAD
                 old_id = r.get("_id", "")
                 old_aad = f"med_reminders.encrypted_data.{old_id}"
-                new_enc = self._encrypt(data, old_aad)
+                enc_data = self._encrypt(data, old_aad)
                 self.conn.execute(
                     "UPDATE med_reminders SET time = ?, encrypted_data = ? WHERE id = ?",
-                    (time, new_enc, old_id),
+                    (time, enc_data, old_id),
                 )
                 self.conn.commit()
                 return old_id
 
+        # Insert new — encrypt once with the new row's AAD
+        reminder_id = uuid.uuid4().hex
+        aad = f"med_reminders.encrypted_data.{reminder_id}"
+        enc_data = self._encrypt(data, aad)
         self.conn.execute(
             """INSERT INTO med_reminders (id, user_id, time, enabled, created_at, encrypted_data)
                VALUES (?, ?, ?, 1, ?, ?)""",
@@ -1105,6 +1135,25 @@ class HealthDB(MemoryMixin):
             data["_date"] = row["date"]
             results.append(data)
         return results
+
+    def query_wearable_stats(self, provider: str) -> dict | None:
+        """Return aggregate stats for a wearable provider.
+
+        Returns dict with keys: count, first_date, last_date.
+        Returns None if no records found.
+        """
+        row = self.conn.execute(
+            "SELECT COUNT(*) as cnt, MIN(date) as first, MAX(date) as last "
+            "FROM wearable_daily WHERE provider = ?",
+            (provider,),
+        ).fetchone()
+        if not row or not row["cnt"]:
+            return None
+        return {
+            "count": row["cnt"],
+            "first_date": row["first"],
+            "last_date": row["last"],
+        }
 
     # --- External evidence ---
 
@@ -1480,18 +1529,23 @@ class HealthDB(MemoryMixin):
                     )
                     applied += 1
                     continue
-                for sql in MIGRATIONS[version]:
-                    try:
-                        self.conn.execute(sql)
-                    except Exception as e:
-                        if "duplicate column" in str(e).lower():
-                            continue  # Column already in base schema
-                        raise
-                self.conn.execute(
-                    "UPDATE vault_meta SET value = ? WHERE key = 'schema_version'",
-                    (str(version),),
-                )
-                self.conn.commit()
+                try:
+                    self.conn.execute("BEGIN")
+                    for sql in MIGRATIONS[version]:
+                        try:
+                            self.conn.execute(sql)
+                        except Exception as e:
+                            if "duplicate column" in str(e).lower():
+                                continue  # Column already in base schema
+                            raise
+                    self.conn.execute(
+                        "UPDATE vault_meta SET value = ? WHERE key = 'schema_version'",
+                        (str(version),),
+                    )
+                    self.conn.execute("COMMIT")
+                except Exception:
+                    self.conn.execute("ROLLBACK")
+                    raise
                 applied += 1
         return applied
 

@@ -413,6 +413,11 @@ class HealthHandlers:
 
         Callback data format: si:approve:<id> or si:reject:<id>
         """
+        if not self._check_auth(update):
+            query = update.callback_query
+            await query.answer()
+            await query.edit_message_text("Unauthorized.")
+            return
         query = update.callback_query
         await query.answer()
         data = query.data or ""
@@ -424,6 +429,14 @@ class HealthHandlers:
 
         action = parts[1]
         imp_id = parts[2]
+
+        if action not in ("approve", "reject"):
+            await query.edit_message_text("Invalid callback action.")
+            return
+        if not imp_id or len(imp_id) > 64:
+            await query.edit_message_text("Invalid improvement ID.")
+            return
+
         new_status = "approved" if action == "approve" else "rejected"
 
         clean_db = self._core._get_clean_db()

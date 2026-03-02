@@ -5,10 +5,13 @@ Usage:
 """
 from __future__ import annotations
 
+import logging
 import os
 import sys
 
 from healthbot.config import Config
+
+logger = logging.getLogger("healthbot")
 
 
 def main() -> None:
@@ -34,11 +37,16 @@ def main() -> None:
     passphrase_ba = bytearray(passphrase_str.encode("utf-8"))
     del passphrase_str
 
-    # Unlock vault
+    # Unlock vault — decode to str only at the point of use, then re-zero
     from healthbot.security.key_manager import KeyManager
 
     km = KeyManager(config)
-    if not km.unlock(passphrase_ba.decode("utf-8")):
+    passphrase_str_tmp = passphrase_ba.decode("utf-8")
+    unlock_ok = km.unlock(passphrase_str_tmp)
+    # Overwrite the temporary str reference (best-effort; str is immutable)
+    del passphrase_str_tmp
+
+    if not unlock_ok:
         # Zero the bytearray before exiting
         for i in range(len(passphrase_ba)):
             passphrase_ba[i] = 0
@@ -72,7 +80,8 @@ def main() -> None:
             fw.add_patterns(extra_patterns)
         raw_db.close()
     except Exception:
-        pass  # Optional — don't block MCP startup
+        logger.warning("Failed to load identity profile for PhiFirewall — MCP "
+                       "server will run without identity-aware PII detection")
 
     # Start MCP server
     from healthbot.mcp.server import create_server

@@ -208,10 +208,11 @@ class MessageRouter:
         self._get_claude: callable | None = None  # Returns ClaudeConversationManager
         self._last_logged_obs: dict[int, str] = {}  # user_id -> obs_id for /undo
         self._exchange_cb: callable | None = None  # (user_text, response) tracker
+        self._track_msg_cb: callable | None = None  # (chat_id, msg_id) for wipe tracking
         self._last_user_input: str = ""
         self._last_bot_response: str = ""
-        self._post_ingest_cb: callable | None = None  # (lab_results, user_id) targeted analysis
-        self._post_ingest_sync_cb: callable | None = None  # () -> None: clean sync + context refresh
+        self._post_ingest_cb: callable | None = None  # targeted analysis
+        self._post_ingest_sync_cb: callable | None = None  # clean sync
         # Pending date reply: user_id -> blob_id of undated results
         self._pending_date: dict[int, str] = {}
         # Connected sources callback for unlock message
@@ -779,16 +780,11 @@ class MessageRouter:
                     line = f"{name}: Working. Last sync: {date}.{metrics}"
                     # Add total record count + date range
                     try:
-                        stats = db.conn.execute(
-                            "SELECT COUNT(*) as cnt, MIN(date) as first, "
-                            "MAX(date) as last FROM wearable_daily "
-                            "WHERE provider = ?",
-                            (provider,),
-                        ).fetchone()
-                        if stats and stats["cnt"]:
+                        stats = db.query_wearable_stats(provider)
+                        if stats:
                             line += (
-                                f"\n  Total: {stats['cnt']} daily records"
-                                f" ({stats['first']} to {stats['last']})."
+                                f"\n  Total: {stats['count']} daily records"
+                                f" ({stats['first_date']} to {stats['last_date']})."
                             )
                     except Exception:
                         pass
@@ -915,8 +911,11 @@ class MessageRouter:
             self._last_user_input = text
             self._last_bot_response = response
             response = strip_markdown(response)
+            chat_id = update.effective_chat.id if update.effective_chat else None
             for page in paginate(response):
-                await update.message.reply_text(page)
+                sent = await update.message.reply_text(page)
+                if self._track_msg_cb and chat_id and sent:
+                    self._track_msg_cb(chat_id, sent.message_id)
 
             # Generate charts requested by Claude via CHART blocks
             for chart_req in getattr(claude, "_pending_charts", [])[:3]:
@@ -1243,14 +1242,7 @@ class MessageRouter:
         self._pending_date.pop(user_id, None)
         try:
             db = self._get_db()
-            cursor = db.conn.execute(
-                "UPDATE observations SET date_effective = ? "
-                "WHERE source_doc_id = ? AND "
-                "(date_effective IS NULL OR date_effective = '')",
-                (parsed.isoformat(), blob_id),
-            )
-            db.conn.commit()
-            updated = cursor.rowcount
+            updated = db.stamp_collection_date(blob_id, parsed.isoformat())
             logger.info(
                 "Stamped collection date %s on %d observations (blob %s)",
                 parsed.isoformat(), updated, blob_id,
@@ -1362,6 +1354,17 @@ class MessageRouter:
             )
             return
 
+        # PDF file size validation (same limit concept as ZIP guard)
+        max_pdf = 50 * 1024 * 1024  # 50 MB
+        if doc.file_size and doc.file_size > max_pdf:
+            mb = doc.file_size // (1024 * 1024)
+            await update.message.reply_text(
+                f"PDF too large ({mb} MB). Max is 50 MB.\n"
+                "Split it into smaller files or drop it in "
+                f"{self._config.incoming_dir} and send /import."
+            )
+            return
+
         # Live status: show the user what's happening at each pipeline stage
         import queue as _queue
 
@@ -1468,8 +1471,8 @@ class MessageRouter:
                     if n:
                         # Include collection date in confirmation
                         _cd = next(
-                            (l.date_collected for l in result.lab_results
-                             if l.date_collected),
+                            (lr.date_collected for lr in result.lab_results
+                             if lr.date_collected),
                             None,
                         )
                         if _cd:

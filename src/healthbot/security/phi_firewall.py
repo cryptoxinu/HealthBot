@@ -7,6 +7,7 @@ labeled name patterns, and exact lab values in context.
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass
 
 
@@ -22,7 +23,10 @@ class PhiMatch:
 
 # Compiled regex patterns
 PHI_PATTERNS: dict[str, re.Pattern[str]] = {
-    "ssn": re.compile(r"\b\d{3}-\d{2}-\d{4}\b"),
+    # SSN: 3-2-4 format, excluding invalid area numbers (000, 666, 900-999)
+    "ssn": re.compile(
+        r"\b(?!000|666|9\d{2})\d{3}-(?!00)\d{2}-(?!0000)\d{4}\b"
+    ),
     "mrn": re.compile(
         r"\b(?:MRN|MR#|Medical\s*Record)\s*[:#]?\s*\d{6,12}\b", re.IGNORECASE
     ),
@@ -38,10 +42,11 @@ PHI_PATTERNS: dict[str, re.Pattern[str]] = {
         r"\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b",
         re.IGNORECASE,
     ),
-    # Labeled: "Patient: John Smith", "Name: Jane Doe"
+    # Labeled: "Patient: John Smith", "Name: Jane Doe", "patient: john smith"
     "name_labeled": re.compile(
         r"\b(?:Patient|Name|Pt|Patient\s+Name)\s*[:#]\s*"
-        r"[A-Z][a-z]+(?:\s+[A-Z]\.?)?\s+[A-Z][a-z]+\b"
+        r"[A-Za-z][a-z]+(?:\s+[A-Za-z]\.?)?\s+[A-Za-z][a-z]+\b",
+        re.IGNORECASE,
     ),
     # Labeled ALL-CAPS: "Patient: SMITH, JOHN A" or "Patient: JOHN SMITH"
     "name_labeled_caps": re.compile(
@@ -49,8 +54,15 @@ PHI_PATTERNS: dict[str, re.Pattern[str]] = {
         r"[A-Z]{2,}(?:[,\s]+[A-Z]{2,})+(?:\s+[A-Z]\.?)?\b"
     ),
     # Self-introduction: "My name is John", "I'm John Smith", "I am Sarah Jones"
+    # Includes common non-English intro patterns
     "name_intro": re.compile(
-        r"\b(?:my name is|I'm|I am)\s+"
+        r"\b(?:my name is|I'm|I am"
+        r"|me llamo|mi nombre es"       # Spanish
+        r"|je m'appelle|je suis"         # French
+        r"|ich bin|mein Name ist"        # German
+        r"|mi chiamo|io sono"            # Italian
+        r"|eu sou|meu nome [eé]"         # Portuguese
+        r")\s+"
         r"[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?\b",
         re.IGNORECASE,
     ),
@@ -128,6 +140,20 @@ _SAFE_DATE_PREFIX = re.compile(
     re.IGNORECASE,
 )
 
+# Lab ID prefixes — phone-like numbers preceded by these are lab identifiers, not phones.
+_LAB_ID_PREFIX = re.compile(
+    r"(?:Specimen|Accession|Lab|ID|#)\s*[:#]?\s*$",
+    re.IGNORECASE,
+)
+
+# DOB context keywords — the standalone dob_slash pattern (MM/DD/YYYY) only
+# matches when one of these keywords is within 60 chars of the date.
+_DOB_CONTEXT = re.compile(
+    r"\b(?:born|birthday|DOB|D\.O\.B|date\s+of\s+birth|age|"
+    r"Patient|Name|Pt)\b",
+    re.IGNORECASE,
+)
+
 
 class PhiFirewall:
     """Scans text for PHI patterns and provides redaction."""
@@ -154,18 +180,29 @@ class PhiFirewall:
         prefix (e.g. ``id_full_name_forward``, ``id_full_name_last``).
         Base PHI patterns (ssn, phone, email, etc.) don't use this prefix.
         """
-        self._patterns = {k: v for k, v in self._patterns.items()
+        self._patterns = {k: v for k, v in list(self._patterns.items())
                           if not k.startswith("id_")}
 
     def scan(self, text: str) -> list[PhiMatch]:
         """Return all PHI matches found in text."""
+        # Normalize Unicode to catch homoglyph evasion (e.g. fullwidth digits)
+        text = unicodedata.normalize("NFKC", text)
         matches: list[PhiMatch] = []
         for category, pattern in self._patterns.items():
             for m in pattern.finditer(text):
                 # Skip dates that follow lab report labels (clinical metadata, not PHI)
+                # Also require DOB context keywords nearby to reduce false positives
                 if category == "dob_slash":
                     preceding = text[max(0, m.start() - 40):m.start()]
                     if _SAFE_DATE_PREFIX.search(preceding):
+                        continue
+                    window = text[max(0, m.start() - 60):min(len(text), m.end() + 60)]
+                    if not _DOB_CONTEXT.search(window):
+                        continue
+                # Skip phone-like numbers preceded by lab ID labels
+                if category == "phone_us":
+                    preceding = text[max(0, m.start() - 30):m.start()]
+                    if _LAB_ID_PREFIX.search(preceding):
                         continue
                 matches.append(
                     PhiMatch(
@@ -181,12 +218,23 @@ class PhiFirewall:
 
     def contains_phi(self, text: str) -> bool:
         """Quick check: does text contain any PHI?"""
+        # Normalize Unicode to catch homoglyph evasion (e.g. fullwidth digits)
+        text = unicodedata.normalize("NFKC", text)
         for category, pattern in self._patterns.items():
             if category == "dob_slash":
-                # Apply same safe-date-prefix suppression as scan()
+                # Apply same safe-date-prefix + DOB context suppression as scan()
                 for m in pattern.finditer(text):
                     preceding = text[max(0, m.start() - 40):m.start()]
-                    if not _SAFE_DATE_PREFIX.search(preceding):
+                    if _SAFE_DATE_PREFIX.search(preceding):
+                        continue
+                    window = text[max(0, m.start() - 60):min(len(text), m.end() + 60)]
+                    if _DOB_CONTEXT.search(window):
+                        return True
+            elif category == "phone_us":
+                # Apply same lab-ID-prefix suppression as scan()
+                for m in pattern.finditer(text):
+                    preceding = text[max(0, m.start() - 30):m.start()]
+                    if not _LAB_ID_PREFIX.search(preceding):
                         return True
             elif pattern.search(text):
                 return True

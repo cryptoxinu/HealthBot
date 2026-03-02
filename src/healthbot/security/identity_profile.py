@@ -200,9 +200,10 @@ class IdentityProfile:
             reversed_pat = r"\b" + last + r"(?:,\s*|\s+)" + firsts + r"\b"
             patterns[f"{prefix}_reversed"] = re.compile(reversed_pat, re.IGNORECASE)
 
-            # Initial form: "J. Smith" or "J Smith"
+            # Initial form: "J. Smith" — require period after single-char initial
+            # to avoid bare "J" matching too broadly
             first_initial = re.escape(parts[0][0])
-            initial_pat = r"\b" + first_initial + r"\.?\s+" + last + r"\b"
+            initial_pat = r"\b" + first_initial + r"\.\s+" + last + r"\b"
             patterns[f"{prefix}_initial"] = re.compile(initial_pat, re.IGNORECASE)
 
         # First name alone (4+ chars to avoid false positives on short names)

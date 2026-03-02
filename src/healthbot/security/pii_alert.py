@@ -63,10 +63,23 @@ class PiiAlertService:
 
     @classmethod
     def get_instance(cls, log_dir: Path | None = None) -> PiiAlertService:
-        """Get or create the singleton instance."""
+        """Get or create the singleton instance.
+
+        log_dir is only used on first creation. Subsequent calls with a
+        different log_dir emit a warning but do not change the instance.
+        """
         with cls._lock:
             if cls._instance is None:
                 cls._instance = cls(log_dir=log_dir)
+            elif log_dir is not None and cls._instance._log_path is not None:
+                expected = log_dir / "pii_alerts.log"
+                if cls._instance._log_path != expected:
+                    logger.warning(
+                        "PiiAlertService already initialized with log_dir=%s, "
+                        "ignoring new log_dir=%s",
+                        cls._instance._log_path.parent,
+                        log_dir,
+                    )
             return cls._instance
 
     @classmethod
@@ -76,8 +89,12 @@ class PiiAlertService:
             cls._instance = None
 
     def set_notify_callback(self, cb: NotifyCallback) -> None:
-        """Set a callback for push notifications (e.g., Telegram)."""
-        self._notify_cb = cb
+        """Set a callback for push notifications (e.g., Telegram).
+
+        Thread-safe: uses data lock to prevent races with record().
+        """
+        with self._data_lock:
+            self._notify_cb = cb
 
     def record(self, category: str, destination: str) -> None:
         """Record a PII detection event.
@@ -118,11 +135,20 @@ class PiiAlertService:
         )
         logger.warning(msg)
 
-        if self._notify_cb:
-            try:
-                self._notify_cb(msg)
-            except Exception as e:
-                logger.warning("PII alert notification failed: %s", e)
+        # Snapshot callback under lock for thread safety
+        with self._data_lock:
+            cb = self._notify_cb
+        if cb:
+            # Run notification in background thread to avoid blocking the pipeline
+            def _send_notification():
+                try:
+                    cb(msg)
+                except Exception as e:
+                    logger.warning("PII alert notification failed: %s", e)
+
+            threading.Thread(
+                target=_send_notification, daemon=True,
+            ).start()
 
     def get_stats(self) -> PiiAlertStats:
         """Get cumulative alert statistics."""

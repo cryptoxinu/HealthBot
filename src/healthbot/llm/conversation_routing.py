@@ -190,7 +190,7 @@ def handle_memory_block(mgr, block: dict) -> str | None:
         key = block["key"].strip().lower().replace(" ", "_")
         value = block["value"]
         category = block.get("category", "general")
-        if mgr._fw.contains_phi(str(value)):
+        if mgr._fw.contains_phi(str(value)) or mgr._fw.contains_phi(str(category)):
             logger.warning("MEMORY block contains PHI, blocked: %s", key)
             return f"[Could not remember '{key}' — contains sensitive data]"
 
@@ -208,13 +208,14 @@ def handle_memory_block(mgr, block: dict) -> str | None:
         supersedes = block.get("supersedes", "")
         if supersedes and supersedes.strip().lower() != key:
             clean_db.mark_memory_superseded(supersedes.strip().lower(), key)
+        confidence = float(block.get("confidence", 1.0))
         clean_db.upsert_user_memory(
             key=key,
             value=value,
             category=category,
-            confidence=block.get("confidence", 1.0),
+            confidence=confidence,
             source=block.get("source") or (
-                "user_stated" if block.get("confidence", 1.0) >= 1.0
+                "user_stated" if confidence >= 1.0
                 else "claude_inferred"
             ),
         )
@@ -225,7 +226,7 @@ def handle_memory_block(mgr, block: dict) -> str | None:
                 old_value=old_value or "",
                 new_value=value,
                 source_type=block.get("source") or (
-                    "user_stated" if block.get("confidence", 1.0) >= 1.0
+                    "user_stated" if confidence >= 1.0
                     else "claude_inferred"
                 ),
                 source_ref=supersedes,
@@ -291,6 +292,11 @@ def sync_memory_to_demographics(mgr, clean_db, key: str, value: str) -> None:
                 m = re.match(r"(\d+)\s*cm", value, re.IGNORECASE)
                 if m:
                     demo_update["height_m"] = round(float(m.group(1)) / 100, 4)
+                else:
+                    # Inch-only values (e.g. "72 inches")
+                    m = re.match(r"(\d+)\s*(?:inches|inch|in)\b", value, re.IGNORECASE)
+                    if m:
+                        demo_update["height_m"] = round(int(m.group(1)) * 0.0254, 4)
 
     elif key_lower in ("weight", "weight_kg"):
         m = re.match(r"([\d.]+)\s*(?:lbs?|pounds?)", value, re.IGNORECASE)
@@ -369,6 +375,12 @@ def _sync_medication_memory(clean_db, key: str, value: str) -> None:
 
         now = _dt.now(_UTC).strftime("%Y-%m-%d")
 
+        # Medication intent routing priority:
+        # 1. Stopped + existing → discontinue (highest priority — explicit stop)
+        # 2. Started OR not existing → create/reactivate (explicit start, or
+        #    first mention implies active medication)
+        # 3. Dose + existing → dose-only update (no intent keywords, just a
+        #    dose change on an already-tracked medication)
         if stopped and existing:
             # Mark as discontinued
             clean_db.conn.execute(
@@ -418,8 +430,8 @@ def _sync_medication_memory(clean_db, key: str, value: str) -> None:
             )
             clean_db.conn.commit()
             logger.info("Medication dose updated via MEMORY: %s → %s", med_name, dose)
-        from healthbot.llm.interaction_block_handler import invalidate_med_cache
-        invalidate_med_cache(0)
+        # Note: invalidate_med_cache is called by the parent handle_memory_block
+        # with the correct user_id — no need to call it again here.
     except Exception as exc:
         logger.warning("_sync_medication_memory failed: %s", exc)
 
@@ -524,7 +536,7 @@ def reconcile_demographics_to_ltm(mgr) -> None:
             inches = int(total_in % 12 + 0.5)
             pairs.append(("height", f"{feet}'{inches}\""))
         if cd.get("weight_kg"):
-            lbs = int(cd["weight_kg"] * 2.205 + 0.5)
+            lbs = int(cd["weight_kg"] * 2.20462 + 0.5)
             pairs.append(("weight", f"{lbs} lbs"))
         if cd.get("age"):
             pairs.append(("age", str(cd["age"])))

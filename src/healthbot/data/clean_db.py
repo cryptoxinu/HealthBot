@@ -28,6 +28,10 @@ class PhiDetectedError(Exception):
     """Raised when PII is detected in data destined for the clean store."""
 
 
+class EncryptionError(Exception):
+    """Raised when encryption fails (e.g., no clean key available)."""
+
+
 # ── Schema ──────────────────────────────────────────────
 
 _SCHEMA = """
@@ -130,7 +134,7 @@ CREATE INDEX IF NOT EXISTS idx_clean_hyp_status ON clean_hypotheses(status);
 CREATE TABLE IF NOT EXISTS clean_health_context (
     id TEXT PRIMARY KEY,
     category TEXT DEFAULT '',
-    fact TEXT NOT NULL,
+    fact BLOB NOT NULL,
     synced_at TEXT NOT NULL
 );
 
@@ -307,7 +311,7 @@ class CleanDB:
         self._path = db_path
         self._fw = phi_firewall or PhiFirewall()
         self._conn: sqlite3.Connection | None = None
-        self._clean_key: bytes | None = None
+        self._clean_key: bytearray | None = None
         self._in_transaction: bool = False
 
     def open(self, clean_key: bytes | None = None) -> None:
@@ -320,16 +324,21 @@ class CleanDB:
         self._conn.row_factory = sqlite3.Row
         # Dedup existing wearable rows before UNIQUE index creation
         try:
+            self._conn.execute("BEGIN")
             self._conn.execute(
                 """DELETE FROM clean_wearable_daily WHERE rowid NOT IN (
                     SELECT MIN(rowid) FROM clean_wearable_daily
                     GROUP BY date, provider
                 )"""
             )
-            self._conn.commit()
+            self._conn.execute("COMMIT")
         except Exception:
-            pass  # Table may not exist yet on first run
+            try:
+                self._conn.execute("ROLLBACK")
+            except Exception:
+                pass
         # Add new wearable columns for existing DBs (no-op if column exists)
+        # Each ALTER TABLE is wrapped in its own transaction
         for col, col_type in [
             ("calories", "REAL"), ("sleep_latency_min", "REAL"),
             ("wake_episodes", "INTEGER"), ("sleep_efficiency_pct", "REAL"),
@@ -337,23 +346,40 @@ class CleanDB:
             ("workout_max_hr", "REAL"), ("skin_temp", "REAL"),
         ]:
             try:
+                self._conn.execute("BEGIN")
                 self._conn.execute(
                     f"ALTER TABLE clean_wearable_daily ADD COLUMN {col} {col_type}"
                 )
+                self._conn.execute("COMMIT")
             except Exception:
-                pass  # Column already exists or table doesn't exist yet
+                try:
+                    self._conn.execute("ROLLBACK")
+                except Exception:
+                    pass
         # Add source_lab to existing clean_observations (no-op if exists)
         try:
+            self._conn.execute("BEGIN")
             self._conn.execute(
                 "ALTER TABLE clean_observations ADD COLUMN source_lab TEXT DEFAULT ''"
             )
+            self._conn.execute("COMMIT")
         except Exception:
-            pass
+            try:
+                self._conn.execute("ROLLBACK")
+            except Exception:
+                pass
         self._conn.executescript(_SCHEMA)
         self._conn.commit()
-        self._clean_key = clean_key
+        self._clean_key = bytearray(clean_key) if clean_key else None
+
+    def zero_clean_key(self) -> None:
+        """Securely zero and discard the clean key from memory."""
+        if self._clean_key is not None:
+            self._clean_key[:] = b'\x00' * len(self._clean_key)
+            self._clean_key = None
 
     def close(self) -> None:
+        self.zero_clean_key()
         if self._conn:
             self._conn.close()
             self._conn = None
@@ -440,9 +466,16 @@ class CleanDB:
     # ── Encryption helpers (for text fields) ────────────
 
     def _encrypt(self, data: str, aad: str) -> bytes:
-        """Encrypt a text field with the clean key."""
+        """Encrypt a text field with the clean key.
+
+        Raises EncryptionError if no clean key is available — never falls
+        back to storing plaintext, which would violate Tier 2 guarantees.
+        """
         if not self._clean_key:
-            return data.encode("utf-8")
+            raise EncryptionError(
+                "Cannot encrypt: clean key not available. "
+                "Refusing to store plaintext in clean DB."
+            )
         nonce = os.urandom(12)
         aesgcm = AESGCM(self._clean_key)
         ct = aesgcm.encrypt(nonce, data.encode("utf-8"), aad.encode("utf-8"))
@@ -1898,6 +1931,20 @@ class CleanDB:
         self._auto_commit()
         return cursor.rowcount > 0
 
+    # Allowlist of valid table and column names for dynamic SQL
+    _VALID_TABLES: set[str] = {
+        "clean_observations", "clean_medications", "clean_wearable_daily",
+        "clean_hypotheses", "clean_health_context",
+        "clean_workouts", "clean_genetic_variants", "clean_health_goals",
+        "clean_med_reminders", "clean_providers", "clean_appointments",
+        "clean_health_records_ext", "clean_anon_cache",
+        "clean_system_improvements", "clean_demographics",
+    }
+    _VALID_ID_COLUMNS: set[str] = {
+        "id", "obs_id", "med_id", "hyp_id", "ctx_id", "goal_id",
+        "reminder_id", "provider_id", "appointment_id", "variant_id",
+    }
+
     def delete_stale(self, table: str, id_column: str, valid_ids: set[str] | None) -> int:
         """Delete records whose IDs are no longer in the raw vault.
 
@@ -1911,6 +1958,12 @@ class CleanDB:
         """
         if valid_ids is None:
             return 0
+
+        # Validate table and column names against allowlist
+        if table not in self._VALID_TABLES:
+            raise ValueError(f"Invalid table name: {table}")
+        if id_column not in self._VALID_ID_COLUMNS:
+            raise ValueError(f"Invalid column name: {id_column}")
 
         # Fetch all IDs currently in the clean table
         rows = self.conn.execute(

@@ -48,7 +48,7 @@ def _values_match(a: str, b: str, rel_tol: float = 0.05, abs_tol: float = 0.5) -
     if na == nb == 0:
         return True
     denom = max(abs(na), abs(nb), 1e-9)
-    return abs(na - nb) / denom <= rel_tol or abs(na - nb) <= abs_tol
+    return abs(na - nb) / denom <= rel_tol and abs(na - nb) <= abs_tol
 
 
 def _adjust_confidence(
@@ -987,10 +987,11 @@ class LabPdfParser:
             # Repair broken words: pdfminer often inserts 1-2 extra spaces
             # mid-word (e.g. "Specime  n" → "Specimen", "Patie  nt" →
             # "Patient").  Only rejoin when the right fragment is 1-2
-            # chars — fragments that short are never standalone words,
-            # so this avoids joining real column-separated words.
+            # chars — fragments that short are never standalone words.
+            # Only rejoin when preceded by 3+ lowercase chars (mid-word
+            # context) to avoid merging separate short column values.
             line = re.sub(
-                r"(?<=[a-z]) {1,2}(?=[a-z]{1,2}(?:[^a-zA-Z]|$))",
+                r"(?<=[a-z]{3}) {1,2}(?=[a-z]{1,2}(?:[^a-zA-Z]|$))",
                 "", line,
             )
             # Collapse runs of 3+ spaces to 2 (preserves Pattern 3 column detection)

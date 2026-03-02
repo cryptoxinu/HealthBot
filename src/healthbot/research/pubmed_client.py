@@ -6,8 +6,10 @@ Rate-limited to 3 requests/second per NCBI policy (no API key).
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from dataclasses import dataclass
+from xml.etree.ElementTree import ParseError
 
 import defusedxml.ElementTree as ET  # noqa: N817
 import httpx
@@ -15,6 +17,8 @@ import httpx
 from healthbot.config import Config
 from healthbot.research.research_packet import build_research_packet
 from healthbot.security.phi_firewall import PhiFirewall
+
+logger = logging.getLogger("healthbot")
 
 # NCBI allows 3 requests/second without API key. We use 0.4s between requests
 # to stay well under the limit and avoid IP bans.
@@ -43,6 +47,22 @@ class PubMedClient:
         self._firewall = firewall
         self._base = config.pubmed_base_url
         self._last_request_time: float = 0.0
+        self._http_client: httpx.AsyncClient | None = None
+
+    async def _get_client(self) -> httpx.AsyncClient:
+        """Return a shared async HTTP client with connection pooling."""
+        if self._http_client is None or self._http_client.is_closed:
+            self._http_client = httpx.AsyncClient(
+                timeout=30.0,
+                limits=httpx.Limits(max_connections=5, max_keepalive_connections=2),
+            )
+        return self._http_client
+
+    async def close(self) -> None:
+        """Close the shared HTTP client."""
+        if self._http_client is not None and not self._http_client.is_closed:
+            await self._http_client.aclose()
+            self._http_client = None
 
     async def _rate_limit(self) -> None:
         """Enforce minimum interval between NCBI requests."""
@@ -69,36 +89,40 @@ class PubMedClient:
     async def _search_ids(self, query: str, max_results: int) -> list[str]:
         """Get PMIDs from search query."""
         await self._rate_limit()
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.get(
-                f"{self._base}/esearch.fcgi",
-                params={
-                    "db": "pubmed",
-                    "term": query,
-                    "retmax": max_results,
-                    "retmode": "json",
-                },
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            return data.get("esearchresult", {}).get("idlist", [])
+        client = await self._get_client()
+        resp = await client.get(
+            f"{self._base}/esearch.fcgi",
+            params={
+                "db": "pubmed",
+                "term": query,
+                "retmax": max_results,
+                "retmode": "json",
+            },
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        return data.get("esearchresult", {}).get("idlist", [])
 
     async def _fetch_summaries(self, pmids: list[str]) -> list[PubMedResult]:
         """Fetch article details for given PMIDs."""
         await self._rate_limit()
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.get(
-                f"{self._base}/efetch.fcgi",
-                params={
-                    "db": "pubmed",
-                    "id": ",".join(pmids),
-                    "retmode": "xml",
-                },
-            )
-            resp.raise_for_status()
+        client = await self._get_client()
+        resp = await client.get(
+            f"{self._base}/efetch.fcgi",
+            params={
+                "db": "pubmed",
+                "id": ",".join(pmids),
+                "retmode": "xml",
+            },
+        )
+        resp.raise_for_status()
 
         results = []
-        root = ET.fromstring(resp.text)
+        try:
+            root = ET.fromstring(resp.text)
+        except ParseError:
+            logger.warning("PubMed XML parse error for PMIDs: %s", ",".join(pmids))
+            return []
         for article in root.iter("PubmedArticle"):
             medline = article.find(".//MedlineCitation")
             if medline is None:

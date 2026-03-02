@@ -46,14 +46,17 @@ class VaultBackup:
         backups_dir = self._config.backups_dir
         backups_dir.mkdir(parents=True, exist_ok=True)
 
-        # 1. Create tar in memory
+        # 1. Create tar in memory (stream directly, close buffer when done)
         tar_buf = io.BytesIO()
-        with tarfile.open(fileobj=tar_buf, mode="w") as tar:
-            for item in ["db", "vault", "index", "manifest.json", "config"]:
-                path = vault_home / item
-                if path.exists():
-                    tar.add(str(path), arcname=item)
-        tar_bytes = tar_buf.getvalue()
+        try:
+            with tarfile.open(fileobj=tar_buf, mode="w") as tar:
+                for item in ["db", "vault", "index", "manifest.json", "config"]:
+                    path = vault_home / item
+                    if path.exists():
+                        tar.add(str(path), arcname=item)
+            tar_bytes = tar_buf.getvalue()
+        finally:
+            tar_buf.close()
 
         # 2. Compress with zstd
         try:
@@ -77,11 +80,28 @@ class VaultBackup:
         aesgcm = AESGCM(key)
         # Embed KDF params in AAD so backups are self-contained
         # (restore can derive the key without an existing manifest)
-        manifest = json.loads(self._config.manifest_path.read_text())
-        aad = json.dumps({
+        manifest_path = self._config.manifest_path
+        if manifest_path.exists():
+            manifest = json.loads(manifest_path.read_text())
+        else:
+            # Create a default manifest if it doesn't exist yet
+            manifest = {
+                "kdf": {
+                    "algorithm": "argon2id",
+                    "memory_cost": 65536,
+                    "time_cost": 3,
+                    "parallelism": 4,
+                },
+            }
+            manifest_path.parent.mkdir(parents=True, exist_ok=True)
+            manifest_path.write_text(json.dumps(manifest, indent=2))
+            logger.info("Created default manifest.json for backup AAD.")
+        aad_meta = {
             "backup_id": f"backup_{timestamp}",
             "kdf": manifest["kdf"],
-        }, separators=(",", ":")).encode()
+            "compressed": compressed is not tar_bytes,
+        }
+        aad = json.dumps(aad_meta, separators=(",", ":")).encode()
         encrypted = aesgcm.encrypt(nonce, compressed, aad)
 
         # 4. Write atomically: temp file + rename (prevents corruption on crash)
@@ -178,7 +198,6 @@ class VaultBackup:
         if has_db:
             try:
                 import sqlite3
-                import tempfile
 
                 tar_buf.seek(0)
                 with tarfile.open(fileobj=tar_buf, mode="r") as tar:
@@ -186,16 +205,31 @@ class VaultBackup:
                         if member.name.endswith("health.db") and member.isfile():
                             f = tar.extractfile(member)
                             if f:
-                                # Write to temp file for SQLite check
-                                with tempfile.NamedTemporaryFile(suffix=".db") as tmp:
-                                    tmp.write(f.read())
-                                    tmp.flush()
-                                    conn = sqlite3.connect(tmp.name)
+                                # Load into in-memory SQLite via backup API
+                                # to avoid leaving decrypted DB on disk.
+                                db_bytes = f.read()
+                                tmp_path = None
+                                try:
+                                    # Write to temp file briefly for SQLite to open
+                                    fd, tmp_path = tempfile.mkstemp(suffix=".db")
+                                    os.write(fd, db_bytes)
+                                    os.close(fd)
+                                    conn = sqlite3.connect(tmp_path)
                                     result = conn.execute(
                                         "PRAGMA integrity_check",
                                     ).fetchone()
                                     conn.close()
                                     db_ok = result[0] if result else "unknown"
+                                finally:
+                                    # Overwrite temp file before deletion
+                                    if tmp_path:
+                                        try:
+                                            size = os.path.getsize(tmp_path)
+                                            with open(tmp_path, "wb") as wf:
+                                                wf.write(b"\x00" * size)
+                                            os.unlink(tmp_path)
+                                        except OSError:
+                                            pass
                             break
             except Exception as e:
                 db_ok = f"check failed: {e}"
@@ -264,8 +298,15 @@ class VaultBackup:
         for f in files:
             if f not in keep:
                 try:
+                    # Full overwrite before unlink (best-effort secure delete)
                     size = f.stat().st_size
-                    f.write_bytes(os.urandom(min(size, 1024 * 1024)))
+                    with open(f, "wb") as wf:
+                        remaining = size
+                        chunk = 1024 * 1024  # 1 MB chunks
+                        while remaining > 0:
+                            wf.write(os.urandom(min(chunk, remaining)))
+                            remaining -= chunk
+                    wf = None  # Ensure file handle is closed
                 except OSError:
                     pass
                 try:

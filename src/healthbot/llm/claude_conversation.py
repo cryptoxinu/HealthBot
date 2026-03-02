@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import re
+import threading
 from datetime import UTC, datetime
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -62,10 +63,10 @@ from healthbot.security.phi_firewall import PhiFirewall
 logger = logging.getLogger("healthbot")
 
 # Pattern for all structured medical blocks.
-# Uses a greedy match with look-ahead for end-of-block boundary
-# (newline + non-whitespace or end-of-string) so nested JSON braces work.
+# Matches block type labels followed by a JSON object with up to 2 levels
+# of brace nesting (e.g. {"key": {"nested": "value"}}).
 _BLOCK_PATTERN = re.compile(
-    r"(HYPOTHESIS|ACTION|RESEARCH|INSIGHT|CONDITION|DATA_QUALITY|MEMORY|CORRECTION|SYSTEM_IMPROVEMENT|HEALTH_DATA|ANALYSIS_RULE|CHART|CITATION|CHECK_INTERACTION):\s*(\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})",
+    r"(HYPOTHESIS|ACTION|RESEARCH|INSIGHT|CONDITION|DATA_QUALITY|MEMORY|CORRECTION|SYSTEM_IMPROVEMENT|HEALTH_DATA|ANALYSIS_RULE|CHART|CITATION|CHECK_INTERACTION):\s*(\{[^{}]*(?:\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}[^{}]*)*\})",
 )
 
 
@@ -90,6 +91,7 @@ class ClaudeConversationManager:
         self._km = key_manager
         self._claude_dir = ensure_claude_dir(config.vault_home)
         self._history: list[dict[str, str]] = []
+        self._history_lock = threading.Lock()
         self._memory: list[dict] = []
         self._health_data: str = ""
         self._health_sections: dict[str, str] = {}
@@ -103,6 +105,7 @@ class ClaudeConversationManager:
         self._status_builder: object | None = None
         self._on_system_improvement: object | None = None  # Callable[[dict], None]
         self._cached_user_memory: list[dict] | None = None
+        self._memory_cache_ts: float = 0
         self._memory_feedback: list[str] = []
         self._pending_charts: list[dict] = []
         self._last_citations: list[dict] = []
@@ -135,7 +138,11 @@ class ClaudeConversationManager:
     def handle_message(
         self, user_text: str, user_id: int | None = None,
     ) -> tuple[str, list[str]]:
-        """Process a message through Claude CLI. Returns (response, pii_warnings)."""
+        """Process a message through Claude CLI.
+
+        Returns (response, pii_warnings). pii_warnings is always empty —
+        kept for backward compatibility with callers that unpack the tuple.
+        """
         if user_id is not None and user_id > 0:
             self._user_id = user_id
         self._memory_feedback.clear()
@@ -147,7 +154,6 @@ class ClaudeConversationManager:
 
         # Extract structured blocks before PII scan (NER can corrupt JSON)
         response, insights = self._extract_insights(raw_response)
-        pii_warnings: list[str] = []
         for insight in insights:
             self._store_insight(insight)
         if insights:
@@ -161,22 +167,42 @@ class ClaudeConversationManager:
         if quality_note:
             response = f"{response}\n\n---\n{quality_note}"
 
-        # Append interaction feedback
+        # Append interaction feedback (plain text — no markdown)
         if self._interaction_feedback:
             ix_footer = "\n".join(self._interaction_feedback)
-            response = f"{response}\n\n---\n**Interaction Check:**\n{ix_footer}"
+            response = f"{response}\n\n---\nInteraction Check:\n{ix_footer}"
 
         # Append memory feedback footer
         if self._memory_feedback:
             footer = "\n".join(self._memory_feedback)
             response = f"{response}\n\n---\n{footer}"
 
-        self._history.append({"role": "user", "content": user_text})
-        self._history.append({"role": "assistant", "content": response})
-        if len(self._history) > 20 * 2:
-            self._history = self._history[-20 * 2:]
+        # Auto-append Sources footer from CITATION blocks if not already present
+        if self._last_citations and "sources:" not in response.lower():
+            source_lines: list[str] = []
+            for i, cit in enumerate(self._last_citations, 1):
+                title = cit.get("title", "")
+                url = cit.get("url", "")
+                ref = cit.get("reference", "")
+                if title and url:
+                    source_lines.append(f"{i}. {title} — {url}")
+                elif title:
+                    source_lines.append(f"{i}. {title}")
+                elif ref:
+                    source_lines.append(f"{i}. {ref}")
+                elif url:
+                    source_lines.append(f"{i}. {url}")
+            if source_lines:
+                sources_text = "\n".join(source_lines)
+                response = f"{response}\n\nSources:\n{sources_text}"
 
-        return response, pii_warnings
+        with self._history_lock:
+            self._history.append({"role": "user", "content": user_text})
+            self._history.append({"role": "assistant", "content": response})
+            if len(self._history) > 20 * 2:
+                self._history = self._history[-20 * 2:]
+
+        return response, []
 
     def refresh_data(
         self,
@@ -232,7 +258,8 @@ class ClaudeConversationManager:
 
     def clear(self) -> None:
         """Clear conversation history (on lock or mode switch)."""
-        self._history.clear()
+        with self._history_lock:
+            self._history.clear()
 
     @property
     def has_health_data(self) -> bool:
@@ -242,6 +269,7 @@ class ClaudeConversationManager:
     def invalidate_memory_cache(self) -> None:
         """Clear cached user memory — call after MEMORY block writes."""
         self._cached_user_memory = None
+        self._memory_cache_ts = 0
 
     def _get_anonymizer(self):
         """Lazily initialize an Anonymizer with NER + regex."""
@@ -265,7 +293,8 @@ class ClaudeConversationManager:
                 return None
             self._vault = Vault(blobs_dir, self._km)
             return self._vault
-        except Exception:
+        except Exception as exc:
+            logger.debug("_get_vault failed: %s", exc)
             return None
 
     # Backward-compat aliases used by tests and other callers
@@ -397,7 +426,17 @@ class ClaudeConversationManager:
                 data["_type"] = block_type
                 blocks.append(data)
             except (json.JSONDecodeError, ValueError) as exc:
-                raw_block = match.group(2)[:200]
+                # Fallback: try json.loads on the raw text (handles double
+                # curly braces and other edge cases the regex may mangle)
+                raw_text = match.group(2)
+                try:
+                    data = json.loads(raw_text.replace("{{", "{").replace("}}", "}"))
+                    data["_type"] = block_type
+                    blocks.append(data)
+                    continue
+                except (json.JSONDecodeError, ValueError):
+                    pass
+                raw_block = raw_text[:200]
                 logger.warning(
                     "Malformed %s block (skipped): %s — %s",
                     block_type, exc, raw_block,
@@ -472,9 +511,9 @@ class ClaudeConversationManager:
                 )
 
         # New block types have dedicated structured storage — skip flat memory
-        if block_type in ("MEMORY", "CORRECTION", "SYSTEM_IMPROVEMENT",
-                          "HEALTH_DATA", "ANALYSIS_RULE", "CITATION",
-                          "CHECK_INTERACTION"):
+        # (MEMORY, CHART, CITATION, and CHECK_INTERACTION already returned above)
+        if block_type in ("CORRECTION", "SYSTEM_IMPROVEMENT",
+                          "HEALTH_DATA", "ANALYSIS_RULE"):
             return
 
         # Always store in flat memory for PREVIOUS INSIGHTS section
@@ -496,9 +535,9 @@ class ClaudeConversationManager:
             active_meds = []
             try:
                 from healthbot.llm.interaction_block_handler import (
-                    _get_active_medications,
+                    get_active_medications,
                 )
-                active_meds = _get_active_medications(self)
+                active_meds = get_active_medications(self)
             except Exception:
                 pass
 

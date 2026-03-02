@@ -70,18 +70,22 @@ class OllamaAnonymizationLayer:
                 return []
 
             spans: list[tuple[int, int, str]] = []
+            # Normalize text for comparison (handles Unicode differences)
+            import unicodedata
+            text_norm = unicodedata.normalize("NFKC", text)
             for item in result.get("items", []):
                 pii_text = item.get("text", "")
                 pii_type = item.get("type", "unknown")
                 if not pii_text:
                     continue
-                # Find all occurrences in original text
+                pii_norm = unicodedata.normalize("NFKC", pii_text)
+                # Find all occurrences in normalized text
                 start = 0
                 while True:
-                    idx = text.find(pii_text, start)
+                    idx = text_norm.find(pii_norm, start)
                     if idx == -1:
                         break
-                    spans.append((idx, idx + len(pii_text), f"LLM-{pii_type}"))
+                    spans.append((idx, idx + len(pii_norm), f"LLM-{pii_type}"))
                     start = idx + 1
 
             return spans
@@ -196,13 +200,17 @@ def _parse_llm_response(response: str) -> dict:
     except json.JSONDecodeError:
         pass
 
-    # Fallback: extract first {...} substring
-    start = text.find("{")
+    # Fallback: try JSON fragments from last to first to prefer the final
+    # complete object (LLMs sometimes emit preamble text before valid JSON)
     end = text.rfind("}") + 1
-    if start >= 0 and end > start:
-        try:
-            return json.loads(text[start:end])
-        except json.JSONDecodeError:
-            pass
+    if end > 0:
+        # Walk backwards through all '{' positions to find the last valid JSON
+        search_end = end
+        pos = text.rfind("{", 0, search_end)
+        while pos >= 0:
+            try:
+                return json.loads(text[pos:end])
+            except json.JSONDecodeError:
+                pos = text.rfind("{", 0, pos)
 
     raise ValueError(f"Could not parse LLM PII response as JSON: {text[:100]}")

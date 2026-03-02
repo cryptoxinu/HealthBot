@@ -35,31 +35,32 @@ def _make_exporter(db=None, ollama=None):
     return AiExporter(db=db, anonymizer=anon, phi_firewall=fw, ollama=ollama)
 
 
+@patch("healthbot.llm.anonymizer.Anonymizer._verify_canary")
 class TestAiExporterAssembly:
     """Layer 1: assembly-time stripping."""
 
-    def test_empty_db_produces_valid_markdown(self):
+    def test_empty_db_produces_valid_markdown(self, _mock_canary):
         exporter = _make_exporter()
         result = exporter.export(user_id=1)
         assert "# Health Data Export" in result.markdown
         assert result.validation.layer1_passed
         assert result.validation.layer2_passed
 
-    def test_exact_age_in_export(self):
+    def test_exact_age_in_export(self, _mock_canary):
         db = _make_db(demographics={"age": 33, "sex": "Male"})
         exporter = _make_exporter(db)
         result = exporter.export(user_id=1)
         age_line = [x for x in result.markdown.split("\n") if "Age" in x][0]
         assert "Age**: 33" in age_line
 
-    def test_dob_never_appears(self):
+    def test_dob_never_appears(self, _mock_canary):
         db = _make_db(demographics={"age": 40, "dob": "1985-03-15"})
         exporter = _make_exporter(db)
         result = exporter.export(user_id=1)
         assert "1985-03-15" not in result.markdown
         assert "1985" not in result.markdown
 
-    def test_lab_name_kept_provider_stripped(self):
+    def test_lab_name_kept_provider_stripped(self, _mock_canary):
         """Lab brand (Quest) is medical metadata → kept. Provider → stripped."""
         db = _make_db(labs=[{
             "test_name": "Glucose",
@@ -80,7 +81,7 @@ class TestAiExporterAssembly:
         assert "Glucose" in result.markdown
         assert "95" in result.markdown
 
-    def test_prescriber_stripped(self):
+    def test_prescriber_stripped(self, _mock_canary):
         db = _make_db(medications=[{
             "name": "Metformin",
             "dose": "500",
@@ -94,7 +95,7 @@ class TestAiExporterAssembly:
         assert "Metformin" in result.markdown
         assert "500 mg" in result.markdown
 
-    def test_lab_dates_preserved(self):
+    def test_lab_dates_preserved(self, _mock_canary):
         db = _make_db(labs=[{
             "test_name": "TSH",
             "value": 2.5,
@@ -106,7 +107,7 @@ class TestAiExporterAssembly:
         result = exporter.export(user_id=1)
         assert "2024-11-15" in result.markdown
 
-    def test_wearable_format(self):
+    def test_wearable_format(self, _mock_canary):
         wearable = {
             "_date": date.today().isoformat(),
             "hrv": 45.0,
@@ -121,7 +122,7 @@ class TestAiExporterAssembly:
         assert "45" in result.markdown
         assert "58" in result.markdown
 
-    def test_exact_height_weight_in_export(self):
+    def test_exact_height_weight_in_export(self, _mock_canary):
         # 1.78m = 70.08 inches -> 5'10"
         # 75kg = 165.3 lbs
         db = _make_db(demographics={"height_m": 1.78, "weight_kg": 75.0, "bmi": 23.7})
@@ -133,10 +134,11 @@ class TestAiExporterAssembly:
         assert "165 lbs" in result.markdown
 
 
+@patch("healthbot.llm.anonymizer.Anonymizer._verify_canary")
 class TestAiExporterValidationLayer2:
     """Layer 2: regex + NER scan catches PII in free text."""
 
-    def test_ssn_in_journal_caught(self):
+    def test_ssn_in_journal_caught(self, _mock_canary):
         db = _make_db(journal=[{
             "_timestamp": "2024-11-15 10:00:00",
             "_category": "note",
@@ -147,7 +149,7 @@ class TestAiExporterValidationLayer2:
         result = exporter.export(user_id=1)
         assert "123-45-6789" not in result.markdown
 
-    def test_phone_in_context_caught(self):
+    def test_phone_in_context_caught(self, _mock_canary):
         db = _make_db(ltm=[{
             "_category": "medical",
             "_source": "conversation",
@@ -157,7 +159,7 @@ class TestAiExporterValidationLayer2:
         result = exporter.export(user_id=1)
         assert "555-123-4567" not in result.markdown
 
-    def test_email_in_journal_caught(self):
+    def test_email_in_journal_caught(self, _mock_canary):
         db = _make_db(journal=[{
             "_timestamp": "2024-11-15 10:00:00",
             "_category": "note",
@@ -169,22 +171,23 @@ class TestAiExporterValidationLayer2:
         assert "john@example.com" not in result.markdown
 
 
+@patch("healthbot.llm.anonymizer.Anonymizer._verify_canary")
 class TestAiExporterValidationLayer3:
     """Layer 3: LLM scan (Ollama)."""
 
-    def test_skipped_when_no_ollama(self):
+    def test_skipped_when_no_ollama(self, _mock_canary):
         exporter = _make_exporter(ollama=None)
         result = exporter.export(user_id=1)
         assert result.validation.layer3_passed is None
 
-    def test_skipped_when_ollama_down(self):
+    def test_skipped_when_ollama_down(self, _mock_canary):
         ollama = MagicMock()
         ollama.is_available.return_value = False
         exporter = _make_exporter(ollama=ollama)
         result = exporter.export(user_id=1)
         assert result.validation.layer3_passed is None
 
-    def test_clean_passes(self):
+    def test_clean_passes(self, _mock_canary):
         ollama = MagicMock()
         ollama.is_available.return_value = True
         ollama.send.return_value = '{"found": false}'
@@ -192,7 +195,7 @@ class TestAiExporterValidationLayer3:
         result = exporter.export(user_id=1)
         assert result.validation.layer3_passed is True
 
-    def test_pii_found_triggers_redaction(self):
+    def test_pii_found_triggers_redaction(self, _mock_canary):
         db = _make_db(ltm=[{
             "_category": "medical",
             "_source": "conversation",
@@ -209,7 +212,7 @@ class TestAiExporterValidationLayer3:
         assert "Anderson" not in result.markdown
         assert result.validation.layer3_passed is False
 
-    def test_bad_json_fails_safe(self):
+    def test_bad_json_fails_safe(self, _mock_canary):
         ollama = MagicMock()
         ollama.is_available.return_value = True
         ollama.send.return_value = "I couldn't parse that request properly"
@@ -219,7 +222,7 @@ class TestAiExporterValidationLayer3:
         assert result.validation.layer3_passed is None
         assert any("error" in w.lower() for w in result.validation.warnings)
 
-    def test_json_in_code_block_parsed(self):
+    def test_json_in_code_block_parsed(self, _mock_canary):
         ollama = MagicMock()
         ollama.is_available.return_value = True
         ollama.send.return_value = '```json\n{"found": false}\n```'
@@ -253,8 +256,9 @@ class TestValidationReport:
         assert "1 items redacted" in summary
 
 
+@patch("healthbot.llm.anonymizer.Anonymizer._verify_canary")
 class TestAiExportToFile:
-    def test_file_saved_with_correct_extension(self, tmp_path):
+    def test_file_saved_with_correct_extension(self, _mock_canary, tmp_path):
         exporter = _make_exporter()
         result = exporter.export_to_file(user_id=1, exports_dir=tmp_path)
         assert result.file_path is not None
@@ -264,7 +268,7 @@ class TestAiExportToFile:
         content = result.file_path.read_text()
         assert "# Health Data Export" in content
 
-    def test_file_in_correct_directory(self, tmp_path):
+    def test_file_in_correct_directory(self, _mock_canary, tmp_path):
         subdir = tmp_path / "exports"
         exporter = _make_exporter()
         result = exporter.export_to_file(user_id=1, exports_dir=subdir)

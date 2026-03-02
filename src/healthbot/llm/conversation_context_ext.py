@@ -14,7 +14,19 @@ from healthbot.reasoning.interaction_kb import SUBSTANCE_ALIASES
 logger = logging.getLogger("healthbot")
 
 # Minimum alias length to avoid false positives during scan
-_MIN_ALIAS_LEN = 3
+_MIN_ALIAS_LEN = 4
+
+# Common English words that happen to be substance aliases — only match these
+# when the message has explicit medical/substance context.
+_STOPWORDS: set[str] = {"same", "iron", "ace", "amp", "milk", "soy", "oral"}
+
+# Context words that signal the user is discussing substances/medications.
+_CONTEXT_WORDS = re.compile(
+    r"\b(?:taking|supplement|started|dose|dosage|mg|mcg|iu|interaction|"
+    r"medication|stack|cycle|taper|titrat|prescri|started|stopped|"
+    r"discontinue|combine|mixing|adding)\b",
+    re.IGNORECASE,
+)
 
 
 def append_substance_knowledge(
@@ -195,10 +207,17 @@ def append_medication_timelines(
 def _detect_substances(text: str) -> list[str]:
     """Detect substance names mentioned in text."""
     text_lower = text.lower()
+    has_context = bool(_CONTEXT_WORDS.search(text_lower))
     detected: set[str] = set()
 
     for alias in sorted(SUBSTANCE_ALIASES.keys(), key=len, reverse=True):
         if len(alias) < _MIN_ALIAS_LEN:
+            continue
+        # Stopword aliases require explicit medical context
+        if alias in _STOPWORDS and not has_context:
+            continue
+        # Short aliases (< 6 chars) that aren't stopwords still need context
+        if len(alias) < 6 and not has_context:
             continue
         if alias in text_lower:
             if re.search(rf"\b{re.escape(alias)}\b", text_lower):

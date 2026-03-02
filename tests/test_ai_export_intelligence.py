@@ -1,7 +1,7 @@
 """Tests for AI export intelligence sections."""
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from healthbot.export.ai_export import AiExporter
 from healthbot.security.phi_firewall import PhiFirewall
@@ -26,30 +26,31 @@ def _make_exporter():
     return AiExporter(db=db, anonymizer=anon, phi_firewall=fw), db
 
 
+@patch("healthbot.llm.anonymizer.Anonymizer._verify_canary")
 class TestAiExportIntelligence:
     """Verify all 4 intelligence sections exist in export."""
 
-    def test_export_has_trends_section(self):
+    def test_export_has_trends_section(self, _mock_canary):
         exporter, db = _make_exporter()
         result = exporter.export(user_id=0)
         assert "## Lab Trends" in result.markdown
 
-    def test_export_has_interactions_section(self):
+    def test_export_has_interactions_section(self, _mock_canary):
         exporter, db = _make_exporter()
         result = exporter.export(user_id=0)
         assert "## Drug-Lab Interactions" in result.markdown
 
-    def test_export_has_intelligence_gaps_section(self):
+    def test_export_has_intelligence_gaps_section(self, _mock_canary):
         exporter, db = _make_exporter()
         result = exporter.export(user_id=0)
         assert "## Intelligence Gaps" in result.markdown
 
-    def test_export_has_panel_gaps_section(self):
+    def test_export_has_panel_gaps_section(self, _mock_canary):
         exporter, db = _make_exporter()
         result = exporter.export(user_id=0)
         assert "## Panel Gaps" in result.markdown
 
-    def test_export_has_all_intelligence_sections(self):
+    def test_export_has_all_intelligence_sections(self, _mock_canary):
         """All 4 intelligence sections present in a single export."""
         exporter, db = _make_exporter()
         result = exporter.export(user_id=0)
@@ -61,9 +62,8 @@ class TestAiExportIntelligence:
         assert "## Wearable Data" in md
         assert "## Health Hypotheses" in md
 
-    def test_trends_populated_when_data_exists(self):
+    def test_trends_populated_when_data_exists(self, _mock_canary):
         """Trends section should have content when TrendAnalyzer finds trends."""
-        from unittest.mock import patch
 
         exporter, db = _make_exporter()
 

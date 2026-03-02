@@ -51,7 +51,7 @@ class TestPhiDetection:
 
     def test_ssn_detected(self, fw):
         assert fw.contains_phi("My SSN is 123-45-6789")
-        assert fw.contains_phi("SSN: 999-88-7777")
+        assert fw.contains_phi("SSN: 078-05-1120")
 
     def test_mrn_detected(self, fw):
         assert fw.contains_phi("MRN: 12345678")

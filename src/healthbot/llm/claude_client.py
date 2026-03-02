@@ -277,6 +277,7 @@ class ClaudeClient:
                 text=True,
                 timeout=self._timeout,
                 env=env,
+                encoding="utf-8",
                 cwd="/tmp",  # Neutral dir — prevents CLAUDE.md pickup
             )
         except subprocess.TimeoutExpired:

@@ -191,6 +191,10 @@ class ClinicalDocParser:
 
         Splits on page breaks (form feed) and groups pages to stay
         under the chunk limit. Single-chunk documents are not split.
+
+        If a single page exceeds the chunk limit, it is further split
+        at sentence or whitespace boundaries to avoid exceeding the
+        Ollama context window.
         """
         if len(text) <= _CHUNK_LIMIT:
             return [text]
@@ -203,6 +207,16 @@ class ClinicalDocParser:
         for page in pages:
             page = page.strip()
             if not page:
+                continue
+            # If a single page exceeds the limit, split it further
+            if len(page) > _CHUNK_LIMIT:
+                # Flush current buffer first
+                if current:
+                    chunks.append("\n\n".join(current))
+                    current = []
+                    current_len = 0
+                # Split oversized page at sentence or whitespace boundaries
+                chunks.extend(ClinicalDocParser._split_oversized(page))
                 continue
             if current_len + len(page) > _CHUNK_LIMIT and current:
                 chunks.append("\n\n".join(current))
@@ -217,29 +231,63 @@ class ClinicalDocParser:
         return chunks if chunks else [text[:_CHUNK_LIMIT]]
 
     @staticmethod
+    def _split_oversized(text: str) -> list[str]:
+        """Split a single oversized text block into chunks at sentence boundaries."""
+        chunks: list[str] = []
+        start = 0
+        while start < len(text):
+            end = start + _CHUNK_LIMIT
+            if end >= len(text):
+                chunks.append(text[start:])
+                break
+            # Try to break at sentence boundary (". "), newline, or space
+            best = text.rfind(". ", start + _CHUNK_LIMIT // 2, end)
+            if best > start:
+                end = best + 2  # include the period and space
+            else:
+                best = text.rfind("\n", start + _CHUNK_LIMIT // 2, end)
+                if best > start:
+                    end = best + 1
+                else:
+                    best = text.rfind(" ", start + _CHUNK_LIMIT // 2, end)
+                    if best > start:
+                        end = best + 1
+            chunks.append(text[start:end])
+            start = end
+        return chunks
+
+    @staticmethod
     def _dedup_facts(facts: list[dict], threshold: float = 0.85) -> list[dict]:
-        """Remove near-duplicate facts from combined chunk results."""
+        """Remove near-duplicate facts from combined chunk results.
+
+        Uses a set for O(1) exact-match dedup before falling back to
+        fuzzy matching for near-duplicates.
+        """
         if not facts:
             return facts
 
+        seen_exact: set[str] = set()
         unique: list[dict] = []
         for fact in facts:
             text = fact.get("fact", "").lower().strip()
+            # Fast exact-match check via set
+            if text in seen_exact:
+                continue
             is_dup = False
             for existing in unique:
                 ex_text = existing.get("fact", "").lower().strip()
-                if text == ex_text:
-                    is_dup = True
-                    break
                 ratio = SequenceMatcher(None, text, ex_text).ratio()
                 if ratio >= threshold:
                     # Keep the longer (more detailed) version
                     if len(fact.get("fact", "")) > len(existing.get("fact", "")):
+                        seen_exact.discard(ex_text)
+                        seen_exact.add(text)
                         existing["fact"] = fact["fact"]
                         existing["category"] = fact["category"]
                     is_dup = True
                     break
             if not is_dup:
+                seen_exact.add(text)
                 unique.append(dict(fact))
 
         return unique

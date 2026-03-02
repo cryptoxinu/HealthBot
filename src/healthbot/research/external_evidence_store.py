@@ -6,11 +6,14 @@ them into patient-record truth. Supports TTL-based expiry.
 from __future__ import annotations
 
 import hashlib
+import logging
 import uuid
 from datetime import UTC, datetime, timedelta
 
 from healthbot.data.db import HealthDB
 from healthbot.data.models import ExternalEvidence
+
+logger = logging.getLogger("healthbot")
 
 
 class ExternalEvidenceStore:
@@ -58,7 +61,10 @@ class ExternalEvidenceStore:
             )
             self._db.conn.commit()
         except Exception:
-            pass  # Column may not exist if migration not yet applied
+            logger.warning(
+                "expires_at column missing from external_evidence table — "
+                "TTL expiry will not work. Run schema migration 4 to fix."
+            )
 
         return ev_id
 
@@ -66,7 +72,8 @@ class ExternalEvidenceStore:
         """Check if we have non-expired evidence for this query."""
         query_hash = hashlib.sha256(query.encode()).hexdigest()[:16]
         row = self._db.conn.execute(
-            "SELECT evidence_id FROM external_evidence WHERE query_hash = ?",
+            "SELECT evidence_id FROM external_evidence WHERE query_hash = ? "
+            "ORDER BY expires_at DESC LIMIT 1",
             (query_hash,),
         ).fetchone()
         if not row:

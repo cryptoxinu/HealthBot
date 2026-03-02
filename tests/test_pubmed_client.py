@@ -1,7 +1,6 @@
 """Tests for PubMed research client."""
 from __future__ import annotations
 
-import xml.etree.ElementTree as ET
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
@@ -67,7 +66,11 @@ _FETCH_XML = """\
 
 
 def _mock_async_client(search_json=None, fetch_xml=None, raise_on_search=None):
-    """Create a mock httpx.AsyncClient with pre-configured responses."""
+    """Create a mock httpx.AsyncClient with pre-configured responses.
+
+    The PubMed client uses a shared httpx client (L121) via _get_client(),
+    so we mock at the instance level rather than as a context manager.
+    """
     search_resp = MagicMock(spec=httpx.Response)
     search_resp.json.return_value = search_json or _SEARCH_JSON
     search_resp.raise_for_status = MagicMock()
@@ -85,6 +88,7 @@ def _mock_async_client(search_json=None, fetch_xml=None, raise_on_search=None):
 
     client = AsyncMock()
     client.get = mock_get
+    client.is_closed = False
     client.__aenter__ = AsyncMock(return_value=client)
     client.__aexit__ = AsyncMock(return_value=False)
     return client
@@ -105,7 +109,7 @@ class TestPubMedSearch:
     async def test_search_returns_results(self):
         client = PubMedClient(_config(), PhiFirewall())
         mock = _mock_async_client()
-        with patch("healthbot.research.pubmed_client.httpx.AsyncClient", return_value=mock):
+        with patch.object(client, "_get_client", new=AsyncMock(return_value=mock)):
             results = await client.search("vitamin D immunity")
         assert len(results) == 2
         assert results[0].pmid == "12345678"
@@ -118,7 +122,7 @@ class TestPubMedSearch:
     async def test_search_empty_results(self):
         client = PubMedClient(_config(), PhiFirewall())
         mock = _mock_async_client(search_json={"esearchresult": {"idlist": []}})
-        with patch("healthbot.research.pubmed_client.httpx.AsyncClient", return_value=mock):
+        with patch.object(client, "_get_client", new=AsyncMock(return_value=mock)):
             results = await client.search("nonexistent topic xyz")
         assert results == []
 
@@ -139,7 +143,7 @@ class TestPubMedSearch:
     async def test_search_respects_max_results(self):
         client = PubMedClient(_config(max_results=3), PhiFirewall())
         mock = _mock_async_client()
-        with patch("healthbot.research.pubmed_client.httpx.AsyncClient", return_value=mock):
+        with patch.object(client, "_get_client", new=AsyncMock(return_value=mock)):
             await client.search("test query")
         # Verify max_results was passed in params
         # The get call for esearch should have retmax=3
@@ -149,7 +153,7 @@ class TestPubMedSearch:
     async def test_search_custom_max_results(self):
         client = PubMedClient(_config(), PhiFirewall())
         mock = _mock_async_client()
-        with patch("healthbot.research.pubmed_client.httpx.AsyncClient", return_value=mock):
+        with patch.object(client, "_get_client", new=AsyncMock(return_value=mock)):
             results = await client.search("test", max_results=1)
         # Should still return what the mock provides
         assert len(results) == 2  # Mock returns 2 regardless
@@ -158,22 +162,23 @@ class TestPubMedSearch:
     async def test_search_http_error(self):
         client = PubMedClient(_config(), PhiFirewall())
         mock = _mock_async_client(raise_on_search=httpx.ConnectError("timeout"))
-        with patch("healthbot.research.pubmed_client.httpx.AsyncClient", return_value=mock):
+        with patch.object(client, "_get_client", new=AsyncMock(return_value=mock)):
             with pytest.raises(httpx.ConnectError):
                 await client.search("vitamin D")
 
     @pytest.mark.asyncio
-    async def test_malformed_xml_raises(self):
+    async def test_malformed_xml_returns_empty(self):
+        """Malformed XML now returns empty list instead of raising (L122)."""
         client = PubMedClient(_config(), PhiFirewall())
         mock = _mock_async_client(fetch_xml="<broken>xml</no_close>")
-        with patch("healthbot.research.pubmed_client.httpx.AsyncClient", return_value=mock):
-            with pytest.raises(ET.ParseError):
-                await client.search("test")
+        with patch.object(client, "_get_client", new=AsyncMock(return_value=mock)):
+            results = await client.search("test")
+        assert results == []
 
     @pytest.mark.asyncio
     async def test_empty_xml_returns_empty(self):
         client = PubMedClient(_config(), PhiFirewall())
         mock = _mock_async_client(fetch_xml="<PubmedArticleSet></PubmedArticleSet>")
-        with patch("healthbot.research.pubmed_client.httpx.AsyncClient", return_value=mock):
+        with patch.object(client, "_get_client", new=AsyncMock(return_value=mock)):
             results = await client.search("test")
         assert results == []

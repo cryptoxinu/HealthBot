@@ -49,16 +49,19 @@ class TestValuesMatch:
         assert _values_match("95", "95")
 
     def test_within_tolerance(self):
-        # 95 vs 96 = ~1% diff, within 5% tolerance
-        assert _values_match("95", "96")
+        # 95 vs 95.3 = ~0.3% diff AND 0.3 abs diff — within both tolerances
+        assert _values_match("95", "95.3")
 
     def test_beyond_tolerance(self):
         # 95 vs 150 = ~37% diff, well beyond 5%
         assert not _values_match("95", "150")
 
     def test_small_absolute_tolerance(self):
-        # 0.1 vs 0.3 → 100% relative diff but within 0.5 absolute
-        assert _values_match("0.1", "0.3")
+        # 0.1 vs 0.3 → 100% relative diff, within 0.5 absolute, but AND
+        # logic requires both — relative diff exceeds 5% so no match
+        assert not _values_match("0.1", "0.3")
+        # 0.1 vs 0.1049 → ~4.7% relative and 0.0049 absolute — both within tol
+        assert _values_match("0.1", "0.1049")
 
     def test_non_numeric_exact(self):
         assert _values_match("Reactive", "reactive")
@@ -246,13 +249,19 @@ class TestMergeThreeWayWithConflicts:
 
 class TestValuesMatchEdgeCases:
     def test_negative_numbers_match(self):
-        assert _values_match("-95", "-96")
+        # AND logic: -95 vs -96 has 1.0 abs diff > 0.5 abs_tol, so no match
+        assert not _values_match("-95", "-96")
+        # -95 vs -95.3 → ~0.3% rel and 0.3 abs — within both tolerances
+        assert _values_match("-95", "-95.3")
 
     def test_sign_mismatch_no_match(self):
         assert not _values_match("-95", "95")
 
     def test_zero_vs_small_within_abs_tol(self):
-        assert _values_match("0", "0.4")
+        # AND logic: 0 vs 0.4 has 100% relative diff > 5% rel_tol, no match
+        assert not _values_match("0", "0.4")
+        # 0 vs 0 is exact match (handled by zero shortcut)
+        assert _values_match("0", "0")
 
     def test_zero_vs_large_no_match(self):
         assert not _values_match("0", "5")

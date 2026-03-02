@@ -162,7 +162,7 @@ _SOURCE_SHORT_RE = re.compile(
 # Explicit longer phrases — match regardless of length
 _SOURCE_LONG_RE = re.compile(
     r"^.*(where did you get that|show me the evidence|back that up|"
-    r"what stud(?:y|ies)|cite your sources?|what's the evidence|"
+    r"what stud(?:y|ies) .+|cite your sources?|what's the evidence|"
     r"what is the evidence|how do you know that|"
     r"what are your sources?).*$",
     re.IGNORECASE,
@@ -192,51 +192,62 @@ def build_prompt(mgr, user_text: str) -> tuple[str, str]:
     Uses query-aware section selection when health sections are
     available: wearable detail is included only for wearable/symptom/
     general queries; full lab table only for lab/symptom/general queries.
+
+    Opens a single CleanDB connection and shares it across sub-methods
+    to avoid redundant connection overhead.
     """
     parts: list[str] = []
 
-    # Patient constants (deterministic facts Claude must not contradict)
-    append_patient_constants(mgr, parts)
+    # Open a single CleanDB connection for all sub-methods that need it
+    from healthbot.llm.conversation_routing import get_clean_db
 
-    # User memory from Clean DB (preferences near top for maximum effect)
-    append_user_memory(mgr, parts)
+    shared_clean_db = get_clean_db(mgr)
+    try:
+        # Patient constants (deterministic facts Claude must not contradict)
+        append_patient_constants(mgr, parts, clean_db=shared_clean_db)
 
-    # Health data — query-aware if sections available
-    if mgr._health_sections:
-        append_health_sections(mgr, parts, user_text)
-    elif mgr._health_data:
-        parts.append("## HEALTH DATA\n")
-        parts.append(mgr._health_data)
-        parts.append("")
+        # User memory from Clean DB (preferences near top for maximum effect)
+        append_user_memory(mgr, parts)
 
-    # Integration status (wearable connections) — prefer live callback
-    status = ""
-    if mgr._status_builder:
-        try:
-            status = mgr._status_builder()
-        except Exception:
-            pass
-    if not status:
-        status = mgr._integration_status
-    if status:
-        parts.append("## INTEGRATION STATUS\n")
-        parts.append(status)
-        parts.append("")
+        # Health data — query-aware if sections available
+        if mgr._health_sections:
+            append_health_sections(mgr, parts, user_text)
+        elif mgr._health_data:
+            parts.append("## HEALTH DATA\n")
+            parts.append(mgr._health_data)
+            parts.append("")
 
-    # Active hypotheses from tracker
-    append_hypotheses(mgr, parts)
+        # Integration status (wearable connections) — prefer live callback
+        status = ""
+        if mgr._status_builder:
+            try:
+                status = mgr._status_builder()
+            except Exception:
+                pass
+        if not status:
+            status = mgr._integration_status
+        if status:
+            parts.append("## INTEGRATION STATUS\n")
+            parts.append(status)
+            parts.append("")
 
-    # Knowledge base findings relevant to this query
-    append_kb_findings(mgr, parts, user_text)
+        # Active hypotheses from tracker
+        append_hypotheses(mgr, parts)
 
-    # Cached research articles (PubMed evidence bridge)
-    append_research_evidence(mgr, parts, user_text)
+        # Knowledge base findings relevant to this query
+        append_kb_findings(mgr, parts, user_text)
 
-    # Analysis rules from Clean DB
-    append_analysis_rules(mgr, parts)
+        # Cached research articles (PubMed evidence bridge)
+        append_research_evidence(mgr, parts, user_text)
 
-    # Additional health records from Clean DB
-    append_health_records_ext(mgr, parts)
+        # Analysis rules from Clean DB
+        append_analysis_rules(mgr, parts, clean_db=shared_clean_db)
+
+        # Additional health records from Clean DB
+        append_health_records_ext(mgr, parts, clean_db=shared_clean_db)
+    finally:
+        if shared_clean_db:
+            shared_clean_db.close()
 
     # Substance knowledge profiles relevant to this query
     try:
@@ -248,8 +259,8 @@ def build_prompt(mgr, user_text: str) -> tuple[str, str]:
         append_substance_knowledge(mgr, parts, user_text)
         append_active_interactions_summary(mgr, parts)
         append_medication_timelines(mgr, parts)
-    except Exception:
-        pass  # Graceful degradation if ext module not available
+    except Exception as exc:
+        logger.debug("Substance knowledge lookup failed: %s", exc)
 
     # Persistent memory
     if mgr._memory:
@@ -362,9 +373,16 @@ def safe_anonymize(anon, text: str) -> str:
     """Anonymize text via pipeline with retry. Returns '[REDACTED]' only as last resort."""
     from healthbot.llm.anonymize_pipeline import AnonymizePipeline
 
+    # Build a minimal but useful fallback that preserves structure context
+    # instead of replacing the entire text with an opaque "[REDACTED]".
+    text_len = len(text) if text else 0
+    fallback = (
+        f"[Content redacted for privacy — {text_len} chars, "
+        f"contained potentially sensitive data that could not be fully anonymized]"
+    )
     pipeline = AnonymizePipeline(
         anon, max_passes=2, fallback="fallback_text",
-        fallback_text="[REDACTED]",
+        fallback_text=fallback,
     )
     result = pipeline.process(text)
     return result.text
@@ -487,7 +505,8 @@ def append_research_evidence(mgr, parts: list[str], query: str) -> None:
 
         line = f"- {title}"
         if journal or year:
-            line += f" ({journal} {year})".rstrip()
+            cite_parts = " ".join(p for p in (journal, year) if p)
+            line += f" ({cite_parts})"
         if pmid:
             line += f" [PMID:{pmid}]"
         parts.append(line)
@@ -530,7 +549,7 @@ def _apply_confidence_decay(mem: dict) -> float:
     return conf
 
 
-def append_patient_constants(mgr, parts: list[str]) -> None:
+def append_patient_constants(mgr, parts: list[str], *, clean_db=None) -> None:
     """Prepend verified patient constants that Claude must never contradict.
 
     Pulls high-confidence (>=0.9) user-stated memories from Clean DB
@@ -539,7 +558,9 @@ def append_patient_constants(mgr, parts: list[str]) -> None:
     """
     from healthbot.llm.conversation_routing import get_clean_db
 
-    clean_db = get_clean_db(mgr)
+    owns_db = clean_db is None
+    if owns_db:
+        clean_db = get_clean_db(mgr)
     if not clean_db:
         return
     try:
@@ -547,7 +568,8 @@ def append_patient_constants(mgr, parts: list[str]) -> None:
     except Exception:
         return
     finally:
-        clean_db.close()
+        if owns_db:
+            clean_db.close()
     if not facts:
         return
 
@@ -567,10 +589,7 @@ def append_user_memory(mgr, parts: list[str]) -> None:
     Inferred memories older than 90/180 days show decayed confidence.
     """
     now = time.monotonic()
-    cache_expired = (
-        hasattr(mgr, "_memory_cache_ts")
-        and (now - mgr._memory_cache_ts) > _MEMORY_CACHE_TTL
-    )
+    cache_expired = (now - mgr._memory_cache_ts) > _MEMORY_CACHE_TTL
     if mgr._cached_user_memory is None or cache_expired:
         clean_db = mgr._get_clean_db()
         if not clean_db:
@@ -619,11 +638,13 @@ def append_user_memory(mgr, parts: list[str]) -> None:
         parts.append("")
 
 
-def append_analysis_rules(mgr, parts: list[str]) -> None:
+def append_analysis_rules(mgr, parts: list[str], *, clean_db=None) -> None:
     """Add active analysis rules from Clean DB to the prompt context."""
     from healthbot.llm.conversation_routing import get_clean_db
 
-    clean_db = get_clean_db(mgr)
+    owns_db = clean_db is None
+    if owns_db:
+        clean_db = get_clean_db(mgr)
     if not clean_db:
         return
     try:
@@ -631,7 +652,8 @@ def append_analysis_rules(mgr, parts: list[str]) -> None:
     except Exception:
         return
     finally:
-        clean_db.close()
+        if owns_db:
+            clean_db.close()
     if not rules:
         return
 
@@ -644,11 +666,13 @@ def append_analysis_rules(mgr, parts: list[str]) -> None:
     parts.append("")
 
 
-def append_health_records_ext(mgr, parts: list[str]) -> None:
+def append_health_records_ext(mgr, parts: list[str], *, clean_db=None) -> None:
     """Add extended health records from Clean DB to the prompt context."""
     from healthbot.llm.conversation_routing import get_clean_db
 
-    clean_db = get_clean_db(mgr)
+    owns_db = clean_db is None
+    if owns_db:
+        clean_db = get_clean_db(mgr)
     if not clean_db:
         return
     try:
@@ -656,7 +680,8 @@ def append_health_records_ext(mgr, parts: list[str]) -> None:
     except Exception:
         return
     finally:
-        clean_db.close()
+        if owns_db:
+            clean_db.close()
     if not records:
         return
 

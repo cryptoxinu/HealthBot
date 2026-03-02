@@ -18,9 +18,11 @@ TEST_NAME_MAP: dict[str, str] = {
     "sodium": "sodium",
     "na": "sodium",
     "na+": "sodium",
+    "na +": "sodium",
     "potassium": "potassium",
     "k": "potassium",
     "k+": "potassium",
+    "k +": "potassium",
     "chloride": "chloride",
     "cl": "chloride",
     "co2": "carbon_dioxide",
@@ -132,9 +134,11 @@ TEST_NAME_MAP: dict[str, str] = {
     # Immunology
     "ana": "ana",
     "antinuclear antibody": "ana",
-    "hs-crp": "hs_crp",
-    "high sensitivity crp": "hs_crp",
-    "high-sensitivity c-reactive protein": "hs_crp",
+    "hs-crp": "crp",
+    "hscrp": "crp",
+    "high sensitivity crp": "crp",
+    "high-sensitivity c-reactive protein": "crp",
+    "high sensitivity c-reactive protein": "crp",
 
     # Aliases for reversed/variant names
     "t4 free": "free_t4",
@@ -225,7 +229,8 @@ TEST_NAME_MAP: dict[str, str] = {
     "carbon dioxide, total": "carbon_dioxide",
     "anion gap": "anion_gap",
     "procalcitonin": "procalcitonin",
-    "pct": "procalcitonin",
+    # "pct" is ambiguous: procalcitonin vs percentage.
+    # Disambiguation handled in normalize_test_name() using unit context.
     "lithium": "lithium",
     "lithium level": "lithium",
     "microalbumin": "microalbumin",
@@ -458,7 +463,15 @@ def normalize_test_name(name: str) -> str:
     Handles variations like "Glucose, Serum" → "glucose" and
     "Creatinine, Serum eGFR If NonAfricn Am" → "creatinine".
     """
-    cleaned = re.sub(r"[,.\-_]+$", "", name.strip().lower())
+    # Case-sensitive check: lowercase "mg" alone is the unit milligrams,
+    # while "Mg" (capitalized) is the abbreviation for magnesium.
+    stripped_raw = name.strip()
+    if stripped_raw == "Mg":
+        return "magnesium"
+    if stripped_raw == "mg":
+        # Bare lowercase "mg" is the unit milligrams, not magnesium
+        return "mg"
+    cleaned = re.sub(r"[,.\-_]+$", "", stripped_raw.lower())
     cleaned = re.sub(r"\s+", " ", cleaned)
     # Try direct lookup first
     if cleaned in TEST_NAME_MAP:
@@ -469,6 +482,25 @@ def normalize_test_name(name: str) -> str:
     if stripped and stripped in TEST_NAME_MAP:
         return TEST_NAME_MAP[stripped]
     return cleaned
+
+
+def normalize_test_name_with_unit(name: str, unit: str = "") -> str:
+    """Map a test name to its canonical form using unit context for disambiguation.
+
+    Handles ambiguous abbreviations like "pct":
+    - With "ng/mL" or similar concentration units -> procalcitonin
+    - With "%" or no unit -> percentage (returns raw name)
+    """
+    cleaned_name = name.strip().lower()
+    if cleaned_name == "pct":
+        unit_lower = unit.strip().lower()
+        if unit_lower in ("ng/ml", "ng/dl", "ug/l", "µg/l"):
+            return "procalcitonin"
+        if "%" in unit_lower:
+            return cleaned_name  # percentage, not a lab test
+        # Default: procalcitonin when used as a lab test name
+        return "procalcitonin"
+    return normalize_test_name(name)
 
 
 # Optional LOINC mapping for common tests

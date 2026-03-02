@@ -14,7 +14,9 @@ class ParsedMedication:
     name: str
     prescribed_dose: str  # "10mg" — what the pill says
     actual_dose: str  # "5mg" — what they actually take
-    actual_dose_mg: float | None  # 5.0 — numeric for storage
+    actual_dose_mg: float | None  # numeric in mg (converted from original unit)
+    actual_dose_original: float | None  # numeric in original unit
+    actual_dose_unit: str  # original unit (mg, mcg, g, iu, etc.)
     frequency: str  # "daily", "twice daily", etc.
     modifier: str  # "half", "quarter", "double", or ""
     raw_text: str
@@ -40,9 +42,13 @@ _DOSE_PATTERN = re.compile(
 )
 _FREQ_PATTERN = re.compile(
     r"(?:once|twice|three\s+times|1x|2x|3x)\s*(?:a\s+)?(?:day|daily|week|weekly)"
-    r"|daily|every\s+(?:morning|night|day|other\s+day)"
+    r"|daily|every\s+(?:morning|night|day|other\s+day|\d+\s*hours?)"
     r"|at\s+(?:bedtime|night)"
-    r"|(?:twice|2x)\s+daily",
+    r"|(?:twice|2x)\s+daily"
+    r"|three\s+times\s+daily"
+    r"|\d+\s+times\s+(?:daily|a\s+day)"
+    r"|q(?:6|8|12)h"
+    r"|prn|as\s+needed",
     re.IGNORECASE,
 )
 
@@ -55,29 +61,40 @@ def parse_medication(text: str) -> ParsedMedication:
     dose_value = float(dose_match.group(1)) if dose_match else None
     dose_unit = dose_match.group(2).lower() if dose_match else ""
 
-    # Detect modifiers
+    # Detect modifiers — only when medication context is present
+    # (a dose was found or the text mentions pills/tablets/dose).
+    # This prevents matching modifiers in unrelated text like
+    # "break it in half" when talking about food.
     modifier = ""
     multiplier = 1.0
-    if _HALF_PATTERN.search(text):
-        modifier = "half"
-        multiplier = 0.5
-    elif _QUARTER_PATTERN.search(text):
-        modifier = "quarter"
-        multiplier = 0.25
-    elif _DOUBLE_PATTERN.search(text):
-        modifier = "double"
-        multiplier = 2.0
+    has_med_context = dose_match is not None or re.search(
+        r"\b(?:pill|tablet|capsule|dose|medication|medicine|drug|supplement)\b",
+        text, re.IGNORECASE,
+    )
+    if has_med_context:
+        if _HALF_PATTERN.search(text):
+            modifier = "half"
+            multiplier = 0.5
+        elif _QUARTER_PATTERN.search(text):
+            modifier = "quarter"
+            multiplier = 0.25
+        elif _DOUBLE_PATTERN.search(text):
+            modifier = "double"
+            multiplier = 2.0
 
-    # Calculate actual dose
-    actual_mg = dose_value * multiplier if dose_value else None
-    if actual_mg is not None:
+    # Calculate actual dose in original units
+    actual_in_original_unit = dose_value * multiplier if dose_value else None
+    if actual_in_original_unit is not None:
         # Format nicely: strip trailing .0
-        if actual_mg == int(actual_mg):
-            actual_dose = f"{int(actual_mg)}{dose_unit}"
+        if actual_in_original_unit == int(actual_in_original_unit):
+            actual_dose = f"{int(actual_in_original_unit)}{dose_unit}"
         else:
-            actual_dose = f"{actual_mg}{dose_unit}"
+            actual_dose = f"{actual_in_original_unit}{dose_unit}"
     else:
         actual_dose = prescribed_dose
+
+    # Convert to mg for standardized storage
+    actual_dose_mg = _convert_to_mg(actual_in_original_unit, dose_unit)
 
     # Extract frequency
     freq_match = _FREQ_PATTERN.search(text)
@@ -90,11 +107,36 @@ def parse_medication(text: str) -> ParsedMedication:
         name=name,
         prescribed_dose=prescribed_dose,
         actual_dose=actual_dose,
-        actual_dose_mg=actual_mg,
+        actual_dose_mg=actual_dose_mg,
+        actual_dose_original=actual_in_original_unit,
+        actual_dose_unit=dose_unit,
         frequency=frequency,
         modifier=modifier,
         raw_text=text,
     )
+
+
+def _convert_to_mg(value: float | None, unit: str) -> float | None:
+    """Convert a dose value to milligrams where a standard conversion exists.
+
+    - mcg -> mg: divide by 1000
+    - g   -> mg: multiply by 1000
+    - mg  -> mg: no conversion
+    - iu/units -> None (no standard mg equivalent)
+
+    Returns None when the value is None or no meaningful conversion exists.
+    """
+    if value is None:
+        return None
+    unit_lower = unit.lower()
+    if unit_lower == "mg":
+        return value
+    if unit_lower == "mcg":
+        return value / 1000.0
+    if unit_lower == "g":
+        return value * 1000.0
+    # IU, units, ml — no standard mg conversion
+    return None
 
 
 def _extract_drug_name(text: str, dose_match: re.Match | None) -> str:

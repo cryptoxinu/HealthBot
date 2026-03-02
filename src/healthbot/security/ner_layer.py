@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import re
+import threading
 from dataclasses import dataclass
 
 logger = logging.getLogger("healthbot")
@@ -163,21 +164,24 @@ class NerLayer:
     """
 
     _model_cache: dict[str, object] = {}  # class-level cache: model_name -> GLiNER
+    _model_lock = threading.Lock()  # protects _model_cache access
 
     def __init__(self, model_name: str = DEFAULT_MODEL) -> None:
         if not _GLINER_AVAILABLE:
             raise RuntimeError("gliner is not installed. Run: pip install gliner")
 
-        if model_name in NerLayer._model_cache:
-            self._model = NerLayer._model_cache[model_name]
-            logger.info("NER model '%s' reused from cache.", model_name)
-        else:
-            logger.info("Loading NER model '%s'...", model_name)
-            self._model = GLiNER.from_pretrained(model_name)
-            NerLayer._model_cache[model_name] = self._model
-            logger.info("NER model loaded.")
+        with NerLayer._model_lock:
+            if model_name in NerLayer._model_cache:
+                self._model = NerLayer._model_cache[model_name]
+                logger.info("NER model '%s' reused from cache.", model_name)
+            else:
+                logger.info("Loading NER model '%s'...", model_name)
+                self._model = GLiNER.from_pretrained(model_name)
+                NerLayer._model_cache[model_name] = self._model
+                logger.info("NER model loaded.")
         self._labels = list(NER_LABELS)
         self._known_names: set[str] = set()
+        self._known_names_lock = threading.Lock()
 
     def set_known_names(self, names: set[str]) -> None:
         """Set known names that bypass MIN_CONFIDENCE threshold.
@@ -185,10 +189,15 @@ class NerLayer:
         Known names are always detected by _filter_medical regardless of
         score, and are also scanned via simple substring matching as a
         fallback when GLiNER doesn't flag them at all.
+
+        Uses copy-on-write: builds a new frozenset and atomically replaces
+        the reference, so concurrent readers see a consistent snapshot.
         """
-        self._known_names = {n for n in names if n and len(n) >= 3}
-        if self._known_names:
-            logger.info("NER known names loaded: %d entries", len(self._known_names))
+        new_names = frozenset(n for n in names if n and len(n) >= 3)
+        with self._known_names_lock:
+            self._known_names = new_names
+        if new_names:
+            logger.info("NER known names loaded: %d entries", len(new_names))
 
     # GLiNER truncates at ~384 tokens. Chunk longer texts with overlap.
     _CHUNK_SIZE = 300  # chars per chunk (conservative to stay within token limit)
@@ -278,6 +287,16 @@ class NerLayer:
         if not entities:
             return text, False
 
+        # Deduplicate exact duplicates (same start, end, label) before redaction
+        seen = set()
+        unique = []
+        for e in entities:
+            key = (e.start, e.end, e.label)
+            if key not in seen:
+                seen.add(key)
+                unique.append(e)
+        entities = unique
+
         # Sort by position descending so replacements don't shift indices
         entities.sort(key=lambda e: e.start, reverse=True)
         result = text
@@ -291,8 +310,10 @@ class NerLayer:
     def _dedup_entities(entities: list[NerEntity]) -> list[NerEntity]:
         """Remove duplicate entities from overlapping chunks.
 
-        Overlap-ratio: if two entities with the same label overlap by >50%
-        of the shorter one's length, merge (keep higher score, widest span).
+        Sorts all entities by start position, then iteratively merges
+        ALL overlapping spans (not just consecutive ones). Two entities
+        with the same label that overlap by >50% of the shorter one's
+        length are merged (keep higher score, widest span).
         """
         if not entities:
             return []
@@ -300,25 +321,28 @@ class NerLayer:
         entities.sort(key=lambda e: (e.start, -e.end))
         deduped: list[NerEntity] = [entities[0]]
         for e in entities[1:]:
-            prev = deduped[-1]
-            # Calculate overlap
-            overlap = max(0, min(prev.end, e.end) - max(prev.start, e.start))
-            shorter_len = min(prev.end - prev.start, e.end - e.start)
-            overlap_ratio = overlap / shorter_len if shorter_len > 0 else 0
+            merged = False
+            for i, prev in enumerate(deduped):
+                # Calculate overlap
+                overlap = max(0, min(prev.end, e.end) - max(prev.start, e.start))
+                shorter_len = min(prev.end - prev.start, e.end - e.start)
+                overlap_ratio = overlap / shorter_len if shorter_len > 0 else 0
 
-            if overlap_ratio > 0.5 and e.label == prev.label:
-                # Merge: widest span, highest score
-                merged_start = min(prev.start, e.start)
-                merged_end = max(prev.end, e.end)
-                winner = e if e.score > prev.score else prev
-                deduped[-1] = NerEntity(
-                    label=winner.label,
-                    text=winner.text,
-                    start=merged_start,
-                    end=merged_end,
-                    score=max(prev.score, e.score),
-                )
-            else:
+                if overlap_ratio > 0.5 and e.label == prev.label:
+                    # Merge: widest span, highest score
+                    merged_start = min(prev.start, e.start)
+                    merged_end = max(prev.end, e.end)
+                    winner = e if e.score > prev.score else prev
+                    deduped[i] = NerEntity(
+                        label=winner.label,
+                        text=winner.text,
+                        start=merged_start,
+                        end=merged_end,
+                        score=max(prev.score, e.score),
+                    )
+                    merged = True
+                    break
+            if not merged:
                 deduped.append(e)
         return deduped
 
@@ -377,7 +401,10 @@ class NerLayer:
                 window_start = max(0, e.start - self._CONTEXT_WINDOW)
                 window_end = min(len(text), e.end + self._CONTEXT_WINDOW)
                 window = text_lower[window_start:window_end]
-                med_count = sum(1 for term in MEDICAL_TERMS if term in window)
+                med_count = sum(
+                    1 for term in MEDICAL_TERMS
+                    if re.search(rf"\b{re.escape(term)}\b", window)
+                )
                 if med_count >= 3:
                     adjusted = e.score * 0.7  # 30% reduction
                     if adjusted < MIN_CONFIDENCE:
@@ -389,10 +416,12 @@ class NerLayer:
 
     def _is_known_name(self, entity_text: str) -> bool:
         """Check if entity text matches any known name (case-insensitive)."""
-        if not self._known_names:
+        # Read reference atomically (frozenset is immutable, safe to iterate)
+        known = self._known_names
+        if not known:
             return False
         text_lower = entity_text.strip().lower()
-        return any(name.lower() == text_lower for name in self._known_names)
+        return any(name.lower() == text_lower for name in known)
 
     @staticmethod
     def is_available() -> bool:

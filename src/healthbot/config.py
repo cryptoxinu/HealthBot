@@ -6,8 +6,15 @@ Secrets come from macOS Keychain or the vault at runtime.
 from __future__ import annotations
 
 import json
+import logging
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
+
+logger = logging.getLogger("healthbot")
+
+# Module-level lock for thread-safe app.json writes
+_app_config_lock = threading.Lock()
 
 # Available model presets — name -> (ollama_tag, description)
 MODEL_PRESETS: dict[str, tuple[str, str]] = {
@@ -164,34 +171,70 @@ class Config:
         ]:
             d.mkdir(parents=True, exist_ok=True)
 
+    @staticmethod
+    def _validate_type(value: object, expected_type: type, field_name: str) -> bool:
+        """Check that a config value matches the expected type."""
+        if not isinstance(value, expected_type):
+            logger.warning(
+                "Config field '%s': expected %s, got %s — ignoring",
+                field_name, expected_type.__name__, type(value).__name__,
+            )
+            return False
+        return True
+
     def load_app_config(self) -> None:
         """Load allowed_user_ids, limits, and Ollama settings from app.json."""
         if self.app_config_path.exists():
             data = json.loads(self.app_config_path.read_text())
-            self.allowed_user_ids = data.get("allowed_user_ids", [])
-            self.rate_limit_per_minute = data.get("rate_limit_per_minute", 20)
-            self.ollama_url = data.get("ollama_url", self.ollama_url)
-            self.ollama_timeout = data.get("ollama_timeout", self.ollama_timeout)
-            self.digest_time = data.get("digest_time", self.digest_time)
-            self.auto_ai_export = data.get("auto_ai_export", self.auto_ai_export)
-            self.auto_ai_export_interval = data.get(
-                "auto_ai_export_interval", self.auto_ai_export_interval,
-            )
-            self.apple_health_export_path = data.get(
+            v = data.get("allowed_user_ids", [])
+            if self._validate_type(v, list, "allowed_user_ids"):
+                self.allowed_user_ids = v
+            v = data.get("rate_limit_per_minute", self.rate_limit_per_minute)
+            if self._validate_type(v, int, "rate_limit_per_minute"):
+                self.rate_limit_per_minute = v
+            v = data.get("ollama_url", self.ollama_url)
+            if self._validate_type(v, str, "ollama_url"):
+                self.ollama_url = v
+            v = data.get("ollama_model", self.ollama_model)
+            if self._validate_type(v, str, "ollama_model"):
+                self.ollama_model = v
+            v = data.get("ollama_timeout", self.ollama_timeout)
+            if self._validate_type(v, int, "ollama_timeout"):
+                self.ollama_timeout = v
+            v = data.get("digest_time", self.digest_time)
+            if self._validate_type(v, str, "digest_time"):
+                self.digest_time = v
+            v = data.get("auto_ai_export", self.auto_ai_export)
+            if self._validate_type(v, bool, "auto_ai_export"):
+                self.auto_ai_export = v
+            v = data.get("auto_ai_export_interval", self.auto_ai_export_interval)
+            if self._validate_type(v, int, "auto_ai_export_interval"):
+                self.auto_ai_export_interval = v
+            v = data.get(
                 "apple_health_export_path", self.apple_health_export_path,
             )
-            self.weekly_report_day = data.get(
+            if self._validate_type(v, str, "apple_health_export_path"):
+                self.apple_health_export_path = v
+            v = data.get(
                 "weekly_report_day", self.weekly_report_day,
             )
-            self.weekly_report_time = data.get(
+            if self._validate_type(v, str, "weekly_report_day"):
+                self.weekly_report_day = v
+            v = data.get(
                 "weekly_report_time", self.weekly_report_time,
             )
-            self.monthly_report_day = data.get(
+            if self._validate_type(v, str, "weekly_report_time"):
+                self.weekly_report_time = v
+            v = data.get(
                 "monthly_report_day", self.monthly_report_day,
             )
-            self.monthly_report_time = data.get(
+            if self._validate_type(v, int, "monthly_report_day"):
+                self.monthly_report_day = v
+            v = data.get(
                 "monthly_report_time", self.monthly_report_time,
             )
+            if self._validate_type(v, str, "monthly_report_time"):
+                self.monthly_report_time = v
             self._wearable_state = data.get("wearable_state", {})
             self._privacy_mode = data.get("privacy_mode", "relaxed")
             self._send_redacted_pdf = data.get("send_redacted_pdf", False)
@@ -255,14 +298,15 @@ class Config:
         self._save_app_setting("send_redacted_pdf", enabled)
 
     def _save_app_setting(self, key: str, value: object) -> None:
-        """Persist a single setting to app.json."""
-        config_dir = self.vault_home / "config"
-        config_dir.mkdir(parents=True, exist_ok=True)
-        data = {}
-        if self.app_config_path.exists():
-            data = json.loads(self.app_config_path.read_text())
-        data[key] = value
-        self.app_config_path.write_text(json.dumps(data, indent=2))
+        """Persist a single setting to app.json (thread-safe)."""
+        with _app_config_lock:
+            config_dir = self.vault_home / "config"
+            config_dir.mkdir(parents=True, exist_ok=True)
+            data = {}
+            if self.app_config_path.exists():
+                data = json.loads(self.app_config_path.read_text())
+            data[key] = value
+            self.app_config_path.write_text(json.dumps(data, indent=2))
 
     def _save_wearable_state(self) -> None:
         """Persist wearable state to app.json."""

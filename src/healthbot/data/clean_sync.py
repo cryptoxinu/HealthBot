@@ -18,6 +18,7 @@ import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import Any
 
 from healthbot.data.clean_db import CleanDB, PhiDetectedError
 from healthbot.data.clean_sync_workers import (
@@ -185,32 +186,45 @@ _sync_lock_acquired_at: float | None = None
 _SYNC_LOCK_TIMEOUT = 7200  # 2 hours max
 
 
+_SYNC_LOCK_FORCE_THRESHOLD = 300  # 5 minutes — minimum age before force-release
+_sync_meta_lock = threading.Lock()  # protects _sync_lock_acquired_at reads/writes
+
+
 def _acquire_sync_lock() -> bool:
-    """Try to acquire _sync_lock, force-releasing if stale (>2h)."""
+    """Try to acquire _sync_lock, force-releasing if stale (>2h).
+
+    Uses a separate meta-lock to atomically check the timestamp and
+    force-release, preventing a race where two threads both decide the
+    lock is stale and both try to release/acquire simultaneously.
+    """
     global _sync_lock_acquired_at
     if _sync_lock.acquire(blocking=False):
-        _sync_lock_acquired_at = time.monotonic()
+        with _sync_meta_lock:
+            _sync_lock_acquired_at = time.monotonic()
         return True
-    # Check for stale lock
-    if (
-        _sync_lock_acquired_at is not None
-        and time.monotonic() - _sync_lock_acquired_at > _SYNC_LOCK_TIMEOUT
-    ):
-        logger.warning("Force-releasing stale sync lock (held >2h)")
-        try:
-            _sync_lock.release()
-        except RuntimeError:
-            pass  # Already released
-        _sync_lock.acquire()
-        _sync_lock_acquired_at = time.monotonic()
-        return True
+    # Check for stale lock — must hold meta-lock to read timestamp safely
+    with _sync_meta_lock:
+        if (
+            _sync_lock_acquired_at is not None
+            and time.monotonic() - _sync_lock_acquired_at > _SYNC_LOCK_TIMEOUT
+            and time.monotonic() - _sync_lock_acquired_at > _SYNC_LOCK_FORCE_THRESHOLD
+        ):
+            logger.warning("Force-releasing stale sync lock (held >2h)")
+            try:
+                _sync_lock.release()
+            except RuntimeError:
+                pass  # Already released
+            _sync_lock.acquire()
+            _sync_lock_acquired_at = time.monotonic()
+            return True
     return False
 
 
 def _release_sync_lock() -> None:
     """Release _sync_lock and clear timestamp."""
     global _sync_lock_acquired_at
-    _sync_lock_acquired_at = None
+    with _sync_meta_lock:
+        _sync_lock_acquired_at = None
     _sync_lock.release()
 
 # Type alias for optional progress callback
@@ -735,8 +749,12 @@ class CleanSyncEngine:
                 )
                 _progress(
                     on_progress,
-                    f"Substance knowledge: {getattr(report, 'substance_knowledge_synced', 0)} synced",
+                    f"Substance knowledge: "
+                    f"{getattr(report, 'substance_knowledge_synced', 0)} synced",
                 )
+
+                # Delete orphaned records that no longer exist in the source
+                self._delete_incremental_orphans(user_id, report)
 
                 self._clean.set_meta("last_sync_at", watermark)
                 self._clean.commit()
@@ -749,13 +767,78 @@ class CleanSyncEngine:
         logger.info("Incremental sync complete: %s", report.summary())
         return report
 
+    def _delete_incremental_orphans(
+        self, user_id: int, report: SyncReport,
+    ) -> None:
+        """Compare IDs between source and target, delete orphans.
+
+        Called during incremental sync to remove records from the clean DB
+        that no longer exist in the raw vault.
+        """
+        # Observations
+        obs_ids = self._fetch_source_ids("query_observations",
+                                         record_type="lab_result", user_id=user_id, limit=100000)
+        vital_ids = self._fetch_source_ids("query_observations",
+                                           record_type="vital_sign", user_id=user_id, limit=100000)
+        if obs_ids is not None and vital_ids is not None:
+            all_obs_ids = obs_ids | vital_ids
+        elif obs_ids is not None:
+            all_obs_ids = obs_ids
+        elif vital_ids is not None:
+            all_obs_ids = vital_ids
+        else:
+            all_obs_ids = None
+        if all_obs_ids is not None:
+            report.stale_deleted += self._clean.delete_stale(
+                "clean_observations", "id", all_obs_ids,
+            )
+
+        # Medications
+        med_ids = self._fetch_source_ids("get_active_medications", user_id=user_id)
+        if med_ids is not None:
+            report.stale_deleted += self._clean.delete_stale(
+                "clean_medications", "med_id", med_ids,
+            )
+
+        # Hypotheses
+        hyp_ids = self._fetch_source_ids("get_active_hypotheses", user_id)
+        if hyp_ids is not None:
+            report.stale_deleted += self._clean.delete_stale(
+                "clean_hypotheses", "id", hyp_ids,
+            )
+
+        if report.stale_deleted:
+            logger.info(
+                "Incremental sync deleted %d orphaned records",
+                report.stale_deleted,
+            )
+
+    def _fetch_source_ids(
+        self, method: str, *args: Any, **kwargs: Any,
+    ) -> set[str] | None:
+        """Fetch all record IDs from raw DB, returning None on failure."""
+        try:
+            records = getattr(self._raw, method)(*args, **kwargs)
+            if records is None:
+                return None
+            ids: set[str] = set()
+            for r in records:
+                rid = r.get("_id") or r.get("obs_id") or r.get("id", "")
+                if rid:
+                    ids.add(rid)
+            return ids
+        except Exception as e:
+            logger.debug("Failed to fetch source IDs for %s: %s", method, e)
+            return None
+
     def rebuild(
         self, user_id: int, on_progress: ProgressCallback = None,
     ) -> SyncReport:
         """Drop all clean DB data and rebuild from scratch.
 
         Use after anonymizer upgrades to re-process all records
-        with the improved pipeline.
+        with the improved pipeline. Uses a single transaction for the
+        clear phase.
         """
         if not _acquire_sync_lock():
             logger.info("Clean sync already in progress, skipping rebuild")

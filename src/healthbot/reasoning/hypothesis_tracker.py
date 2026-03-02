@@ -14,7 +14,25 @@ from healthbot.data.db import HealthDB
 logger = logging.getLogger("healthbot")
 
 # Similarity threshold for matching hypothesis titles
-_MATCH_THRESHOLD = 0.75
+_MATCH_THRESHOLD = 0.90
+
+# Pairs of conditions that are lexically similar but clinically opposite.
+# Fuzzy matching must NEVER merge these, regardless of similarity score.
+_CONFUSABLE_PAIRS = {
+    frozenset({"hypothyroidism", "hyperthyroidism"}),
+    frozenset({"hypoglycemia", "hyperglycemia"}),
+    frozenset({"hypokalemia", "hyperkalemia"}),
+    frozenset({"hyponatremia", "hypernatremia"}),
+    frozenset({"hypocalcemia", "hypercalcemia"}),
+    frozenset({"hypotension", "hypertension"}),
+}
+
+
+def _is_confusable_pair(title_a: str, title_b: str) -> bool:
+    """Return True if the two titles form a confusable medical pair."""
+    a_lower = title_a.lower().strip()
+    b_lower = title_b.lower().strip()
+    return frozenset({a_lower, b_lower}) in _CONFUSABLE_PAIRS
 
 
 class HypothesisTracker:
@@ -41,6 +59,9 @@ class HypothesisTracker:
 
         for hyp in hypotheses:
             existing_title = hyp.get("title", "").lower().strip()
+            # Block merges between clinically confusable pairs
+            if _is_confusable_pair(title_lower, existing_title):
+                continue
             score = SequenceMatcher(None, title_lower, existing_title).ratio()
             if score > best_score and score >= _MATCH_THRESHOLD:
                 best_score = score
@@ -91,10 +112,11 @@ class HypothesisTracker:
             if item not in missing:
                 missing.append(item)
 
-        # Take the higher confidence
+        # Weighted average: existing evidence weighs more (0.7) to prevent
+        # wild swings, but new evidence (0.3) can still decrease confidence
         old_conf = existing.get("confidence", existing.get("_confidence", 0.0))
         new_conf = incoming.get("confidence", 0.0)
-        confidence = max(old_conf, new_conf)
+        confidence = old_conf * 0.7 + new_conf * 0.3
 
         updated = {
             "title": existing.get("title", incoming.get("title", "")),
@@ -131,7 +153,7 @@ class HypothesisTracker:
             newly_found = []
 
             for test_name in missing:
-                if self._has_lab_data(test_name):
+                if self._has_lab_data(test_name, user_id=user_id):
                     newly_found.append(test_name)
                 else:
                     still_missing.append(test_name)
@@ -163,13 +185,13 @@ class HypothesisTracker:
 
         return updated
 
-    def _has_lab_data(self, test_name: str) -> bool:
+    def _has_lab_data(self, test_name: str, user_id: int | None = None) -> bool:
         """Check if we have any lab results for the given test name."""
         from healthbot.normalize.lab_normalizer import normalize_test_name
 
         canonical = normalize_test_name(test_name)
         results = self._db.query_observations(
-            canonical_name=canonical, limit=1
+            canonical_name=canonical, limit=1, user_id=user_id,
         )
         return len(results) > 0
 

@@ -17,6 +17,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import re
+import threading
 from dataclasses import dataclass
 
 from healthbot.security.phi_firewall import PhiFirewall
@@ -74,6 +75,7 @@ class Anonymizer:
         # LRU-style cache: SHA256(text) -> (cleaned_text, had_phi)
         # Bounded dict with FIFO eviction. Never stores original text.
         self._cache: dict[str, tuple[str, bool]] = {}
+        self._cache_lock = threading.Lock()
 
         if use_ner:
             self._ner = self._try_init_ner()
@@ -99,11 +101,12 @@ class Anonymizer:
 
     def _cache_put(self, key: str, value: tuple[str, bool]) -> None:
         """Store result in cache with FIFO eviction at max size."""
-        if len(self._cache) >= self._CACHE_MAX_SIZE:
-            # Evict oldest entry (first key in dict — insertion order)
-            oldest = next(iter(self._cache))
-            del self._cache[oldest]
-        self._cache[key] = value
+        with self._cache_lock:
+            if len(self._cache) >= self._CACHE_MAX_SIZE:
+                # Evict oldest entry (first key in dict — insertion order)
+                oldest = next(iter(self._cache))
+                del self._cache[oldest]
+            self._cache[key] = value
 
     @property
     def has_ner(self) -> bool:
@@ -153,9 +156,8 @@ class Anonymizer:
                 llm_spans = self._ollama_layer.scan(self._CANARY_TEXT)
                 if not llm_spans:
                     logger.warning(
-                        "Ollama canary: SSN in '%s' not detected. "
+                        "Ollama canary: SSN in canary text not detected. "
                         "Ollama layer may have reduced accuracy.",
-                        self._CANARY_TEXT,
                     )
             except Exception as e:
                 logger.warning("Ollama canary check failed: %s", e)
@@ -178,8 +180,9 @@ class Anonymizer:
 
         # Cache lookup
         cache_key = hashlib.sha256(text.encode()).hexdigest()
-        if cache_key in self._cache:
-            return self._cache[cache_key]
+        with self._cache_lock:
+            if cache_key in self._cache:
+                return self._cache[cache_key]
 
         # Collect all PII spans: (start, end, tag)
         spans: list[tuple[int, int, str]] = []
@@ -417,8 +420,13 @@ class Anonymizer:
                 findings = self._ollama_layer.scan(stripped)
                 if findings:
                     score -= 0.2
+                # Ollama ran successfully and found nothing — score unchanged
             except Exception:
-                pass  # Layer unavailable — don't penalize score
+                # Ollama failed — cannot confirm text is clean via this layer.
+                # Do NOT treat failure as "clean"; reduce confidence to reflect
+                # incomplete coverage (avoids inflating score on Ollama failure).
+                score -= 0.1
+                logger.debug("Ollama score_redaction layer failed, reducing confidence")
 
         # Log score with hash for audit trail
         text_hash = hashlib.sha256(text.encode()).hexdigest()[:12]

@@ -803,46 +803,56 @@ class TestSafeResponse:
 
 
 class TestErrorHandling:
-    """Tests for resilience when CleanDB raises errors."""
+    """Tests for resilience when CleanDB raises errors.
+
+    MCP tools wrap exceptions in try/except and return error strings
+    instead of propagating (H21).
+    """
 
     def test_lab_results_db_error(self, server, clean_db):
-        """Exception from CleanDB propagates (no silent swallow)."""
+        """Exception from CleanDB returns error string (not raised)."""
         clean_db.get_lab_results.side_effect = Exception(
             "database is locked",
         )
-        with pytest.raises(Exception, match="database is locked"):
-            _call(server, "get_lab_results")
+        result = _call(server, "get_lab_results")
+        assert "[Error" in result
+        assert "Exception" in result
 
     def test_medications_db_error(self, server, clean_db):
         clean_db.get_medications.side_effect = Exception("db closed")
-        with pytest.raises(Exception, match="db closed"):
-            _call(server, "get_medications", status="active")
+        result = _call(server, "get_medications", status="active")
+        assert "[Error" in result
+        assert "Exception" in result
 
     def test_wearable_db_error(self, server, clean_db):
         clean_db.get_wearable_data.side_effect = Exception(
             "disk full",
         )
-        with pytest.raises(Exception, match="disk full"):
-            _call(server, "get_wearable_data")
+        result = _call(server, "get_wearable_data")
+        assert "[Error" in result
+        assert "Exception" in result
 
     def test_summary_db_error(self, server, clean_db):
         clean_db.get_health_summary_markdown.side_effect = Exception(
             "corrupt db",
         )
-        with pytest.raises(Exception, match="corrupt db"):
-            _call(server, "get_health_summary")
+        result = _call(server, "get_health_summary")
+        assert "[Error" in result
+        assert "Exception" in result
 
     def test_search_db_error(self, server, clean_db):
         clean_db.search.side_effect = Exception("no such table")
-        with pytest.raises(Exception, match="no such table"):
-            _call(
-                server, "search_health_data", query="test",
-            )
+        result = _call(
+            server, "search_health_data", query="test",
+        )
+        assert "[Error" in result
+        assert "Exception" in result
 
     def test_hypotheses_db_error(self, server, clean_db):
         clean_db.get_hypotheses.side_effect = Exception("read error")
-        with pytest.raises(Exception, match="read error"):
-            _call(server, "get_hypotheses")
+        result = _call(server, "get_hypotheses")
+        assert "[Error" in result
+        assert "Exception" in result
 
 
 # ── Clean DB isolation ─────────────────────────────────────

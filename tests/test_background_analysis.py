@@ -4,7 +4,7 @@ from __future__ import annotations
 import uuid
 from datetime import date
 from pathlib import Path
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -312,7 +312,8 @@ class TestExtractAlert:
 class TestEvidenceBridge:
     """Test _append_research_evidence() in ClaudeConversationManager."""
 
-    def test_evidence_appears_in_prompt(self, db_setup):
+    @patch("healthbot.llm.anonymizer.Anonymizer._verify_canary")
+    def test_evidence_appears_in_prompt(self, _mock_canary, db_setup):
         """When evidence store has articles, they appear in the prompt."""
         db, config, km = db_setup
         from healthbot.research.external_evidence_store import (

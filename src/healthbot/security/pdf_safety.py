@@ -55,8 +55,17 @@ class PdfSafety:
             raise PdfSafetyError("Not a valid PDF file (missing %PDF- header)")
 
     def _check_encrypted(self, data: bytes) -> None:
-        """Reject encrypted PDFs."""
-        if self._ENCRYPT_PATTERN.search(data):
+        """Reject encrypted PDFs.
+
+        Only checks the PDF trailer/xref area (last 4KB) where the
+        /Encrypt dictionary is referenced in the PDF structure, avoiding
+        false positives when body text happens to contain the string.
+        """
+        # PDF trailers with /Encrypt appear near the end of the file.
+        # Check the last 4096 bytes (trailer + xref area) to avoid
+        # matching on body text content.
+        trailer = data[-4096:] if len(data) > 4096 else data
+        if self._ENCRYPT_PATTERN.search(trailer):
             raise PdfSafetyError(
                 "Encrypted PDFs are not supported. Please provide an unencrypted version."
             )

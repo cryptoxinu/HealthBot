@@ -5,10 +5,25 @@ All generation happens in memory via ``pdf.output()`` which returns bytes.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from pathlib import Path
 
 from fpdf import FPDF
+
+# Regex to match internal vault IDs: hex UUIDs with or without dashes,
+# and _id fields like ``_id: <value>``.
+_INTERNAL_ID_RE = re.compile(
+    r"\b[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}\b"
+    r"|_id\s*[:=]\s*\S+",
+    re.IGNORECASE,
+)
+
+
+def _strip_internal_ids(text: str) -> str:
+    """Remove internal vault IDs (UUIDs, _id fields) from doctor-facing text."""
+    return _INTERNAL_ID_RE.sub("", text).strip()
 
 
 @dataclass
@@ -46,10 +61,33 @@ class DoctorPacketPdf:
         pdf = FPDF()
         pdf.set_auto_page_break(auto=True, margin=20)
 
+        # Try to load a Unicode-capable font so non-Latin characters render.
+        self._setup_unicode_font(pdf)
+
         self._add_summary_page(pdf, data)
         self._add_appendix(pdf, data)
 
         return bytes(pdf.output())
+
+    @staticmethod
+    def _setup_unicode_font(pdf: FPDF) -> None:
+        """Register a Unicode font if available, else fall back to built-in."""
+        # fpdf2 ships with DejaVuSans; try common system paths too.
+        candidates = [
+            Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+            Path("/System/Library/Fonts/Supplemental/Arial Unicode.ttf"),
+            Path("/Library/Fonts/Arial Unicode.ttf"),
+        ]
+        for ttf in candidates:
+            if ttf.exists():
+                try:
+                    pdf.add_font("DejaVu", "", str(ttf), uni=True)
+                    pdf.add_font("DejaVu", "B", str(ttf), uni=True)
+                    pdf.add_font("DejaVu", "I", str(ttf), uni=True)
+                    return  # Success — caller can use "DejaVu" as family
+                except Exception:
+                    continue
+        # Fallback: stick with Helvetica (latin-1 only, but always available)
 
     # ------------------------------------------------------------------
     # Page 1+: Summary
@@ -199,28 +237,40 @@ class DoctorPacketPdf:
                         r_unit = str(row.get("unit", ""))
                     else:
                         continue
+                    # Page break check: add new page if near bottom
+                    if pdf.get_y() > pdf.h - 30:
+                        pdf.add_page()
+                    # Truncate long cell text with ellipsis indicator
+                    r_date = self._truncate_cell(r_date, col_w_date, pdf)
+                    r_val = self._truncate_cell(r_val, col_w_val, pdf)
+                    r_unit = self._truncate_cell(r_unit, col_w_unit, pdf)
                     pdf.cell(col_w_date, 6, r_date, border=1)
                     pdf.cell(col_w_val, 6, r_val, border=1)
                     pdf.cell(col_w_unit, 6, r_unit, border=1, new_x="LMARGIN", new_y="NEXT")
                 pdf.ln(4)
 
-        # Citations
+        # Citations (internal vault IDs stripped for doctor-facing output)
         if has_citations:
             self._section_header(pdf, "B. Source Citations")
             for cite in data.citations:
-                rec_id = cite.get("record_id", "")
-                source = cite.get("source", "")
+                rec_id = _strip_internal_ids(cite.get("record_id", ""))
+                source = _strip_internal_ids(cite.get("source", ""))
                 page = cite.get("page", "")
-                section = cite.get("section", "")
+                section = _strip_internal_ids(cite.get("section", ""))
                 dt = cite.get("date", "")
-                parts = [f"[{rec_id}]", source]
+                parts: list[str] = []
+                if rec_id:
+                    parts.append(f"[{rec_id}]")
+                if source:
+                    parts.append(source)
                 if page:
                     parts.append(f"p.{page}")
                 if section:
                     parts.append(f"sec: {section}")
                 if dt:
                     parts.append(f"({dt})")
-                self._body_text(pdf, " ".join(parts))
+                if parts:
+                    self._body_text(pdf, " ".join(parts))
 
     # ------------------------------------------------------------------
     # Helpers
@@ -234,3 +284,15 @@ class DoctorPacketPdf:
     def _body_text(self, pdf: FPDF, text: str) -> None:
         pdf.set_font("Helvetica", "", 10)
         pdf.multi_cell(0, 5, text, new_x="LMARGIN", new_y="NEXT")
+
+    @staticmethod
+    def _truncate_cell(text: str, col_width: float, pdf: FPDF) -> str:
+        """Truncate text with ellipsis if it exceeds the cell width."""
+        if pdf.get_string_width(text) <= col_width - 2:
+            return text
+        # Progressively shorten until it fits with ellipsis
+        for end in range(len(text) - 1, 0, -1):
+            candidate = text[:end] + "\u2026"
+            if pdf.get_string_width(candidate) <= col_width - 2:
+                return candidate
+        return "\u2026"

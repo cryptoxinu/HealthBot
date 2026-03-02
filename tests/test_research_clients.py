@@ -80,7 +80,8 @@ class TestClaudeCLIClient:
             return original_run(*args, **kwargs)
 
         with patch("subprocess.run", side_effect=counting_run):
-            client.research("SSN: 999-88-7777 what does this mean?")
+            # Use a valid SSN (area 123 is valid; 999 is excluded by regex)
+            client.research("SSN: 123-45-6789 what does this mean?")
             assert call_count == 0, "subprocess.run should not be called for blocked queries"
 
     @pytest.mark.slow

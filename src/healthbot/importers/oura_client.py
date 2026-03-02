@@ -12,7 +12,7 @@ import asyncio
 import hashlib
 import logging
 import secrets
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from urllib.parse import urlencode
 
 import httpx
@@ -28,6 +28,10 @@ logger = logging.getLogger("healthbot")
 
 class OuraAuthError(Exception):
     """Raised when Oura authentication fails."""
+
+
+class OuraAPIError(Exception):
+    """Raised when an Oura API request fails."""
 
 
 class OuraClient:
@@ -89,7 +93,13 @@ class OuraClient:
             resp.raise_for_status()
             data = resp.json()
 
-        self._access_token = data["access_token"]
+        access_token = data.get("access_token")
+        if not access_token:
+            raise OuraAuthError(
+                "Oura token response missing access_token. "
+                "Check your Oura credentials and try again."
+            )
+        self._access_token = access_token
         self._refresh_token = data.get("refresh_token")
         if self._refresh_token:
             self._vault.store_blob(
@@ -120,7 +130,12 @@ class OuraClient:
                     "client_secret": client_secret,
                 },
             )
-            resp.raise_for_status()
+            try:
+                resp.raise_for_status()
+            except httpx.HTTPStatusError as exc:
+                raise OuraAPIError(
+                    f"Token refresh failed (HTTP {resp.status_code})"
+                ) from exc
             data = resp.json()
 
         self._access_token = data["access_token"]
@@ -175,18 +190,24 @@ class OuraClient:
         for s in sleep_data:
             d = s.get("day", "")
             contributors = s.get("contributors", {})
-            ts_end = s.get("timestamp_end", 0)
-            ts_start = s.get("timestamp_start", 0)
-            dur = (
-                _sec_to_min(ts_end - ts_start)
-                if isinstance(ts_end, (int, float))
-                else None
-            )
+            ts_end = s.get("timestamp_end")
+            ts_start = s.get("timestamp_start")
+            dur = None
+            if ts_end and ts_start:
+                try:
+                    if isinstance(ts_end, (int, float)):
+                        dur = _sec_to_min(ts_end - ts_start)
+                    else:
+                        dt_end = datetime.fromisoformat(str(ts_end))
+                        dt_start = datetime.fromisoformat(str(ts_start))
+                        dur = int((dt_end - dt_start).total_seconds() / 60)
+                except (ValueError, TypeError):
+                    dur = None
             sleep_by_date[d] = {
                 "sleep_score": s.get("score"),
                 "sleep_duration_min": dur,
-                "rem_min": _sec_to_min(contributors.get("rem_sleep")),
-                "deep_min": _sec_to_min(contributors.get("deep_sleep")),
+                "rem_score": contributors.get("rem_sleep"),
+                "deep_score": contributors.get("deep_sleep"),
             }
 
         activity_by_date: dict[str, dict] = {}
@@ -205,7 +226,7 @@ class OuraClient:
             activity = activity_by_date.get(d, {})
 
             wd = WhoopDaily(
-                id=hashlib.md5(f"oura-{d}".encode()).hexdigest(),
+                id=hashlib.sha256(f"oura-{d}".encode()).hexdigest(),
                 date=date.fromisoformat(d),
                 recovery_score=item.get("score"),
                 rhr=contributors.get("resting_heart_rate"),
@@ -214,8 +235,8 @@ class OuraClient:
                 skin_temp=contributors.get("body_temperature"),
                 sleep_score=sleep.get("sleep_score"),
                 sleep_duration_min=sleep.get("sleep_duration_min"),
-                rem_min=sleep.get("rem_min"),
-                deep_min=sleep.get("deep_min"),
+                rem_min=sleep.get("rem_score"),
+                deep_min=sleep.get("deep_score"),
                 light_min=None,
                 resp_rate=None,
                 strain=None,
@@ -252,8 +273,10 @@ class OuraClient:
         """Handle Oura's cursor-based pagination."""
         all_records: list[dict] = []
         next_token = None
+        # Copy to avoid mutating the caller's dict with pagination tokens
+        params = {**params}
 
-        while True:
+        for _page in range(100):  # Max 100 pages guard to prevent infinite loops
             if next_token:
                 params["next_token"] = next_token
             resp = await self._authed_request("GET", endpoint, params=params)
@@ -298,7 +321,16 @@ class OuraClient:
                         )
                         await asyncio.sleep(1.0 * (2 ** attempt))
                         continue
-                    resp.raise_for_status()
+                    if resp.status_code >= 400:
+                        if attempt < 2:
+                            await asyncio.sleep(1.0 * (2 ** attempt))
+                            continue
+                        try:
+                            resp.raise_for_status()
+                        except httpx.HTTPStatusError as exc:
+                            raise OuraAPIError(
+                                f"Oura {method} {path} failed (HTTP {resp.status_code})"
+                            ) from exc
                     return resp
                 except (httpx.ConnectError, httpx.TimeoutException) as exc:
                     last_exc = exc

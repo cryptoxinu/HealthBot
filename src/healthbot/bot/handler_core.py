@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
@@ -73,10 +74,15 @@ class HandlerCore:
 
         # Session chat wipe tracking
         self._session_msg_ids: list[int] = []
+        self._msg_ids_lock = threading.Lock()
         self._session_chat_id: int | None = None
         self._pending_wipe: bool = False
         self._bot = None  # Telegram bot reference for proactive wipe
         self._session_chat_id_for_notify: int | None = None
+
+        # Active query tracking for safe vault lock (M9)
+        self._active_queries: int = 0
+        self._query_lock = threading.Lock()
 
         self._router = MessageRouter(
             config=config,
@@ -87,6 +93,7 @@ class HandlerCore:
         self._router.set_error_source(self.get_recent_errors, phi_firewall)
         self._router.set_claude_getter(self._get_claude_conversation)
         self._router._exchange_cb = self._track_exchange
+        self._router._track_msg_cb = self.track_message
 
     def _track_exchange(self, user_input: str, bot_response: str) -> None:
         """Track last conversation exchange for /feedback capture."""
@@ -96,7 +103,8 @@ class HandlerCore:
     def track_message(self, chat_id: int, msg_id: int) -> None:
         """Track an incoming message ID for session chat wipe on lock."""
         self._session_chat_id = chat_id
-        self._session_msg_ids.append(msg_id)
+        with self._msg_ids_lock:
+            self._session_msg_ids.append(msg_id)
 
     def log_capability_manifest(self) -> str:
         """Log startup capability matrix. Returns formatted string."""
@@ -222,25 +230,20 @@ class HandlerCore:
 
     async def wipe_session_chat(self, bot) -> None:
         """Delete all session messages from the Telegram chat."""
-        if not self._session_chat_id or not self._session_msg_ids:
+        with self._msg_ids_lock:
+            if not self._session_chat_id or not self._session_msg_ids:
+                self._session_msg_ids.clear()
+                return
+
+            chat_id = self._session_chat_id
+            all_ids = sorted(set(self._session_msg_ids))
+
+            # Clear tracking state
             self._session_msg_ids.clear()
-            return
+            self._session_chat_id = None
 
-        chat_id = self._session_chat_id
-        first = min(self._session_msg_ids)
-        last = max(self._session_msg_ids)
-
-        # Clear tracking state
-        self._session_msg_ids.clear()
-        self._session_chat_id = None
-
-        # Delete every message from first tracked through last tracked.
-        # Bot replies have sequential IDs interleaved between user
-        # messages, so the contiguous range covers them.  Add a buffer
-        # after the last tracked ID to catch bot replies that followed
-        # the final user message (e.g. multi-page Claude responses
-        # before auto-lock fired).
-        all_ids = list(range(first, last + 50))
+        # Delete only tracked message IDs (user messages + bot replies
+        # that were explicitly tracked via track_message()).
 
         # Batch delete (Telegram allows up to 100 per call)
         for i in range(0, len(all_ids), 100):
@@ -784,6 +787,16 @@ class HandlerCore:
         self._upload_count = 0
         self._router.upload_mode = False
         self._router._upload_count_cb = None
+        # Wait for active queries to finish before closing DB
+        import time
+        deadline = time.monotonic() + 5.0  # 5-second timeout
+        while self._active_queries > 0 and time.monotonic() < deadline:
+            time.sleep(0.05)
+        if self._active_queries > 0:
+            logger.warning(
+                "Vault lock: %d queries still active after timeout, closing DB anyway",
+                self._active_queries,
+            )
         # Close handler's DB connection (matches explicit /lock behavior)
         if self._db:
             self._db.close()

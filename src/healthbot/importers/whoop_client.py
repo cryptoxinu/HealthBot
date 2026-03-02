@@ -143,6 +143,8 @@ class WhoopClient:
         self._access_token = data["access_token"]
         if "refresh_token" in data:
             self._refresh_token = data["refresh_token"]
+        # Always persist the current refresh token (server may not rotate it)
+        if self._refresh_token:
             self._vault.store_blob(
                 self._refresh_token.encode(), blob_id="whoop_refresh_token"
             )
@@ -257,7 +259,7 @@ class WhoopClient:
             workout_meta = workout_meta_by_date.get(d, {})
 
             wd = WhoopDaily(
-                id=hashlib.md5(f"whoop-{d}".encode()).hexdigest(),
+                id=hashlib.sha256(f"whoop-{d}".encode()).hexdigest(),
                 date=parsed_date,
                 recovery_score=score.get("recovery_score"),
                 rhr=score.get("resting_heart_rate"),
@@ -323,8 +325,10 @@ class WhoopClient:
         """Handle WHOOP's cursor-based pagination."""
         all_records: list[dict] = []
         next_token = None
+        # Copy to avoid mutating the caller's dict with pagination tokens
+        params = {**params}
 
-        while True:
+        for _page in range(100):  # Max 100 pages guard to prevent infinite loops
             if next_token:
                 params["nextToken"] = next_token
             resp = await self._authed_request("GET", endpoint, params=params)

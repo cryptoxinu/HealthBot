@@ -185,7 +185,7 @@ class MemoryStore:
         try:
             return self._firewall.contains_phi(text)
         except Exception:
-            return False
+            return True
 
     def _archive_medical_messages(
         self, user_id: int, stm_rows: list[dict],

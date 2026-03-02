@@ -8,7 +8,7 @@ from __future__ import annotations
 import enum
 import logging
 from dataclasses import dataclass, field
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 logger = logging.getLogger("healthbot")
 
@@ -86,7 +86,7 @@ class SkillRegistry:
         """Disable a skill without removing it."""
         self._enabled.discard(name)
 
-    def list_skills(self) -> list[dict[str, str]]:
+    def list_skills(self) -> list[dict[str, Any]]:
         """List all registered skills with status."""
         return [
             {
@@ -132,5 +132,9 @@ class SkillRegistry:
                     result = skill.run(ctx)
                     results.append(result)
             except Exception as e:
-                logger.warning("Skill '%s' error: %s", name, e)
+                logger.warning("Skill '%s' error: %s", name, e, exc_info=True)
+                results.append(SkillResult(
+                    skill_name=name,
+                    summary=f"Skill error: {type(e).__name__}: {e}",
+                ))
         return results

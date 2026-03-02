@@ -118,9 +118,10 @@ class TestSkillRegistry:
     def test_failing_skill_in_run_relevant(self):
         reg = SkillRegistry()
         reg.register(FailingSkill())
-        # Should not raise
+        # Should not raise; failing skills now append an error SkillResult (L76)
         results = reg.run_relevant(HealthContext())
-        assert results == []
+        assert len(results) == 1
+        assert "error" in results[0].summary.lower() or "failed" in results[0].summary.lower()
 
     def test_get_skill(self):
         reg = SkillRegistry()

@@ -50,7 +50,8 @@ def ocr_pdf_bytes(pdf_bytes: bytes) -> str:
             texts.append(text)
         except Exception as e:
             logger.warning("OCR failed on page %d: %s", i + 1, e)
-            continue
+        finally:
+            img.close()
 
     return "\n\f\n".join(texts)
 
@@ -83,10 +84,10 @@ def ocr_pdf_page(pdf_bytes: bytes, page_number: int, dpi: int = 300) -> str:
             return ""
         page = doc[page_number - 1]
         pix = page.get_pixmap(dpi=dpi)
-        img = Image.open(io.BytesIO(pix.tobytes("png")))
         doc.close()
 
-        text = pytesseract.image_to_string(img, lang="eng")
+        with Image.open(io.BytesIO(pix.tobytes("png"))) as img:
+            text = pytesseract.image_to_string(img, lang="eng")
         logger.info(
             "Page %d OCR at %d DPI: %d chars extracted",
             page_number, dpi, len(text),

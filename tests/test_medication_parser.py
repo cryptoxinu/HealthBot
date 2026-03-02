@@ -83,7 +83,8 @@ class TestEdgeCases:
     def test_mcg_unit(self) -> None:
         r = parse_medication("levothyroxine 50mcg daily")
         assert r.prescribed_dose == "50mcg"
-        assert r.actual_dose_mg == 50.0
+        # mcg is converted to mg: 50mcg / 1000 = 0.05mg
+        assert r.actual_dose_mg == 0.05
 
     def test_decimal_dose(self) -> None:
         r = parse_medication("warfarin 2.5mg daily")
