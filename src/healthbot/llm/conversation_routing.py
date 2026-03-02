@@ -10,6 +10,8 @@ import logging
 import re
 import uuid
 
+from healthbot.reasoning.interaction_kb import SUBSTANCE_ALIASES
+
 logger = logging.getLogger("healthbot")
 
 # LTM fact format patterns (MEMORY key → onboarding format)
@@ -36,6 +38,10 @@ _MEMORY_CATEGORY_TO_LTM: dict[str, str] = {
     "goal": "goal",
     "demographic": "demographic",
     "general": "user_memory",
+    "allergy": "allergy",
+    "condition": "condition",
+    "medication": "medication",
+    "response_style": "preference",
 }
 
 
@@ -184,7 +190,7 @@ def handle_memory_block(mgr, block: dict) -> str | None:
         key = block["key"].strip().lower().replace(" ", "_")
         value = block["value"]
         category = block.get("category", "general")
-        if mgr._fw.contains_phi(value):
+        if mgr._fw.contains_phi(str(value)):
             logger.warning("MEMORY block contains PHI, blocked: %s", key)
             return f"[Could not remember '{key}' — contains sensitive data]"
 
@@ -200,7 +206,7 @@ def handle_memory_block(mgr, block: dict) -> str | None:
             pass
 
         supersedes = block.get("supersedes", "")
-        if supersedes:
+        if supersedes and supersedes.strip().lower() != key:
             clean_db.mark_memory_superseded(supersedes.strip().lower(), key)
         clean_db.upsert_user_memory(
             key=key,
@@ -250,7 +256,13 @@ def handle_memory_block(mgr, block: dict) -> str | None:
                 key, old_value, value,
             )
         else:
-            feedback = f"Remembered: {key}"
+            display_key = key.replace("_", " ")
+            if category == "response_style":
+                feedback = f"Response style saved: {display_key}"
+            elif category == "preference":
+                feedback = f"Preference updated: {display_key}"
+            else:
+                feedback = f"Remembered: {display_key}"
         mgr.invalidate_memory_cache()
         return feedback
     except Exception as exc:
@@ -275,6 +287,10 @@ def sync_memory_to_demographics(mgr, clean_db, key: str, value: str) -> None:
             m = re.match(r"([\d.]+)\s*(?:m|meters?)", value, re.IGNORECASE)
             if m:
                 demo_update["height_m"] = float(m.group(1))
+            else:
+                m = re.match(r"(\d+)\s*cm", value, re.IGNORECASE)
+                if m:
+                    demo_update["height_m"] = round(float(m.group(1)) / 100, 4)
 
     elif key_lower in ("weight", "weight_kg"):
         m = re.match(r"([\d.]+)\s*(?:lbs?|pounds?)", value, re.IGNORECASE)
@@ -318,7 +334,10 @@ def _sync_medication_memory(clean_db, key: str, value: str) -> None:
     from datetime import datetime as _dt
 
     value_lower = value.lower()
-    med_name = key.replace("_", " ").strip()
+    # Use key directly — it's already the substance name (e.g. "bromantane",
+    # "adderall").  Replacing underscores created mismatches like
+    # "lion s mane" vs "lions_mane".
+    med_name = key.strip()
 
     # Detect intent
     stopped = any(w in value_lower for w in ("stopped", "discontinued", "quit", "no longer"))
@@ -334,8 +353,17 @@ def _sync_medication_memory(clean_db, key: str, value: str) -> None:
     try:
         meds = clean_db.get_medications(status="all")
         existing = None
+        canonical = SUBSTANCE_ALIASES.get(med_name.lower(), med_name.lower())
+
         for m in meds:
-            if m.get("name", "").lower() == med_name.lower():
+            m_name = m.get("name", "").lower()
+            # Exact match
+            if m_name == med_name.lower():
+                existing = m
+                break
+            # Canonical alias match (e.g. "provigil" == "modafinil")
+            m_canonical = SUBSTANCE_ALIASES.get(m_name, m_name)
+            if m_canonical == canonical:
                 existing = m
                 break
 
@@ -393,7 +421,7 @@ def _sync_medication_memory(clean_db, key: str, value: str) -> None:
         from healthbot.llm.interaction_block_handler import invalidate_med_cache
         invalidate_med_cache(0)
     except Exception as exc:
-        logger.debug("_sync_medication_memory failed: %s", exc)
+        logger.warning("_sync_medication_memory failed: %s", exc)
 
 
 def _sync_health_record_ext(
@@ -506,6 +534,7 @@ def reconcile_demographics_to_ltm(mgr) -> None:
             pairs.append(("ethnicity", cd["ethnicity"]))
         for key, value in pairs:
             sync_memory_to_ltm(mgr, key, value)
+        mgr.invalidate_memory_cache()
     except Exception as exc:
         logger.warning("Demographics→LTM reconciliation failed: %s", exc)
     finally:
@@ -616,6 +645,8 @@ def handle_system_improvement(mgr, block: dict) -> None:
             suggestion=suggestion,
             priority=block.get("priority", "low"),
         )
+    except Exception as exc:
+        logger.warning("Failed to store SYSTEM_IMPROVEMENT: %s", exc)
     finally:
         clean_db.close()
     # Fire notification callback (Telegram push with inline buttons)
