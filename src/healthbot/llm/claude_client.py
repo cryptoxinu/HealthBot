@@ -50,6 +50,7 @@ _PRIVACY_FLAGS: list[str] = [
 # Blocks: Bash, Edit, Write, Read, NotebookEdit, and ALL MCP tools.
 _TOOL_FLAGS: list[str] = [
     "--tools", "WebSearch,WebFetch",
+    "--allowedTools", "WebSearch,WebFetch",
 ]
 
 # Fix mode — full tool access for reading, editing, and testing code.
@@ -57,6 +58,7 @@ _TOOL_FLAGS: list[str] = [
 # Health data is still safe: all PHI lives in AES-256-GCM encrypted DB, not in source.
 _FIX_TOOL_FLAGS: list[str] = [
     "--tools", "Bash,Read,Write,Edit,Glob,Grep,WebSearch,WebFetch",
+    "--allowedTools", "Bash,Read,Write,Edit,Glob,Grep,WebSearch,WebFetch",
 ]
 
 
@@ -205,7 +207,10 @@ class ClaudeClient:
             Required when the target file is outside the working directory
             (e.g. a temp file in /tmp or /var/folders).
         """
-        read_tool_flags = ["--tools", "Read,WebSearch,WebFetch"]
+        read_tool_flags = [
+            "--tools", "Read,WebSearch,WebFetch",
+            "--allowedTools", "Read,WebSearch,WebFetch",
+        ]
         add_dir_flags: list[str] = []
         for d in (read_dirs or []):
             add_dir_flags.extend(["--add-dir", d])
