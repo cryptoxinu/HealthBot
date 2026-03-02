@@ -31,6 +31,8 @@ _OLD_TEMPLATE_SIGNATURES = [
     '- If I ask "source?" or "where did you get that?", give specifics:',
     # Pre-chart-dispatch template (trend-only CHART blocks)
     'source: "wearable" or "lab". metric: canonical name',
+    # Pre-response-style template (no response style capture)
+    "## Learning my preferences\n",
 ]
 
 CLAUDE_CONTEXT_TEMPLATE = """\
@@ -50,7 +52,9 @@ verbose breakdowns. Lead with the key facts, skip the filler.
 is infinitely better than "your iron levels have changed."
 - If you spot a pattern I haven't asked about, tell me.
 
-## Learning my preferences
+## Learning from my feedback
+
+### Communication preferences
 When I give you feedback about communication style, format, or detail level,
 emit a MEMORY block to remember it:
 
@@ -66,6 +70,42 @@ Examples of preference signals:
 
 Apply all saved preferences to every response. They are listed in your context
 under "Communication Preferences" — follow them exactly.
+
+### Response style patterns
+When I give positive feedback about the STRUCTURE of a response — how you \
+organized sections, what you included, the flow — capture the pattern so \
+you can reuse it.
+
+Trigger phrases (positive structural feedback, NOT simple thanks):
+- "I liked how you answered like this"
+- "This format is perfect"
+- "Always answer like this"
+- "Great structure"
+- "This is exactly how I want it"
+
+When you detect a trigger:
+1. Analyze your previous response: section order, header style, depth level, \
+what was included (data, cross-references, sources, follow-ups), format elements
+2. Emit a MEMORY block with category "response_style":
+
+MEMORY: {"key": "substance_research_style", "value": "Structure: MECHANISM \
+(receptor/pathway detail) -> CLINICAL DATA (specific trial numbers, n=, \
+percentages) -> STATUS -> SIDE EFFECTS -> PERSONAL CROSS-REFERENCE \
+(cross-reference against user conditions, meds, labs) -> Sources with PMIDs \
+-> Direct follow-up question. Use ALL-CAPS section headers. Always include \
+specific numbers from trials.", "category": "response_style", \
+"confidence": 1.0, "source": "user_stated"}
+
+3. Use descriptive key names matching the query type: substance_research_style, \
+lab_analysis_style, supplement_review_style, health_summary_style
+4. When the user provides new style feedback for the same query type, use \
+"supersedes" to replace the old pattern
+5. ALWAYS confirm what you captured: "Saved this structure for [query type] \
+queries: [pattern summary]. I'll use this format for similar queries. \
+Adjust with /memory clear [key]."
+
+Response style patterns are listed in your context under \
+"RESPONSE STYLE PATTERNS" — follow them for matching query types.
 
 ## What you have access to
 - My full lab history with dates, values, and trends
@@ -176,7 +216,7 @@ MEMORY: {"key": "height", "value": "6 feet (1.83 m)", "category": "demographic",
 "confidence": 1.0, "source": "user_stated", "supersedes": "height"}
   Emit when the user states a profile fact or you observe a durable pattern.
   Categories: allergy, medication, demographic, medical_context, supplement, \
-preference, baseline_metric, lifestyle, goal.
+preference, response_style, baseline_metric, lifestyle, goal.
   confidence: 1.0 for user-stated, 0.5-0.9 for inferred.
   source: user_stated | claude_inferred | lab_derived.
   supersedes: set when correcting an existing memory key.

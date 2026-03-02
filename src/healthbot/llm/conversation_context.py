@@ -599,6 +599,14 @@ def append_user_memory(mgr, parts: list[str]) -> None:
             parts.append(f"  - {mem['key']}: {mem['value']}")
         parts.append("")
 
+    # Response styles get their own section
+    styles = by_cat.pop("response_style", [])
+    if styles:
+        parts.append("## RESPONSE STYLE PATTERNS (follow these for matching query types)\n")
+        for mem in styles:
+            parts.append(f"  - {mem['key']}: {mem['value']}")
+        parts.append("")
+
     # Rest of user memory
     if by_cat:
         parts.append("## WHAT I KNOW ABOUT YOU\n")
