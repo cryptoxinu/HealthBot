@@ -1957,12 +1957,7 @@ class DataHandlers:
         }
 
         if status_msg is None:
-            source = update.callback_query or update
-            msg_target = (
-                source.message if hasattr(source, "message") and source.message
-                else update.effective_chat
-            )
-            status_msg = await msg_target.send_message(
+            status_msg = await update.effective_chat.send_message(
                 f"Starting {mode_labels[mode]}..."
             )
         else:

@@ -790,7 +790,7 @@ class CleanSyncEngine:
             all_obs_ids = None
         if all_obs_ids is not None:
             report.stale_deleted += self._clean.delete_stale(
-                "clean_observations", "id", all_obs_ids,
+                "clean_observations", "obs_id", all_obs_ids,
             )
 
         # Medications
