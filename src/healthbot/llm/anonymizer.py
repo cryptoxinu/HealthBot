@@ -463,10 +463,14 @@ class Anonymizer:
                 labels = {e.label for e in real}
                 issues.append(f"NER: {', '.join(labels)}")
 
-        # Check regex
-        if self._fw.contains_phi(stripped):
-            matches = self._fw.scan(stripped)
-            categories = {m.category for m in matches}
+        # Check regex — skip identity-specific patterns (id_* prefix).
+        # The anonymize() step already handled identity patterns; re-checking
+        # them here causes false positives on medical text (e.g., user's
+        # last name matching a medical term like "White" in "white blood cells").
+        matches = self._fw.scan(stripped)
+        base_matches = [m for m in matches if not m.category.startswith("id_")]
+        if base_matches:
+            categories = {m.category for m in base_matches}
             issues.append(f"regex: {', '.join(categories)}")
 
         # Layer 3: Ollama LLM (optional, same pattern as anonymize())
@@ -479,6 +483,12 @@ class Anonymizer:
                 logger.warning("Ollama assert_safe layer failed (non-fatal): %s", e)
 
         if issues:
+            # Log details for debugging false positives
+            logger.warning(
+                "assert_safe BLOCKED: issues=%s text_preview=%.80s",
+                issues, stripped[:80],
+            )
+
             # Trigger PII alert
             try:
                 from healthbot.security.pii_alert import PiiAlertService

@@ -166,7 +166,7 @@ def _format_final(report, prog, elapsed: float) -> str:
                 f"{prog.hybrid_reviewed}/{prog.hybrid_queued} Ollama-reviewed"
             )
         elif prog.ollama_calls:
-            speed_parts.append(f"{prog.ollama_calls} via Ollama")
+            speed_parts.append(f"{prog.ollama_calls} full-pipeline")
         lines.append(f"\nSpeed: {', '.join(speed_parts)}")
     return "\n".join(lines)
 
