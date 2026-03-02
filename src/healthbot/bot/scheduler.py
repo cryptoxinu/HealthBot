@@ -752,17 +752,31 @@ class AlertScheduler:
 
             import io
 
-            # Send via in-memory buffer (avoid leaving unencrypted file on disk)
-            doc = io.BytesIO(result.markdown.encode("utf-8"))
-            doc.name = result.file_path.name
-            await context.bot.send_document(
-                chat_id=self._chat_id, document=doc,
-            )
-            await self._tracked_send(
-                context.bot,
-                f"Auto AI export complete.\n{result.validation.summary()}",
-            )
-            # Remove unencrypted export file from disk immediately
+            if result.file_path.suffix == ".enc":
+                # Send the actual encrypted bytes, not plaintext
+                doc = io.BytesIO(result.file_path.read_bytes())
+                doc.name = result.file_path.name
+                await context.bot.send_document(
+                    chat_id=self._chat_id, document=doc,
+                )
+                await self._tracked_send(
+                    context.bot,
+                    f"Auto AI export complete.\n{result.validation.summary()}"
+                    "\n\nEncrypted export attached."
+                    " Decrypt with your vault passphrase"
+                    " via /export decrypt or the CLI.",
+                )
+            else:
+                doc = io.BytesIO(result.markdown.encode("utf-8"))
+                doc.name = result.file_path.name
+                await context.bot.send_document(
+                    chat_id=self._chat_id, document=doc,
+                )
+                await self._tracked_send(
+                    context.bot,
+                    f"Auto AI export complete.\n{result.validation.summary()}",
+                )
+            # Remove export file from disk after sending
             try:
                 if result.file_path and result.file_path.exists():
                     result.file_path.unlink()

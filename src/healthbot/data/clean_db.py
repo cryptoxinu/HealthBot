@@ -573,7 +573,8 @@ class CleanDB:
     ) -> None:
         self._validate_text_fields(
             {"test_name": test_name, "canonical_name": canonical_name,
-             "value": value, "unit": unit, "reference_text": reference_text},
+             "value": value, "unit": unit, "reference_text": reference_text,
+             "source_lab": source_lab},
             f"observation.{obs_id}",
         )
         self.conn.execute(
@@ -1670,7 +1671,11 @@ class CleanDB:
     ) -> None:
         self._validate_text_fields(
             {"name": name, "mechanism": mechanism, "half_life": half_life,
-             "clinical_summary": clinical_summary},
+             "clinical_summary": clinical_summary,
+             "cyp_interactions": cyp_interactions,
+             "pathway_effects": pathway_effects,
+             "aliases": aliases,
+             "research_sources": research_sources},
             f"substance_knowledge.{substance_id}",
         )
         self.conn.execute(

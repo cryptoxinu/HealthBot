@@ -44,6 +44,21 @@ _ENCRYPTED_TABLES: tuple[tuple[str, str, str], ...] = (
     ("memory_ltm", "id", "encrypted_data"),
     ("hypotheses", "id", "encrypted_data"),
     ("documents", "doc_id", "meta_encrypted"),
+    ("knowledge_base", "id", "encrypted_data"),
+    ("medical_journal", "entry_id", "encrypted_data"),
+    ("med_reminders", "id", "encrypted_data"),
+    ("health_goals", "id", "encrypted_data"),
+    ("providers", "id", "encrypted_data"),
+    ("appointments", "id", "encrypted_data"),
+    ("genetic_variants", "id", "encrypted_data"),
+    ("workouts", "id", "encrypted_data"),
+    ("user_identity", "id", "encrypted_data"),
+    ("redaction_log", "id", "encrypted_data"),
+    ("trend_cache", "id", "encrypted_data"),
+    ("health_records_ext", "id", "encrypted_data"),
+    ("substance_knowledge", "id", "encrypted_data"),
+    ("saved_messages", "id", "encrypted_data"),
+    ("search_index", "doc_id", "encrypted_text"),
 )
 
 

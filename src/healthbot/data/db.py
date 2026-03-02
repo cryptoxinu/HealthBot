@@ -49,6 +49,54 @@ def _serialize(obj: Any) -> str:
     return json.dumps(obj.__dict__ if hasattr(obj, "__dict__") else obj, default=default)
 
 
+# Known lab brands for source_lab normalization.  Free-text lab names from
+# PDF parsing may contain identifying info ("Dr. Smith Family Practice").
+# Only store recognized lab brands; unknown values become empty string.
+_KNOWN_LABS: tuple[tuple[str, str], ...] = (
+    ("labcorp", "LabCorp"),
+    ("quest diagnostics", "Quest Diagnostics"),
+    ("quest", "Quest"),
+    ("bioreference", "BioReference"),
+    ("sonora quest", "Sonora Quest"),
+    ("aegis", "Aegis"),
+    ("mayo clinic", "Mayo Clinic"),
+    ("mayo", "Mayo"),
+    ("arup", "ARUP"),
+    ("clinical reference laboratory", "Clinical Reference Laboratory"),
+    ("crl", "CRL"),
+    ("hospital lab", "Hospital Lab"),
+    ("kaiser", "Kaiser"),
+    ("geisinger", "Geisinger"),
+    ("cleveland clinic", "Cleveland Clinic"),
+    ("emory", "Emory"),
+    ("stanford", "Stanford"),
+    ("cedars-sinai", "Cedars-Sinai"),
+    ("johns hopkins", "Johns Hopkins"),
+    ("intermountain", "Intermountain"),
+    ("natera", "Natera"),
+    ("exact sciences", "Exact Sciences"),
+    ("genomic health", "Genomic Health"),
+    ("sonic healthcare", "Sonic Healthcare"),
+    ("spectra", "Spectra"),
+    ("eurofins", "Eurofins"),
+)
+
+
+def _normalize_source_lab(raw: str) -> str:
+    """Normalize to a known lab brand or empty string.
+
+    Prevents potentially identifying free-text (e.g. "Dr. Smith Family
+    Practice") from being stored in the plaintext source_lab column.
+    """
+    if not raw:
+        return ""
+    lower = raw.strip().lower()
+    for pattern, brand in _KNOWN_LABS:
+        if pattern in lower:
+            return brand
+    return ""
+
+
 class HealthDB(MemoryMixin):
     """Encrypted health data database."""
 
@@ -606,7 +654,7 @@ class HealthDB(MemoryMixin):
             source_doc = obs.source_blob_id
             source_page = obs.source_page
             source_section = obs.source_section
-            source_lab = obs.lab_name or ""
+            source_lab = _normalize_source_lab(obs.lab_name or "")
         elif isinstance(obs, VitalSign):
             record_type = "vital_sign"
             canonical_name = obs.type
@@ -668,7 +716,7 @@ class HealthDB(MemoryMixin):
                 data = self._decrypt(r["encrypted_data"], aad)
             except Exception:
                 continue
-            lab_name = data.get("lab_name", "")
+            lab_name = _normalize_source_lab(data.get("lab_name", ""))
             if lab_name:
                 self.conn.execute(
                     "UPDATE observations SET source_lab = ? WHERE obs_id = ?",
@@ -1705,6 +1753,20 @@ class HealthDB(MemoryMixin):
                     self.conn.execute("ROLLBACK")
                     raise
                 applied += 1
+
+        # Data migrations — encrypt previously-plaintext fields.
+        # Idempotent: each method checks if rows need migrating.
+        # Requires vault key, so skip in dry_run mode.
+        if not dry_run:
+            try:
+                self.migrate_document_filenames()
+            except Exception as e:
+                logger.warning("Document filename migration skipped: %s", e)
+            try:
+                self.migrate_search_index_encryption()
+            except Exception as e:
+                logger.warning("Search index encryption migration skipped: %s", e)
+
         return applied
 
     def store_redaction_log(

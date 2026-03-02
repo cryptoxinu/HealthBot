@@ -103,7 +103,7 @@ class MedicalHandlers:
             await update.message.reply_document(document=doc)
             await update.message.reply_text(
                 "PDF generated. Print or share with your provider.\n"
-                "Use /export for an encrypted copy."
+                "Use /ai_export for an encrypted summary."
             )
         except Exception as e:
             logger.error("Doctor packet PDF error: %s", e)

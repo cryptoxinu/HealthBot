@@ -1508,10 +1508,22 @@ class DataHandlers:
                 )
                 result = exporter.export_to_file(uid, self._core._config.exports_dir)
 
-                doc = io.BytesIO(result.markdown.encode("utf-8"))
-                doc.name = result.file_path.name
-                await update.message.reply_document(document=doc)
-                await update.message.reply_text(result.validation.summary())
+                if result.file_path.suffix == ".enc":
+                    # Send the actual encrypted bytes, not plaintext
+                    doc = io.BytesIO(result.file_path.read_bytes())
+                    doc.name = result.file_path.name
+                    await update.message.reply_document(document=doc)
+                    await update.message.reply_text(
+                        result.validation.summary()
+                        + "\n\nEncrypted export attached."
+                        " Decrypt with your vault passphrase"
+                        " via /export decrypt or the CLI."
+                    )
+                else:
+                    doc = io.BytesIO(result.markdown.encode("utf-8"))
+                    doc.name = result.file_path.name
+                    await update.message.reply_document(document=doc)
+                    await update.message.reply_text(result.validation.summary())
         except Exception as e:
             logger.error("AI export error: %s", e)
             await update.message.reply_text(f"Export failed: {type(e).__name__}")
