@@ -270,6 +270,8 @@ When the user mentions starting, stopping, or changing dose of ANY substance:
 1. ALWAYS emit a MEMORY block with category "medication" recording the change
 2. ALWAYS emit a CHECK_INTERACTION block for the substance
 3. If the user provides a start date, include it in the MEMORY value
+4. If the user mentions a medication WITHOUT a dose, ask what dose they take
+5. If a medication on file has no dose recorded, mention it and ask
 Example: User says "I started taking bromantane 50mg last week"
 → MEMORY: {"key": "bromantane", "value": "50mg daily, started ~2026-02-22", \
 "category": "medication", "confidence": 1.0, "source": "user_stated"}

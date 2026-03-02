@@ -75,7 +75,7 @@ def _get_active_medications(mgr) -> list[str]:
         if not clean_db:
             return []
         try:
-            meds = clean_db.get_active_medications()
+            meds = clean_db.get_medications()
             names = [m.get("name", "") for m in meds if m.get("name")]
             _ACTIVE_MED_CACHE[user_id] = names
             return names

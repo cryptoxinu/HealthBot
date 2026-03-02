@@ -235,6 +235,12 @@ def handle_memory_block(mgr, block: dict) -> str | None:
         # Medication-specific: sync to clean_medications for temporal tracking
         if category in ("medication", "supplement"):
             _sync_medication_memory(clean_db, key, value)
+            from healthbot.llm.interaction_block_handler import invalidate_med_cache
+            invalidate_med_cache(mgr._user_id or 0)
+
+        # Route allergy/condition/medical data to structured health records
+        if category in ("allergy", "medical_context", "condition"):
+            _sync_health_record_ext(clean_db, key, value, category)
 
         # Build feedback
         if old_value and old_value != value:
@@ -384,8 +390,37 @@ def _sync_medication_memory(clean_db, key: str, value: str) -> None:
             )
             clean_db.conn.commit()
             logger.info("Medication dose updated via MEMORY: %s → %s", med_name, dose)
+        from healthbot.llm.interaction_block_handler import invalidate_med_cache
+        invalidate_med_cache(0)
     except Exception as exc:
         logger.debug("_sync_medication_memory failed: %s", exc)
+
+
+def _sync_health_record_ext(
+    clean_db, key: str, value: str, category: str,
+) -> None:
+    """Sync allergy/condition MEMORY blocks to clean_health_records_ext."""
+    import hashlib
+
+    type_map = {
+        "allergy": "allergy",
+        "medical_context": "condition",
+        "condition": "condition",
+    }
+    data_type = type_map.get(category, category)
+    record_id = hashlib.sha256(f"memory:{key}".encode()).hexdigest()[:32]
+
+    try:
+        clean_db.upsert_health_record_ext(
+            record_id,
+            data_type=data_type,
+            label=key.replace("_", " ").title(),
+            value=value,
+            source="user_stated",
+        )
+        logger.info("Synced %s MEMORY to health_records_ext: %s", category, key)
+    except Exception as exc:
+        logger.debug("_sync_health_record_ext failed: %s", exc)
 
 
 def sync_memory_to_ltm(

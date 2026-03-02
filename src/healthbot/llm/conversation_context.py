@@ -198,6 +198,9 @@ def build_prompt(mgr, user_text: str) -> tuple[str, str]:
     # Patient constants (deterministic facts Claude must not contradict)
     append_patient_constants(mgr, parts)
 
+    # User memory from Clean DB (preferences near top for maximum effect)
+    append_user_memory(mgr, parts)
+
     # Health data — query-aware if sections available
     if mgr._health_sections:
         append_health_sections(mgr, parts, user_text)
@@ -228,9 +231,6 @@ def build_prompt(mgr, user_text: str) -> tuple[str, str]:
 
     # Cached research articles (PubMed evidence bridge)
     append_research_evidence(mgr, parts, user_text)
-
-    # User memory from Clean DB
-    append_user_memory(mgr, parts)
 
     # Analysis rules from Clean DB
     append_analysis_rules(mgr, parts)
