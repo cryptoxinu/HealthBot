@@ -156,6 +156,26 @@ _RESTART_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+# "Save this" message interception → local saved messages
+_SAVE_MESSAGE_PATTERN = re.compile(
+    r"^(?:save\s+(?:this|that|message|it|msg)"
+    r"|bookmark\s+(?:this|that|it|message)"
+    r"|keep\s+(?:this|that|message))"
+    r"(?:\s*[.!]?\s*$|:\s*(.+))",
+    re.IGNORECASE | re.DOTALL,
+)
+
+# "Unsave this" message interception → delete from saved messages
+_UNSAVE_MESSAGE_PATTERN = re.compile(
+    r"^(?:unsave\s+(?:this|that|it|message)"
+    r"|unbookmark\s+(?:this|that|it|message)"
+    r"|(?:remove|delete)\s+(?:this|that|it)\s+from\s+saved"
+    r"|delete\s+(?:this\s+)?saved\s+(?:message|msg)"
+    r"|forget\s+(?:this|that))"
+    r"[.!?]?\s*$",
+    re.IGNORECASE,
+)
+
 
 class MessageRouter:
     """Routes non-command messages to the correct handler."""
@@ -547,6 +567,24 @@ class MessageRouter:
             and _ONBOARD_PATTERN.match(update.message.text.strip())
         ):
             await self._onboard_handlers.onboard(update, context)
+            return
+
+        # "Save this" message interception → local saved messages
+        if (
+            update.message.text
+            and self._km.is_unlocked
+            and _SAVE_MESSAGE_PATTERN.match(update.message.text.strip())
+        ):
+            await self._handle_save_message(update)
+            return
+
+        # "Unsave this" message interception → delete from saved messages
+        if (
+            update.message.text
+            and self._km.is_unlocked
+            and _UNSAVE_MESSAGE_PATTERN.match(update.message.text.strip())
+        ):
+            await self._handle_unsave_message(update)
             return
 
         # Natural language wearable status check (deterministic, before auth/LLM).
@@ -2034,3 +2072,93 @@ class MessageRouter:
                     await update.message.reply_text(page)
         except Exception as e:
             logger.warning("Post-genetic analysis failed: %s", e)
+
+    async def _handle_save_message(self, update) -> None:
+        """Handle 'save this' / 'bookmark this' natural language pattern."""
+        user_id = update.effective_user.id
+        text = (update.message.text or "").strip()
+        match = _SAVE_MESSAGE_PATTERN.match(text)
+        if not match:
+            return
+
+        colon_text = match.group(1)  # Text after "save this: ..."
+
+        save_text = None
+        context_text = None
+
+        if update.message.reply_to_message and update.message.reply_to_message.text:
+            # Replying to a message — save the replied-to message
+            save_text = update.message.reply_to_message.text
+            # Try to get user's original question for context
+            replied = update.message.reply_to_message
+            if replied.reply_to_message and replied.reply_to_message.text:
+                context_text = replied.reply_to_message.text
+            elif hasattr(self, "_exchange_cb") and self._exchange_cb:
+                # Fall back to last tracked user input
+                core = getattr(self, "_core", None)
+                if core:
+                    context_text = core._last_user_input or None
+        elif colon_text:
+            # "save this: <pasted text>"
+            save_text = colon_text.strip()
+        else:
+            # Fallback: save last bot response
+            core = getattr(self, "_core", None)
+            if core:
+                save_text = core._last_bot_response
+                context_text = core._last_user_input or None
+
+        if not save_text:
+            await update.message.reply_text(
+                "Reply to a message with 'save this', or type "
+                "'save this: <text>' to save custom text."
+            )
+            return
+
+        try:
+            db = self._get_db()
+            db.save_message(user_id, save_text, context=context_text)
+            await update.message.reply_text(
+                "Saved. /savedmessages to browse."
+            )
+        except Exception as e:
+            logger.warning("Failed to save message: %s", e)
+            await update.message.reply_text("Failed to save message.")
+
+    async def _handle_unsave_message(self, update) -> None:
+        """Handle 'unsave this' / 'forget this' natural language pattern."""
+        user_id = update.effective_user.id
+        db = self._get_db()
+        all_saved = db.get_saved_messages(user_id)
+
+        if not all_saved:
+            await update.message.reply_text("No saved messages to delete.")
+            return
+
+        if update.message.reply_to_message and update.message.reply_to_message.text:
+            # Reply mode: match replied-to text against saved messages
+            target_text = update.message.reply_to_message.text
+            match = None
+            for msg in all_saved:
+                if msg["text"] == target_text:
+                    match = msg
+                    break
+            # Fallback: partial match (bot may have paginated/truncated)
+            if not match:
+                for msg in all_saved:
+                    if target_text in msg["text"] or msg["text"] in target_text:
+                        match = msg
+                        break
+            if match:
+                db.delete_saved_message(user_id, match["id"])
+                await update.message.reply_text("Unsaved.")
+            else:
+                await update.message.reply_text(
+                    "Message not found in saved messages."
+                )
+        else:
+            # No reply: delete most recent saved message
+            newest = all_saved[0]  # already sorted by saved_at DESC
+            db.delete_saved_message(user_id, newest["id"])
+            preview = newest.get("preview", "")
+            await update.message.reply_text(f'Unsaved: "{preview}"')
