@@ -17,6 +17,7 @@ from healthbot.bot.handler_core import HandlerCore
 from healthbot.bot.handlers_data import DataHandlers
 from healthbot.bot.handlers_health import HealthHandlers
 from healthbot.bot.handlers_medical import MedicalHandlers
+from healthbot.bot.handlers_research import ResearchHandlers
 from healthbot.bot.handlers_session import SessionHandlers
 from healthbot.config import Config
 from healthbot.security.key_manager import KeyManager
@@ -65,6 +66,8 @@ class Handlers:
         "wearable_status": "_data", "whoop_auth": "_data",
         "sync_all": "_data", "oura_auth": "_data", "sync_oura": "_data",
         "connectors": "_data",
+        # Research commands
+        "deep": "_research",
         "apple_sync": "_data", "import_health": "_data",
         "import_mychart": "_data", "export_fhir": "_data",
         "ai_export": "_data", "rescan": "_data", "docs": "_data",
@@ -83,6 +86,7 @@ class Handlers:
         self._session = SessionHandlers(self._core)
         self._health = HealthHandlers(self._core)
         self._medical = MedicalHandlers(self._core)
+        self._research = ResearchHandlers(self._core)
         self._data = DataHandlers(self._core)
 
     def wire_scheduler(self, job_queue: object) -> None:

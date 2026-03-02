@@ -65,7 +65,7 @@ logger = logging.getLogger("healthbot")
 # Uses a greedy match with look-ahead for end-of-block boundary
 # (newline + non-whitespace or end-of-string) so nested JSON braces work.
 _BLOCK_PATTERN = re.compile(
-    r"(HYPOTHESIS|ACTION|RESEARCH|INSIGHT|CONDITION|DATA_QUALITY|MEMORY|CORRECTION|SYSTEM_IMPROVEMENT|HEALTH_DATA|ANALYSIS_RULE|CHART):\s*(\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})",
+    r"(HYPOTHESIS|ACTION|RESEARCH|INSIGHT|CONDITION|DATA_QUALITY|MEMORY|CORRECTION|SYSTEM_IMPROVEMENT|HEALTH_DATA|ANALYSIS_RULE|CHART|CITATION|CHECK_INTERACTION):\s*(\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})",
 )
 
 
@@ -105,6 +105,8 @@ class ClaudeConversationManager:
         self._cached_user_memory: list[dict] | None = None
         self._memory_feedback: list[str] = []
         self._pending_charts: list[dict] = []
+        self._last_citations: list[dict] = []
+        self._interaction_feedback: list[str] = []
 
     def load(self) -> None:
         """Load context.md, health data, and memory from disk."""
@@ -138,6 +140,8 @@ class ClaudeConversationManager:
             self._user_id = user_id
         self._memory_feedback.clear()
         self._pending_charts.clear()
+        self._last_citations.clear()
+        self._interaction_feedback.clear()
         system, prompt = build_prompt(self, user_text)
         raw_response = self._claude.send(prompt=prompt, system=system)
 
@@ -149,9 +153,18 @@ class ClaudeConversationManager:
         if insights:
             self.save_state()
 
+        # Fallback substance mention scanner (Phase 6)
+        if not self._interaction_feedback:
+            self._run_fallback_interaction_scan(user_text)
+
         quality_note = format_quality_notifications(self)
         if quality_note:
             response = f"{response}\n\n---\n{quality_note}"
+
+        # Append interaction feedback
+        if self._interaction_feedback:
+            ix_footer = "\n".join(self._interaction_feedback)
+            response = f"{response}\n\n---\n**Interaction Check:**\n{ix_footer}"
 
         # Append memory feedback footer
         if self._memory_feedback:
@@ -423,6 +436,23 @@ class ClaudeConversationManager:
             self._pending_charts.append(block)
             return
 
+        # CITATION blocks are accumulated for source follow-up requests
+        if block_type == "CITATION":
+            self._last_citations.append(block)
+            return
+
+        # CHECK_INTERACTION blocks trigger interaction checking
+        if block_type == "CHECK_INTERACTION":
+            try:
+                from healthbot.llm.interaction_block_handler import (
+                    handle_check_interaction,
+                )
+                results = handle_check_interaction(self, block)
+                self._interaction_feedback.extend(results)
+            except Exception as exc:
+                logger.warning("CHECK_INTERACTION handler failed: %s", exc)
+            return
+
         # Route to specialized systems (best effort)
         try:
             if block_type == "MEMORY":
@@ -443,7 +473,8 @@ class ClaudeConversationManager:
 
         # New block types have dedicated structured storage — skip flat memory
         if block_type in ("MEMORY", "CORRECTION", "SYSTEM_IMPROVEMENT",
-                          "HEALTH_DATA", "ANALYSIS_RULE"):
+                          "HEALTH_DATA", "ANALYSIS_RULE", "CITATION",
+                          "CHECK_INTERACTION"):
             return
 
         # Always store in flat memory for PREVIOUS INSIGHTS section
@@ -453,3 +484,31 @@ class ClaudeConversationManager:
             "category": block.get("category", block_type.lower()),
             "timestamp": datetime.now(UTC).isoformat(),
         })
+
+    def _run_fallback_interaction_scan(self, user_text: str) -> None:
+        """Fallback: scan user text for substance mentions if no CHECK_INTERACTION."""
+        try:
+            from healthbot.llm.interaction_block_handler import (
+                handle_check_interaction,
+                scan_for_substance_mentions,
+            )
+
+            active_meds = []
+            try:
+                from healthbot.llm.interaction_block_handler import (
+                    _get_active_medications,
+                )
+                active_meds = _get_active_medications(self)
+            except Exception:
+                pass
+
+            detected = scan_for_substance_mentions(
+                user_text, active_meds,
+            )
+            for substance in detected[:3]:  # Limit to avoid spam
+                results = handle_check_interaction(
+                    self, {"substance": substance, "intent": "checking_safety"},
+                )
+                self._interaction_feedback.extend(results)
+        except Exception as exc:
+            logger.debug("Fallback interaction scan failed: %s", exc)

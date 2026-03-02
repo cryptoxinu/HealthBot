@@ -232,6 +232,10 @@ def handle_memory_block(mgr, block: dict) -> str | None:
         # Update Raw Vault LTM so /aboutme reads the latest value
         sync_memory_to_ltm(mgr, key, value, category=category)
 
+        # Medication-specific: sync to clean_medications for temporal tracking
+        if category in ("medication", "supplement"):
+            _sync_medication_memory(clean_db, key, value)
+
         # Build feedback
         if old_value and old_value != value:
             feedback = f"Updated: {key} (was: {old_value})"
@@ -295,6 +299,93 @@ def sync_memory_to_demographics(mgr, clean_db, key: str, value: str) -> None:
             logger.info("Updated demographics from MEMORY block: %s", demo_update)
         except Exception as exc:
             logger.warning("Failed to sync memory to demographics: %s", exc)
+
+
+def _sync_medication_memory(clean_db, key: str, value: str) -> None:
+    """Sync medication MEMORY blocks to clean_medications for temporal tracking.
+
+    Parses the value for dose, timing, and started/stopped intents.
+    Updates start_date on new medications so week number tracking works.
+    """
+    import re as _re
+    from datetime import UTC as _UTC
+    from datetime import datetime as _dt
+
+    value_lower = value.lower()
+    med_name = key.replace("_", " ").strip()
+
+    # Detect intent
+    stopped = any(w in value_lower for w in ("stopped", "discontinued", "quit", "no longer"))
+    started = any(w in value_lower for w in ("started", "began", "beginning", "starting"))
+
+    # Extract dose if present (e.g., "5mg", "1.5 mg/week", "200mg daily")
+    dose_match = _re.search(
+        r"(\d+(?:\.\d+)?)\s*(mg|mcg|iu|ml|g|units?)(?:\s*/\s*(?:day|week|month))?",
+        value_lower,
+    )
+    dose = dose_match.group(0) if dose_match else ""
+
+    try:
+        meds = clean_db.get_medications(status="all")
+        existing = None
+        for m in meds:
+            if m.get("name", "").lower() == med_name.lower():
+                existing = m
+                break
+
+        now = _dt.now(_UTC).strftime("%Y-%m-%d")
+
+        if stopped and existing:
+            # Mark as discontinued
+            clean_db.conn.execute(
+                "UPDATE clean_medications SET status = ?, end_date = ? WHERE med_id = ?",
+                ("discontinued", now, existing["med_id"]),
+            )
+            clean_db.conn.commit()
+            logger.info("Medication stopped via MEMORY: %s", med_name)
+        elif started or not existing:
+            # New medication or explicit start
+            if existing:
+                # Update existing — set dose and ensure start_date
+                updates = []
+                params = []
+                if dose:
+                    updates.append("dose = ?")
+                    params.append(dose)
+                if not existing.get("start_date"):
+                    updates.append("start_date = ?")
+                    params.append(now)
+                updates.append("status = ?")
+                params.append("active")
+                if updates:
+                    params.append(existing["med_id"])
+                    clean_db.conn.execute(
+                        f"UPDATE clean_medications SET {', '.join(updates)} WHERE med_id = ?",
+                        params,
+                    )
+                    clean_db.conn.commit()
+            else:
+                # Insert new medication
+                import uuid
+                med_id = uuid.uuid4().hex
+                clean_db.conn.execute(
+                    """INSERT INTO clean_medications
+                       (med_id, name, dose, unit, frequency, status, start_date, synced_at)
+                       VALUES (?, ?, ?, '', '', 'active', ?, ?)""",
+                    (med_id, med_name, dose, now, now),
+                )
+                clean_db.conn.commit()
+                logger.info("New medication via MEMORY: %s", med_name)
+        elif dose and existing:
+            # Dose update on existing med
+            clean_db.conn.execute(
+                "UPDATE clean_medications SET dose = ? WHERE med_id = ?",
+                (dose, existing["med_id"]),
+            )
+            clean_db.conn.commit()
+            logger.info("Medication dose updated via MEMORY: %s → %s", med_name, dose)
+    except Exception as exc:
+        logger.debug("_sync_medication_memory failed: %s", exc)
 
 
 def sync_memory_to_ltm(

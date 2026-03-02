@@ -368,4 +368,20 @@ MIGRATIONS: dict[int, list[str]] = {
         "ALTER TABLE documents ADD COLUMN routing_status TEXT DEFAULT 'done'",
         "ALTER TABLE documents ADD COLUMN routing_error TEXT DEFAULT ''",
     ],
+    25: [
+        # Substance knowledge profiles — structured research data per substance
+        # (mechanism, CYP-450, pathways, dosing, side effects, etc.)
+        """CREATE TABLE IF NOT EXISTS substance_knowledge (
+            id TEXT PRIMARY KEY,
+            user_id INTEGER NOT NULL DEFAULT 0,
+            name TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            quality_score REAL DEFAULT 0.0,
+            encrypted_data BLOB NOT NULL
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_subknow_name ON substance_knowledge(name)",
+        """CREATE UNIQUE INDEX IF NOT EXISTS idx_subknow_user_name
+           ON substance_knowledge(user_id, name)""",
+    ],
 }

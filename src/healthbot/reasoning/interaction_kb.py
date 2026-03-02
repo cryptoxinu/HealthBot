@@ -60,6 +60,22 @@ class DrugLabInteraction:
     citation: str = ""
 
 
+@dataclass(frozen=True)
+class CypProfile:
+    """CYP-450 enzyme interaction profile for a substance."""
+
+    substance: str
+    enzymes: dict[str, str]  # enzyme -> role ("substrate", "inhibitor", "inducer")
+
+
+@dataclass(frozen=True)
+class PathwayProfile:
+    """Biological pathway effect profile for a substance."""
+
+    substance: str
+    pathways: dict[str, str]  # pathway -> effect ("increase", "decrease", etc.)
+
+
 # ---------------------------------------------------------------------------
 # Load all data from JSON
 # ---------------------------------------------------------------------------
@@ -101,4 +117,21 @@ DRUG_LAB_INTERACTIONS: tuple[DrugLabInteraction, ...] = tuple(
     DrugLabInteraction(**d) for d in _data["drug_lab_interactions"]
 )
 
+CYP_PROFILES: dict[str, CypProfile] = {
+    name: CypProfile(substance=name, enzymes=enzymes)
+    for name, enzymes in _data.get("cyp_enzyme_profiles", {}).items()
+}
+
+PATHWAY_PROFILES: dict[str, PathwayProfile] = {
+    name: PathwayProfile(substance=name, pathways=pathways)
+    for name, pathways in _data.get("pathway_profiles", {}).items()
+}
+
 del _data  # Free memory after hydration
+
+# Load user-space overlay (custom discoveries from /deep research)
+try:
+    from healthbot.reasoning.interaction_kb_updater import load_overlay_into_kb
+    load_overlay_into_kb()
+except Exception:
+    pass  # Overlay is optional

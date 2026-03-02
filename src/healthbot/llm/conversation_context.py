@@ -6,7 +6,9 @@ Split from claude_conversation.py to stay under 400 lines per file.
 """
 from __future__ import annotations
 
+import json
 import logging
+import re
 import time
 
 logger = logging.getLogger("healthbot")
@@ -149,6 +151,38 @@ def measure_prompt_sections(mgr) -> dict[str, int]:
     return sections
 
 
+# ── Source request detection ────────────────────────────────────
+
+# Short bare keywords — only match if message is short (<40 chars)
+_SOURCE_SHORT_RE = re.compile(
+    r"^(sources?|citations?|evidence|proof|study|studies|references?)\??!?$",
+    re.IGNORECASE,
+)
+
+# Explicit longer phrases — match regardless of length
+_SOURCE_LONG_RE = re.compile(
+    r"^.*(where did you get that|show me the evidence|back that up|"
+    r"what stud(?:y|ies)|cite your sources?|what's the evidence|"
+    r"what is the evidence|how do you know that|"
+    r"what are your sources?).*$",
+    re.IGNORECASE,
+)
+
+
+def _is_source_request(text: str) -> bool:
+    """Detect if user is asking about sources from the previous response.
+
+    Uses length-gated matching: short bare keywords (< 40 chars) like
+    "source?" are matched, but longer messages must use explicit citation-
+    request phrasing to avoid false positives like "what are the best
+    sources of magnesium?"
+    """
+    stripped = text.strip()
+    if len(stripped) < 40 and _SOURCE_SHORT_RE.match(stripped):
+        return True
+    return bool(_SOURCE_LONG_RE.match(stripped))
+
+
 def build_prompt(mgr, user_text: str) -> tuple[str, str]:
     """Build (system, prompt) for ClaudeClient.send().
 
@@ -204,6 +238,19 @@ def build_prompt(mgr, user_text: str) -> tuple[str, str]:
     # Additional health records from Clean DB
     append_health_records_ext(mgr, parts)
 
+    # Substance knowledge profiles relevant to this query
+    try:
+        from healthbot.llm.conversation_context_ext import (
+            append_active_interactions_summary,
+            append_medication_timelines,
+            append_substance_knowledge,
+        )
+        append_substance_knowledge(mgr, parts, user_text)
+        append_active_interactions_summary(mgr, parts)
+        append_medication_timelines(mgr, parts)
+    except Exception:
+        pass  # Graceful degradation if ext module not available
+
     # Persistent memory
     if mgr._memory:
         recent_memory = mgr._memory[-_MAX_MEMORY:]
@@ -224,6 +271,16 @@ def build_prompt(mgr, user_text: str) -> tuple[str, str]:
             if len(content) > 500:
                 content = content[:500] + "..."
             parts.append(f"{role}: {content}")
+        parts.append("")
+
+    # Inject citation context for source follow-up requests
+    if _is_source_request(user_text) and getattr(mgr, "_last_citations", None):
+        parts.append("## CITATION CONTEXT (sources from your previous response)\n")
+        for cit in mgr._last_citations:
+            cit_id = cit.get("id", "?")
+            # Strip internal _type key before serializing
+            clean = {k: v for k, v in cit.items() if k != "_type"}
+            parts.append(f"Source [{cit_id}]: {json.dumps(clean, ensure_ascii=False)}")
         parts.append("")
 
     # Current message

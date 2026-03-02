@@ -292,6 +292,7 @@ def create_application(
     app.add_handler(CommandHandler("scatter", handlers.scatter))
     app.add_handler(CommandHandler("trends_chart", handlers.trends_chart))
     app.add_handler(CommandHandler("tokenusage", handlers.tokenusage))
+    app.add_handler(CommandHandler("deep", handlers.deep))
 
     # Callback query handlers (inline keyboard buttons)
     app.add_handler(CallbackQueryHandler(

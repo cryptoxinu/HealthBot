@@ -277,6 +277,71 @@ def sync_health_records_ext(
     return None if since else synced_ids
 
 
+def sync_substance_knowledge(
+    raw_db: object,
+    anonymize: Callable[[str], str],
+    clean: CleanDB,
+    report: SyncReport,
+    user_id: int,
+) -> set[str] | None:
+    """Sync substance knowledge — anonymizes text fields. Returns synced IDs."""
+    synced_ids: set[str] = set()
+
+    try:
+        data = raw_db.get_all_substance_knowledge(user_id)
+    except Exception as e:
+        report.errors.append(f"substance_knowledge query: {e}")
+        return None
+
+    for rec in data:
+        rid = rec.get("id", "")
+        if not rid:
+            continue
+        synced_ids.add(str(rid))
+        inner = rec.get("data", {})
+        if isinstance(inner, str):
+            import json
+            try:
+                inner = json.loads(inner)
+            except Exception:
+                inner = {}
+
+        try:
+            import json as _json
+            mechanism = anonymize(str(inner.get("mechanism_of_action", "")))
+            half_life = str(inner.get("half_life", ""))
+            cyp = _json.dumps(inner.get("cyp_interactions", {}))
+            pathways = _json.dumps(inner.get("pathway_effects", {}))
+            aliases = ",".join(inner.get("aliases", []))
+            summary = anonymize(str(inner.get("clinical_evidence_summary", "")))
+            sources = ",".join(str(s) for s in inner.get("research_sources", []))
+
+            clean.upsert_substance_knowledge(
+                substance_id=rid,
+                name=rec.get("name", ""),
+                quality_score=rec.get("quality_score", 0.0),
+                mechanism=mechanism,
+                half_life=half_life,
+                cyp_interactions=cyp,
+                pathway_effects=pathways,
+                aliases=aliases,
+                clinical_summary=summary,
+                research_sources=sources,
+            )
+            report.substance_knowledge_synced = getattr(
+                report, "substance_knowledge_synced", 0,
+            ) + 1
+        except PhiDetectedError:
+            report.pii_blocked += 1
+            report.pii_blocked_details.append(f"Substance knowledge ({rid})")
+            logger.warning("PII blocked in substance_knowledge %s", rid)
+            _record_pii_alert("PHI_in_substance_knowledge")
+        except Exception as e:
+            report.errors.append(f"substance_knowledge {rid}: {e}")
+
+    return synced_ids
+
+
 def sync_appointments(
     records: list[dict],
     anonymize: Callable[[str], str],

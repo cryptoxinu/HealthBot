@@ -397,6 +397,95 @@ class HealthDB(MemoryMixin):
             results.append(d)
         return results
 
+    # --- Substance Knowledge ---
+
+    def insert_substance_knowledge(
+        self,
+        user_id: int,
+        name: str,
+        data: dict,
+        quality_score: float = 0.0,
+    ) -> str:
+        """Insert a substance knowledge profile with AES-256-GCM encryption."""
+        sk_id = uuid.uuid4().hex
+        aad = f"substance_knowledge.encrypted_data.{sk_id}"
+        enc_data = self._encrypt(data, aad)
+        now = self._now()
+        self.conn.execute(
+            """INSERT OR REPLACE INTO substance_knowledge
+               (id, user_id, name, created_at, updated_at, quality_score,
+                encrypted_data)
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (sk_id, user_id, name.lower(), now, now, quality_score, enc_data),
+        )
+        self.conn.commit()
+        return sk_id
+
+    def get_substance_knowledge(
+        self, user_id: int, name: str,
+    ) -> dict | None:
+        """Get a substance knowledge profile by name."""
+        row = self.conn.execute(
+            "SELECT * FROM substance_knowledge WHERE user_id = ? AND name = ?",
+            (user_id, name.lower()),
+        ).fetchone()
+        if not row:
+            return None
+        d = dict(row)
+        aad = f"substance_knowledge.encrypted_data.{d['id']}"
+        try:
+            d["data"] = self._decrypt(d.pop("encrypted_data"), aad)
+        except Exception:
+            d["data"] = {}
+            d.pop("encrypted_data", None)
+        return d
+
+    def get_all_substance_knowledge(self, user_id: int) -> list[dict]:
+        """Get all substance knowledge profiles for a user."""
+        rows = self.conn.execute(
+            "SELECT * FROM substance_knowledge WHERE user_id = ? ORDER BY name",
+            (user_id,),
+        ).fetchall()
+        results: list[dict] = []
+        for row in rows:
+            d = dict(row)
+            aad = f"substance_knowledge.encrypted_data.{d['id']}"
+            try:
+                d["data"] = self._decrypt(d.pop("encrypted_data"), aad)
+            except Exception:
+                d["data"] = {}
+                d.pop("encrypted_data", None)
+            results.append(d)
+        return results
+
+    def update_substance_knowledge(
+        self,
+        user_id: int,
+        name: str,
+        data: dict,
+        quality_score: float | None = None,
+    ) -> bool:
+        """Update an existing substance knowledge profile."""
+        row = self.conn.execute(
+            "SELECT id FROM substance_knowledge WHERE user_id = ? AND name = ?",
+            (user_id, name.lower()),
+        ).fetchone()
+        if not row:
+            return False
+        sk_id = row["id"]
+        aad = f"substance_knowledge.encrypted_data.{sk_id}"
+        enc_data = self._encrypt(data, aad)
+        sql = "UPDATE substance_knowledge SET encrypted_data = ?, updated_at = ?"
+        params: list = [enc_data, self._now()]
+        if quality_score is not None:
+            sql += ", quality_score = ?"
+            params.append(quality_score)
+        sql += " WHERE id = ?"
+        params.append(sk_id)
+        self.conn.execute(sql, params)
+        self.conn.commit()
+        return True
+
     # --- Observations (lab results, vitals, etc.) ---
 
     def insert_observation(

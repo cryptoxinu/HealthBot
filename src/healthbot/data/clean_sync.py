@@ -37,6 +37,7 @@ from healthbot.data.clean_sync_workers_ext import (
     sync_health_records_ext,
     sync_med_reminders,
     sync_providers,
+    sync_substance_knowledge,
     sync_workouts,
 )
 from healthbot.llm.anonymize_pipeline import AnonymizePipeline
@@ -519,6 +520,16 @@ class CleanSyncEngine:
             self.progress.phases_completed.append("Extended records")
             _progress(on_progress, f"Extended records: {report.health_records_ext_synced} synced")
 
+            self._set_phase("Substance knowledge", 0)
+            sync_substance_knowledge(
+                self._raw, self._anonymize_text, self._clean, report, user_id,
+            )
+            self.progress.phases_completed.append("Substance knowledge")
+            _progress(
+                on_progress,
+                f"Substance knowledge: {getattr(report, 'substance_knowledge_synced', 0)} synced",
+            )
+
             # Hybrid pass 2: Ollama review of uncertain fields
             # Wrapped in try/except — Ollama failure must not roll back pass 1 data
             if self._mode == "hybrid" and self._uncertain_queue:
@@ -716,6 +727,15 @@ class CleanSyncEngine:
                 _progress(
                     on_progress,
                     f"Extended records: {report.health_records_ext_synced} synced",
+                )
+
+                sync_substance_knowledge(
+                    self._raw, self._anonymize_text, self._clean, report,
+                    user_id,
+                )
+                _progress(
+                    on_progress,
+                    f"Substance knowledge: {getattr(report, 'substance_knowledge_synced', 0)} synced",
                 )
 
                 self._clean.set_meta("last_sync_at", watermark)

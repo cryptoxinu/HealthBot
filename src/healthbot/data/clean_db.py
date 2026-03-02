@@ -259,6 +259,21 @@ CREATE TABLE IF NOT EXISTS clean_system_improvements (
 );
 CREATE INDEX IF NOT EXISTS idx_clean_si_status ON clean_system_improvements(status);
 
+CREATE TABLE IF NOT EXISTS clean_substance_knowledge (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    quality_score REAL DEFAULT 0.0,
+    mechanism TEXT DEFAULT '',
+    half_life TEXT DEFAULT '',
+    cyp_interactions TEXT DEFAULT '',
+    pathway_effects TEXT DEFAULT '',
+    aliases TEXT DEFAULT '',
+    clinical_summary TEXT DEFAULT '',
+    research_sources TEXT DEFAULT '',
+    synced_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_clean_subknow_name ON clean_substance_knowledge(name);
+
 CREATE TABLE IF NOT EXISTS clean_anon_cache (
     text_hash TEXT PRIMARY KEY,
     cleaned_text TEXT NOT NULL,
@@ -1552,6 +1567,54 @@ class CleanDB:
             ).fetchall()
         return [dict(r) for r in rows]
 
+    # ── Substance knowledge methods ───────────────────
+
+    def upsert_substance_knowledge(
+        self,
+        substance_id: str,
+        *,
+        name: str,
+        quality_score: float = 0.0,
+        mechanism: str = "",
+        half_life: str = "",
+        cyp_interactions: str = "",
+        pathway_effects: str = "",
+        aliases: str = "",
+        clinical_summary: str = "",
+        research_sources: str = "",
+    ) -> None:
+        self._validate_text_fields(
+            {"name": name, "mechanism": mechanism, "half_life": half_life,
+             "clinical_summary": clinical_summary},
+            f"substance_knowledge.{substance_id}",
+        )
+        self.conn.execute(
+            """INSERT OR REPLACE INTO clean_substance_knowledge
+               (id, name, quality_score, mechanism, half_life, cyp_interactions,
+                pathway_effects, aliases, clinical_summary, research_sources,
+                synced_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (substance_id, name.lower(), quality_score, mechanism, half_life,
+             cyp_interactions, pathway_effects, aliases, clinical_summary,
+             research_sources, self._now()),
+        )
+        self._auto_commit()
+
+    def get_substance_knowledge(self, name: str) -> dict | None:
+        """Get substance knowledge profile by name."""
+        row = self.conn.execute(
+            "SELECT * FROM clean_substance_knowledge WHERE name = ?",
+            (name.lower(),),
+        ).fetchone()
+        return dict(row) if row else None
+
+    def get_all_substance_knowledge(self) -> list[dict]:
+        """Get all substance knowledge profiles."""
+        rows = self.conn.execute(
+            "SELECT * FROM clean_substance_knowledge ORDER BY name",
+        ).fetchall()
+        return [dict(r) for r in rows]
+
     # ── Analysis rule methods ──────────────────────────
 
     def upsert_analysis_rule(
@@ -1680,6 +1743,7 @@ class CleanDB:
     _FACT_CATEGORIES: frozenset[str] = frozenset({
         "allergy", "medication", "demographic", "baseline_metric",
         "medical_context", "supplement", "preference",
+        "lifestyle", "goal",
     })
 
     def get_facts(self, category: str | None = None) -> dict[str, str]:

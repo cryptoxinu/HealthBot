@@ -28,7 +28,7 @@
     {
       "substance": "vitamin_d",
       "advice": "Take with a fat-containing meal for better absorption.",
-      "reason": "Vitamin D is fat-soluble \u2014 absorption improves 50% with dietary fat."
+      "reason": "Vitamin D is fat-soluble — absorption improves 50% with dietary fat."
     },
     {
       "substance": "fish_oil",
@@ -78,7 +78,7 @@
     {
       "substance": "tetracycline",
       "advice": "Take on empty stomach, 1 hour before or 2 hours after meals. Avoid dairy, antacids, iron for 2-3 hours.",
-      "reason": "Chelation with Ca\u00b2\u207a, Mg\u00b2\u207a, Fe\u00b2\u207a, Al\u00b3\u207a dramatically reduces absorption."
+      "reason": "Chelation with Ca²⁺, Mg²⁺, Fe²⁺, Al³⁺ dramatically reduces absorption."
     },
     {
       "substance": "melatonin",
@@ -102,7 +102,7 @@
     },
     {
       "substance": "glp1_agonist",
-      "advice": "Weekly injectables (semaglutide, dulaglutide): same day each week. Eat slowly and stop when full \u2014 delayed gastric emptying.",
+      "advice": "Weekly injectables (semaglutide, dulaglutide): same day each week. Eat slowly and stop when full — delayed gastric emptying.",
       "reason": "GLP-1 agonists slow gastric emptying. Eating too fast increases nausea."
     },
     {
@@ -357,7 +357,46 @@
     "soy milk": "soy",
     "tofu": "soy",
     "dairy": "dairy",
-    "milk": "dairy"
+    "milk": "dairy",
+    "modafinil": "modafinil",
+    "provigil": "modafinil",
+    "nuvigil": "modafinil",
+    "armodafinil": "modafinil",
+    "bromantane": "bromantane",
+    "ladasten": "bromantane",
+    "lion's mane": "lions_mane",
+    "lions mane": "lions_mane",
+    "hericium erinaceus": "lions_mane",
+    "hericium": "lions_mane",
+    "retatrutide": "retatrutide",
+    "ly3437943": "retatrutide",
+    "bpc-157": "bpc_157",
+    "bpc 157": "bpc_157",
+    "bpc157": "bpc_157",
+    "tadalafil": "pde5_inhibitor",
+    "cialis": "pde5_inhibitor",
+    "sildenafil": "pde5_inhibitor",
+    "viagra": "pde5_inhibitor",
+    "creatine": "creatine",
+    "creatine monohydrate": "creatine",
+    "l-theanine": "l_theanine",
+    "theanine": "l_theanine",
+    "phenylpiracetam": "phenylpiracetam",
+    "phenotropil": "phenylpiracetam",
+    "noopept": "noopept",
+    "alpha gpc": "alpha_gpc",
+    "alpha-gpc": "alpha_gpc",
+    "citicoline": "citicoline",
+    "cdp-choline": "citicoline",
+    "cdp choline": "citicoline",
+    "tb-500": "tb_500",
+    "tb 500": "tb_500",
+    "tb500": "tb_500",
+    "thymosin beta 4": "tb_500",
+    "rapamycin": "rapamycin",
+    "sirolimus": "rapamycin",
+    "metformin er": "metformin",
+    "metformin xr": "metformin"
   },
   "interactions": [
     {
@@ -1643,6 +1682,90 @@
         "Bell DS, Ovalle F. Ann Intern Med. 2001;134(10):946-947."
       ],
       "timing_advice": "Take levothyroxine in the morning. Avoid soy for at least 4 hours."
+    },
+    {
+      "substance_a": "modafinil",
+      "substance_b": "statin",
+      "severity": "moderate",
+      "mechanism": "Modafinil induces CYP3A4, potentially reducing statin blood levels and efficacy.",
+      "recommendation": "Monitor lipid levels. Statin dose may need adjustment. Rosuvastatin/pravastatin less affected.",
+      "evidence": "probable",
+      "citations": [
+        "Robertson P et al. Clin Pharmacol Ther. 2002;71(1):46-56."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "modafinil",
+      "substance_b": "pde5_inhibitor",
+      "severity": "moderate",
+      "mechanism": "Modafinil induces CYP3A4, which metabolizes PDE5 inhibitors. May reduce tadalafil/sildenafil efficacy.",
+      "recommendation": "May need higher PDE5i dose. Monitor effectiveness.",
+      "evidence": "probable",
+      "citations": [
+        "Robertson P et al. Clin Pharmacol Ther. 2002;71(1):46-56."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "bromantane",
+      "substance_b": "statin",
+      "severity": "moderate",
+      "mechanism": "Bromantane may induce CYP3A4/CYP2D6 enzymes, potentially reducing statin blood levels.",
+      "recommendation": "Monitor lipid levels if combining. Consider statins less dependent on CYP3A4 (rosuvastatin).",
+      "evidence": "theoretical",
+      "citations": [
+        "Iezhitsa IN et al. Biull Eksp Biol Med. 2001;131(4):343-345."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "bromantane",
+      "substance_b": "pde5_inhibitor",
+      "severity": "moderate",
+      "mechanism": "Bromantane's CYP3A4 induction may reduce PDE5 inhibitor blood levels and efficacy.",
+      "recommendation": "Monitor PDE5i effectiveness. May need timing adjustment.",
+      "evidence": "theoretical",
+      "citations": [
+        "Theoretical interaction based on known pharmacokinetic profiles."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "bromantane",
+      "substance_b": "ssri",
+      "severity": "minor",
+      "mechanism": "Bromantane modulates serotonin and dopamine. Theoretical interaction with SSRI serotonergic effects.",
+      "recommendation": "Start low, monitor for serotonergic symptoms. Generally considered safe at standard doses.",
+      "evidence": "theoretical",
+      "citations": [
+        "Theoretical interaction based on known pharmacokinetic profiles."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "cbd",
+      "substance_b": "pde5_inhibitor",
+      "severity": "moderate",
+      "mechanism": "CBD inhibits CYP3A4, potentially increasing PDE5 inhibitor blood levels. Risk of hypotension.",
+      "recommendation": "Use caution. Start with lower PDE5i dose. Monitor blood pressure.",
+      "evidence": "probable",
+      "citations": [
+        "Nasrin S et al. Drug Metab Dispos. 2021;49(12):1070-1080."
+      ],
+      "timing_advice": ""
+    },
+    {
+      "substance_a": "rapamycin",
+      "substance_b": "statin",
+      "severity": "moderate",
+      "mechanism": "Both are CYP3A4 substrates. Competition may alter blood levels of either drug.",
+      "recommendation": "Monitor lipids and rapamycin levels. Use pravastatin/rosuvastatin (not CYP3A4-dependent).",
+      "evidence": "probable",
+      "citations": [
+        "Mahalati K et al. Transplantation. 1999;68(4):510-513."
+      ],
+      "timing_advice": ""
     }
   ],
   "condition_aliases": {
@@ -1817,7 +1940,7 @@
       "mechanism": "Statins can cause hepatotoxicity. Active liver disease or unexplained persistent ALT elevation is a contraindication.",
       "recommendation": "Avoid in active liver disease. Paradoxically, statins may benefit NAFLD. Check LFTs before starting.",
       "evidence": "established",
-      "citation": "Bj\u00f6rnsson E et al. Hepatology. 2012;56(1):17-27."
+      "citation": "Björnsson E et al. Hepatology. 2012;56(1):17-27."
     },
     {
       "drug": "corticosteroid",
@@ -1985,7 +2108,7 @@
       "mechanism": "Statins can cause hepatotoxicity (rare). ALT >3x ULN in 0.5-2% of patients.",
       "monitor": "Check liver enzymes at baseline and if symptoms arise.",
       "evidence": "established",
-      "citation": "Bj\u00f6rnsson E et al. Hepatology. 2012;56(1):17-27."
+      "citation": "Björnsson E et al. Hepatology. 2012;56(1):17-27."
     },
     {
       "drug": "statin",
@@ -1995,7 +2118,7 @@
       "mechanism": "AST may rise with ALT in statin hepatotoxicity. Less specific than ALT.",
       "monitor": "Monitor alongside ALT. Evaluate if >3x ULN.",
       "evidence": "established",
-      "citation": "Bj\u00f6rnsson E et al. Hepatology. 2012;56(1):17-27."
+      "citation": "Björnsson E et al. Hepatology. 2012;56(1):17-27."
     },
     {
       "drug": "statin",
@@ -2327,5 +2450,187 @@
       "evidence": "established",
       "citation": "Park-Wyllie LY et al. Clin Infect Dis. 2006;42(5):657-668."
     }
-  ]
+  ],
+  "cyp_enzyme_profiles": {
+    "statin": {
+      "CYP3A4": "substrate",
+      "CYP2C9": "substrate"
+    },
+    "modafinil": {
+      "CYP3A4": "inducer",
+      "CYP2C19": "inhibitor",
+      "CYP2B6": "substrate"
+    },
+    "bromantane": {
+      "CYP3A4": "inducer",
+      "CYP2D6": "inducer"
+    },
+    "cbd": {
+      "CYP3A4": "inhibitor",
+      "CYP2C19": "inhibitor",
+      "CYP2D6": "inhibitor"
+    },
+    "grapefruit": {
+      "CYP3A4": "inhibitor"
+    },
+    "st_johns_wort": {
+      "CYP3A4": "inducer",
+      "CYP2C9": "inducer",
+      "CYP1A2": "inducer"
+    },
+    "ssri": {
+      "CYP2D6": "inhibitor"
+    },
+    "ppi": {
+      "CYP2C19": "substrate",
+      "CYP3A4": "substrate"
+    },
+    "warfarin": {
+      "CYP2C9": "substrate",
+      "CYP1A2": "substrate"
+    },
+    "pde5_inhibitor": {
+      "CYP3A4": "substrate"
+    },
+    "azole_antifungal": {
+      "CYP3A4": "inhibitor",
+      "CYP2C9": "inhibitor"
+    },
+    "macrolide": {
+      "CYP3A4": "inhibitor"
+    },
+    "calcium_channel_blocker": {
+      "CYP3A4": "substrate"
+    },
+    "benzodiazepine": {
+      "CYP3A4": "substrate"
+    },
+    "cyclosporine": {
+      "CYP3A4": "substrate"
+    },
+    "tacrolimus": {
+      "CYP3A4": "substrate"
+    },
+    "metformin": {},
+    "glp1_agonist": {},
+    "rapamycin": {
+      "CYP3A4": "substrate"
+    },
+    "corticosteroid": {
+      "CYP3A4": "substrate"
+    }
+  },
+  "pathway_profiles": {
+    "modafinil": {
+      "dopamine": "increase",
+      "orexin": "increase",
+      "histamine": "increase",
+      "norepinephrine": "increase"
+    },
+    "bromantane": {
+      "dopamine": "increase",
+      "serotonin": "modulate",
+      "BDNF": "increase"
+    },
+    "lions_mane": {
+      "NGF": "increase",
+      "BDNF": "increase"
+    },
+    "ssri": {
+      "serotonin": "increase"
+    },
+    "snri": {
+      "serotonin": "increase",
+      "norepinephrine": "increase"
+    },
+    "glp1_agonist": {
+      "GLP-1": "agonist",
+      "insulin": "potentiate",
+      "glucagon": "suppress"
+    },
+    "retatrutide": {
+      "GLP-1": "agonist",
+      "GIP": "agonist",
+      "glucagon": "agonist",
+      "insulin": "potentiate"
+    },
+    "metformin": {
+      "AMPK": "activate",
+      "insulin": "sensitize"
+    },
+    "bpc_157": {
+      "VEGF": "increase",
+      "NO": "modulate",
+      "GH": "modulate"
+    },
+    "tb_500": {
+      "actin": "regulate",
+      "VEGF": "increase"
+    },
+    "creatine": {
+      "ATP": "increase",
+      "phosphocreatine": "increase"
+    },
+    "l_theanine": {
+      "GABA": "increase",
+      "glutamate": "modulate",
+      "alpha_waves": "increase"
+    },
+    "phenylpiracetam": {
+      "dopamine": "increase",
+      "BDNF": "modulate"
+    },
+    "noopept": {
+      "BDNF": "increase",
+      "NGF": "increase"
+    },
+    "alpha_gpc": {
+      "acetylcholine": "increase"
+    },
+    "citicoline": {
+      "acetylcholine": "increase",
+      "dopamine": "increase"
+    },
+    "rapamycin": {
+      "mTOR": "inhibit"
+    },
+    "cbd": {
+      "serotonin": "modulate",
+      "GABA": "modulate",
+      "inflammation": "decrease"
+    },
+    "ashwagandha": {
+      "cortisol": "decrease",
+      "GABA": "modulate"
+    },
+    "melatonin": {
+      "melatonin_receptor": "agonist"
+    },
+    "nac": {
+      "glutathione": "increase"
+    },
+    "fish_oil": {
+      "inflammation": "decrease",
+      "triglycerides": "decrease"
+    },
+    "berberine": {
+      "AMPK": "activate",
+      "insulin": "sensitize"
+    },
+    "five_htp": {
+      "serotonin": "increase"
+    },
+    "opioid": {
+      "dopamine": "increase",
+      "endorphin": "agonist"
+    },
+    "maoi": {
+      "serotonin": "increase",
+      "dopamine": "increase",
+      "norepinephrine": "increase"
+    },
+    "sglt2i": {
+      "glucose_reabsorption": "inhibit"
+    }
+  }
 }

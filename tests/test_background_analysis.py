@@ -381,8 +381,10 @@ class TestSystemPromptUpdates:
     def test_context_template_has_citation_section(self):
         from healthbot.llm.claude_context import CLAUDE_CONTEXT_TEMPLATE
 
-        assert "## Citing sources" in CLAUDE_CONTEXT_TEMPLATE
+        assert "## Source Citation Protocol" in CLAUDE_CONTEXT_TEMPLATE
         assert "PMID" in CLAUDE_CONTEXT_TEMPLATE
+        assert "CITATION" in CLAUDE_CONTEXT_TEMPLATE
+        assert "credibility" in CLAUDE_CONTEXT_TEMPLATE
 
     def test_context_template_has_cross_referencing(self):
         from healthbot.llm.claude_context import CLAUDE_CONTEXT_TEMPLATE
@@ -417,5 +419,5 @@ class TestSystemPromptUpdates:
         _maybe_upgrade_template(ctx_path)
 
         new_content = ctx_path.read_text()
-        assert "## Citing sources" in new_content
+        assert "## Source Citation Protocol" in new_content
         assert "## Cross-referencing" in new_content
