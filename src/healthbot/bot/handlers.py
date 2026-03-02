@@ -68,6 +68,7 @@ class Handlers:
         "connectors": "_data",
         # Research commands
         "deep": "_research",
+        "savedmessages": "_session",
         "apple_sync": "_data", "import_health": "_data",
         "import_mychart": "_data", "export_fhir": "_data",
         "ai_export": "_data", "rescan": "_data", "docs": "_data",

@@ -1526,3 +1526,84 @@ class HealthDB(MemoryMixin):
             if "no such table" not in str(e).lower():
                 logger.warning("Failed to store redaction log: %s", e)
 
+    # --- Saved Messages ---
+
+    def save_message(
+        self, user_id: int, text: str, context: str | None = None,
+    ) -> str:
+        """Save a bookmarked message. Returns the saved message ID."""
+        msg_id = str(uuid.uuid4())
+        # Extract preview: first sentence, truncated to 50 chars
+        preview = text.split(". ")[0].split("\n")[0]
+        if len(preview) > 50:
+            preview = preview[:47] + "..."
+        data = {"text": text, "preview": preview, "context": context}
+        encrypted = self._encrypt(
+            data, f"saved_messages.encrypted_data.{msg_id}",
+        )
+        self.conn.execute(
+            "INSERT INTO saved_messages (id, user_id, saved_at, encrypted_data)"
+            " VALUES (?, ?, ?, ?)",
+            (msg_id, user_id, self._now(), encrypted),
+        )
+        self.conn.commit()
+        return msg_id
+
+    def get_saved_messages(
+        self, user_id: int, limit: int = 100, offset: int = 0,
+    ) -> list[dict]:
+        """Fetch saved messages for a user, newest first."""
+        rows = self.conn.execute(
+            "SELECT id, saved_at, encrypted_data FROM saved_messages"
+            " WHERE user_id = ? ORDER BY saved_at DESC LIMIT ? OFFSET ?",
+            (user_id, limit, offset),
+        ).fetchall()
+        results = []
+        for row in rows:
+            try:
+                data = self._decrypt(
+                    row["encrypted_data"],
+                    f"saved_messages.encrypted_data.{row['id']}",
+                )
+                data["id"] = row["id"]
+                data["saved_at"] = row["saved_at"]
+                results.append(data)
+            except Exception as e:
+                logger.warning("Failed to decrypt saved message %s: %s", row["id"], e)
+        return results
+
+    def count_saved_messages(self, user_id: int) -> int:
+        """Count saved messages for a user."""
+        row = self.conn.execute(
+            "SELECT COUNT(*) as cnt FROM saved_messages WHERE user_id = ?",
+            (user_id,),
+        ).fetchone()
+        return row["cnt"] if row else 0
+
+    def delete_saved_message(self, user_id: int, msg_id: str) -> bool:
+        """Delete a saved message. Returns True if deleted."""
+        cur = self.conn.execute(
+            "DELETE FROM saved_messages WHERE id = ? AND user_id = ?",
+            (msg_id, user_id),
+        )
+        self.conn.commit()
+        return cur.rowcount > 0
+
+    def delete_all_saved_messages(self, user_id: int) -> int:
+        """Delete all saved messages for a user. Returns count deleted."""
+        cur = self.conn.execute(
+            "DELETE FROM saved_messages WHERE user_id = ?", (user_id,),
+        )
+        self.conn.commit()
+        return cur.rowcount
+
+    def search_saved_messages(self, user_id: int, query: str) -> list[dict]:
+        """Search saved messages by text content (decrypts and filters in Python)."""
+        all_msgs = self.get_saved_messages(user_id, limit=1000)
+        q = query.lower()
+        return [
+            msg for msg in all_msgs
+            if q in msg.get("text", "").lower()
+            or q in (msg.get("context") or "").lower()
+        ]
+

@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from telegram import Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
 from healthbot.bot.handler_core import HandlerCore
@@ -23,6 +23,8 @@ class SessionHandlers:
         self._claude_auth_awaiting: set[int] = set()
         # Rekey flow state: user_id -> step (1=awaiting current pass, 2=awaiting new pass)
         self._rekey_awaiting: dict[int, int] = {}
+        # Saved messages: search state per user (filtered results for callback nav)
+        self._saved_search_state: dict[int, list[dict]] = {}
 
     @property
     def _km(self):
@@ -1339,3 +1341,295 @@ class SessionHandlers:
         lines.append(f"Headroom:            ~{headroom:,.0f} tokens remaining")
 
         await update.message.reply_text("\n".join(lines))
+
+    # --- Saved Messages ---
+
+    @require_unlocked
+    async def savedmessages(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE,
+    ) -> None:
+        """Handle /savedmessages — browse, search, export, clear saved messages."""
+        user_id = update.effective_user.id
+        args = context.args or []
+
+        if not args:
+            await self._show_saved_card(update, user_id, index=0)
+        elif args[0].lower() == "search" and len(args) > 1:
+            term = " ".join(args[1:])
+            await self._show_saved_card(
+                update, user_id, index=0, search_term=term,
+            )
+        elif args[0].lower() == "export":
+            await self._export_saved_messages(update, user_id)
+        elif args[0].lower() == "clear":
+            if len(args) > 1 and args[1].lower() == "confirm":
+                db = self._core._get_db()
+                count = db.delete_all_saved_messages(user_id)
+                self._saved_search_state.pop(user_id, None)
+                await update.message.reply_text(
+                    f"Deleted all {count} saved messages."
+                    if count else "No saved messages to delete."
+                )
+            else:
+                db = self._core._get_db()
+                count = db.count_saved_messages(user_id)
+                if count == 0:
+                    await update.message.reply_text("No saved messages to delete.")
+                else:
+                    await update.message.reply_text(
+                        f"This will delete all {count} saved messages.\n"
+                        "Send /savedmessages clear confirm to proceed."
+                    )
+        else:
+            await update.message.reply_text(
+                "Usage: /savedmessages [search <term>|export|clear]"
+            )
+
+    async def _show_saved_card(
+        self,
+        update: Update,
+        user_id: int,
+        index: int,
+        messages: list[dict] | None = None,
+        search_term: str | None = None,
+        edit: bool = False,
+    ) -> None:
+        """Render a single saved message card with navigation buttons."""
+        db = self._core._get_db()
+
+        if search_term and search_term != "(search)":
+            messages = db.search_saved_messages(user_id, search_term)
+            self._saved_search_state[user_id] = messages
+        elif messages is None:
+            messages = db.get_saved_messages(user_id)
+
+        if not messages:
+            text = (
+                f"No saved messages matching '{search_term}'."
+                if search_term and search_term != "(search)"
+                else "No saved messages yet. Reply to any message "
+                "with 'save this' to start."
+            )
+            if edit:
+                await update.callback_query.edit_message_text(text)
+            else:
+                await update.message.reply_text(text)
+            return
+
+        # Clamp index
+        index = max(0, min(index, len(messages) - 1))
+        msg = messages[index]
+        total = len(messages)
+
+        # Build card text
+        from datetime import datetime
+
+        preview = msg.get("preview", "")
+        context_line = msg.get("context")
+        saved_at = msg.get("saved_at", "")
+        body = msg.get("text", "")
+
+        # Format date
+        try:
+            dt = datetime.fromisoformat(saved_at)
+            date_str = dt.strftime("%b %-d, %Y at %-I:%M %p")
+        except (ValueError, TypeError):
+            date_str = saved_at[:16] if saved_at else "Unknown"
+
+        # Build header
+        header = (
+            f"Search: '{search_term}' ({index + 1} of {total} matches)"
+            if search_term and search_term != "(search)"
+            else f"Saved Messages ({index + 1} of {total})"
+        )
+
+        lines = [header, "\u2501" * 24]
+        if preview:
+            lines.append(f'"{preview}"')
+        if context_line:
+            lines.append(f'You asked: "{context_line}"')
+        lines.append(f"Saved: {date_str}")
+        lines.append("")
+
+        # Truncate body to fit Telegram's 4096 limit
+        max_body = 3000
+        if len(body) > max_body:
+            body = body[:max_body] + "..."
+        lines.append(body)
+        lines.append("\u2501" * 24)
+
+        text = "\n".join(lines)
+        # Final safety truncation
+        if len(text) > 4000:
+            text = text[:3997] + "..."
+
+        # Build navigation buttons
+        prefix = "saved:s" if search_term else "saved:"
+        msg_id_short = msg["id"][:8]
+
+        prev_idx = (index - 1) % total
+        next_idx = (index + 1) % total
+
+        row1 = []
+        if total > 1:
+            row1.append(InlineKeyboardButton(
+                "\u25c0 Prev", callback_data=f"{prefix}p:{prev_idx}",
+            ))
+        row1.append(InlineKeyboardButton(
+            f"{index + 1}/{total}", callback_data="saved:x",
+        ))
+        if total > 1:
+            row1.append(InlineKeyboardButton(
+                "Next \u25b6", callback_data=f"{prefix}n:{next_idx}",
+            ))
+
+        row2 = [InlineKeyboardButton(
+            "Delete", callback_data=f"{prefix}d:{msg_id_short}:{index}",
+        )]
+
+        markup = InlineKeyboardMarkup([row1, row2])
+
+        if edit:
+            await update.callback_query.edit_message_text(
+                text, reply_markup=markup,
+            )
+        else:
+            await update.message.reply_text(text, reply_markup=markup)
+
+    async def handle_saved_callback(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE,
+    ) -> None:
+        """Handle inline keyboard callbacks for saved messages browser."""
+        query = update.callback_query
+        await query.answer()
+        data = query.data or ""
+        user_id = update.effective_user.id
+
+        if not self._core._km.is_unlocked:
+            await query.edit_message_text("Vault is locked. /unlock first.")
+            return
+
+        # No-op button (page indicator)
+        if data == "saved:x":
+            return
+
+        # Parse callback: saved:[s]<action>:<args>
+        # Search variants: saved:sp:N, saved:sn:N, saved:sd:ID:N
+        # Normal variants: saved:p:N, saved:n:N, saved:d:ID:N
+        is_search = data.startswith("saved:s")
+        parts = data.split(":")
+
+        if is_search:
+            # saved:sp:N or saved:sn:N or saved:sd:ID:N
+            action = parts[1][1:]  # strip 's' prefix -> p, n, or d
+            rest = parts[2:]
+        else:
+            # saved:p:N or saved:n:N or saved:d:ID:N
+            action = parts[1]
+            rest = parts[2:]
+
+        db = self._core._get_db()
+
+        if action in ("p", "n"):
+            # Navigate
+            try:
+                idx = int(rest[0])
+            except (IndexError, ValueError):
+                idx = 0
+
+            if is_search:
+                messages = self._saved_search_state.get(user_id)
+                if not messages:
+                    messages = db.get_saved_messages(user_id)
+                await self._show_saved_card(
+                    update, user_id, idx, messages=messages,
+                    search_term="(search)",
+                    edit=True,
+                )
+            else:
+                await self._show_saved_card(
+                    update, user_id, idx, edit=True,
+                )
+
+        elif action == "d":
+            # Delete: rest = [id_prefix, index]
+            if len(rest) < 2:
+                return
+            id_prefix = rest[0]
+            try:
+                idx = int(rest[1])
+            except ValueError:
+                idx = 0
+
+            # Find full ID by prefix
+            if is_search:
+                messages = self._saved_search_state.get(user_id) or []
+            else:
+                messages = db.get_saved_messages(user_id)
+
+            full_id = None
+            for m in messages:
+                if m["id"].startswith(id_prefix):
+                    full_id = m["id"]
+                    break
+
+            if full_id:
+                db.delete_saved_message(user_id, full_id)
+
+            # Refresh view
+            if is_search:
+                messages = [m for m in messages if m.get("id") != full_id]
+                self._saved_search_state[user_id] = messages
+                new_idx = min(idx, max(0, len(messages) - 1))
+                await self._show_saved_card(
+                    update, user_id, new_idx, messages=messages,
+                    search_term="(search)", edit=True,
+                )
+            else:
+                new_idx = min(idx, max(0, db.count_saved_messages(user_id) - 1))
+                await self._show_saved_card(
+                    update, user_id, new_idx, edit=True,
+                )
+
+    async def _export_saved_messages(self, update: Update, user_id: int) -> None:
+        """Export all saved messages as a .txt file."""
+        import io
+        from datetime import datetime
+
+        db = self._core._get_db()
+        messages = db.get_saved_messages(user_id)
+
+        if not messages:
+            await update.message.reply_text("No saved messages to export.")
+            return
+
+        lines = [
+            "HEALTHBOT SAVED MESSAGES EXPORT",
+            f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}",
+            f"Total entries: {len(messages)}",
+            "=" * 40,
+            "",
+        ]
+
+        for msg in messages:
+            saved_at = msg.get("saved_at", "")
+            try:
+                dt = datetime.fromisoformat(saved_at)
+                date_str = dt.strftime("%b %-d, %Y at %-I:%M %p")
+            except (ValueError, TypeError):
+                date_str = saved_at[:16] if saved_at else "Unknown"
+
+            lines.append(f"Date: {date_str}")
+            context_text = msg.get("context")
+            if context_text:
+                lines.append(f"You asked: {context_text}")
+            lines.append("")
+            lines.append(msg.get("text", ""))
+            lines.append("")
+            lines.append("-" * 40)
+            lines.append("")
+
+        content = "\n".join(lines)
+        doc = io.BytesIO(content.encode("utf-8"))
+        doc.name = "healthbot_saved_messages.txt"
+        await update.message.reply_document(document=doc)

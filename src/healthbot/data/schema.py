@@ -384,4 +384,14 @@ MIGRATIONS: dict[int, list[str]] = {
         """CREATE UNIQUE INDEX IF NOT EXISTS idx_subknow_user_name
            ON substance_knowledge(user_id, name)""",
     ],
+    26: [
+        # Local saved messages — encrypted bookmarks of bot responses
+        """CREATE TABLE IF NOT EXISTS saved_messages (
+            id TEXT PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            saved_at TEXT NOT NULL,
+            encrypted_data BLOB NOT NULL
+        )""",
+        "CREATE INDEX IF NOT EXISTS idx_saved_user_date ON saved_messages(user_id, saved_at DESC)",
+    ],
 }

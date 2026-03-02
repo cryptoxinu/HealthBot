@@ -293,6 +293,7 @@ def create_application(
     app.add_handler(CommandHandler("trends_chart", handlers.trends_chart))
     app.add_handler(CommandHandler("tokenusage", handlers.tokenusage))
     app.add_handler(CommandHandler("deep", handlers.deep))
+    app.add_handler(CommandHandler("savedmessages", handlers.savedmessages))
 
     # Callback query handlers (inline keyboard buttons)
     app.add_handler(CallbackQueryHandler(
@@ -306,6 +307,10 @@ def create_application(
     app.add_handler(CallbackQueryHandler(
         handlers._data.handle_cleansync_callback,
         pattern=r"^cleansync:",
+    ))
+    app.add_handler(CallbackQueryHandler(
+        handlers._session.handle_saved_callback,
+        pattern=r"^saved:",
     ))
 
     # Message handlers (passphrase entry + document upload + photo + free text)
