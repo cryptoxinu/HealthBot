@@ -77,6 +77,16 @@ def _get_active_medications(mgr) -> list[str]:
         try:
             meds = clean_db.get_medications()
             names = [m.get("name", "") for m in meds if m.get("name")]
+
+            # Fallback: if clean_medications is empty, pull from user_memory
+            if not names:
+                mem_meds = clean_db.get_user_memory(category="medication")
+                mem_supps = clean_db.get_user_memory(category="supplement")
+                for mem in mem_meds + mem_supps:
+                    name = mem.get("key", "").replace("_", " ").strip()
+                    if name and name not in names:
+                        names.append(name)
+
             _ACTIVE_MED_CACHE[user_id] = names
             return names
         finally:
