@@ -255,7 +255,15 @@ class MedicalTimeline:
             dt_date = dt[:10] if len(dt) >= 10 else dt
             if cutoff and dt_date < cutoff:
                 continue
-            filename = doc.get("filename", "document")
+            # Prefer encrypted filename from meta; fall back to plaintext column
+            doc_id = doc.get("doc_id", "")
+            filename = doc.get("filename") or ""
+            if not filename and doc_id:
+                try:
+                    filename = self._db.get_document_filename(doc_id)
+                except Exception:
+                    pass
+            filename = filename or "document"
             source = doc.get("source", "")
             pages = doc.get("page_count", 0)
             page_str = f", {pages} pages" if pages else ""
@@ -265,7 +273,7 @@ class MedicalTimeline:
                 category="document",
                 title=f"Uploaded: {filename}",
                 detail=f"Source: {source}{page_str}",
-                source_id=doc.get("doc_id", ""),
+                source_id=doc_id,
             ))
         return events
 

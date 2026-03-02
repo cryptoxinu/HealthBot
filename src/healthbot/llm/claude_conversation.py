@@ -149,7 +149,12 @@ class ClaudeConversationManager:
         self._pending_charts.clear()
         self._last_citations.clear()
         self._interaction_feedback.clear()
-        system, prompt = build_prompt(self, user_text)
+        # Anonymize user text before sending outbound to Claude CLI.
+        # Keep the original for local-only operations (interaction scan,
+        # medical classification) — safe_anonymize strips PII patterns
+        # but preserves clinical vocabulary.
+        safe_user_text = _ctx_safe_anonymize(self._get_anonymizer(), user_text)
+        system, prompt = build_prompt(self, safe_user_text)
         raw_response = self._claude.send(prompt=prompt, system=system)
 
         # Extract structured blocks before PII scan (NER can corrupt JSON)
@@ -197,7 +202,7 @@ class ClaudeConversationManager:
                 response = f"{response}\n\nSources:\n{sources_text}"
 
         with self._history_lock:
-            self._history.append({"role": "user", "content": user_text})
+            self._history.append({"role": "user", "content": safe_user_text})
             self._history.append({"role": "assistant", "content": response})
             if len(self._history) > 20 * 2:
                 self._history = self._history[-20 * 2:]

@@ -394,4 +394,9 @@ MIGRATIONS: dict[int, list[str]] = {
         )""",
         "CREATE INDEX IF NOT EXISTS idx_saved_user_date ON saved_messages(user_id, saved_at DESC)",
     ],
+    27: [
+        # Encrypt search_index text: add encrypted column, keep plaintext
+        # for backward-compat reads during migration window.
+        "ALTER TABLE search_index ADD COLUMN encrypted_text BLOB",
+    ],
 }

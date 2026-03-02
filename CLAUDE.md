@@ -224,7 +224,7 @@ python -m healthbot --mcp-register  # Print MCP registration JSON
 
 ## Telegram Commands (103 total)
 
-All `/commands` are 100% deterministic (no LLM). Free-text goes to Claude CLI (anonymized).
+All `/commands` are 100% deterministic (no LLM) except `/deep` (Claude CLI research) and `/research_cloud` (cloud research mode). Free-text goes to Claude CLI (anonymized).
 
 **Session & System**
 `/start` `/help` `/unlock` `/lock` `/version` `/restart` `/debug` `/audit` `/backup` `/rekey` `/feedback` `/auth_status` `/pii_alerts` `/privacy` `/redacted` `/snooze` `/preferences` `/deep` `/tokenusage`
@@ -420,7 +420,7 @@ A field is "uncertain" when:
 9. **No plaintext PHI on disk. Ever.** All DB fields encrypted with per-field AAD.
 10. Bot acts as a knowledgeable medical advisor. Give direct interpretations backed by evidence. No disclaimers.
 11. WHOOP: OAuth only. NEVER password scraping.
-12. Vault passphrase NEVER stored to disk (not in Keychain, not in config, not anywhere).
+12. Vault passphrase NEVER stored to disk (not in Keychain, not in config, not anywhere). Exception: MCP auto-unlock may use `HEALTHBOT_PASSPHRASE` env var set by the user for unattended startup (see `docs/OPENCLAW_SETUP.md`).
 13. Subprocess `env=` must be explicit (PATH + HOME only). No full environment inheritance.
 14. All outbound subprocess calls use `_PRIVACY_FLAGS` + `_TOOL_FLAGS` from `llm/claude_client.py`.
 15. NER layer is a detection AID, not a security gate replacement. Regex always runs as Layer 2.

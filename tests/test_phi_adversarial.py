@@ -238,15 +238,13 @@ class TestCanaryToken:
     def test_canary_verified_on_first_call(self, anon):
         """First anonymize() call triggers canary verification.
 
-        The canary SSN (999-88-7777) is no longer valid under the stricter
-        SSN regex (area 900-999 excluded), so _verify_canary() raises on
-        the first call.  The test verifies the broken-canary detection.
+        The canary SSN (078-05-1120) uses a valid-format area number that
+        the SSN regex detects, so the canary passes on the first call.
         """
-        from healthbot.llm.anonymizer import AnonymizationError
-
         assert not anon._canary_verified
-        with pytest.raises(AnonymizationError, match="Canary token survived"):
-            anon.anonymize("glucose 108 mg/dL")
+        result, _ = anon.anonymize("glucose 108 mg/dL")
+        assert anon._canary_verified
+        assert "glucose" in result
 
     def test_canary_detects_broken_regex(self):
         """If regex is broken (empty patterns), canary raises."""

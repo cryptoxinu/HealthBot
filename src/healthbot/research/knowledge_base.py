@@ -24,6 +24,11 @@ class KnowledgeBase:
     def __init__(self, db: HealthDB) -> None:
         self._db = db
 
+    @staticmethod
+    def _genericize_topic(topic: str) -> str:
+        """Return a truncated, lowercased topic for index-assisted lookup."""
+        return topic.lower().strip()[:30] if topic else ""
+
     def store_finding(
         self,
         topic: str,
@@ -33,6 +38,10 @@ class KnowledgeBase:
         user_confirmed: bool = False,
     ) -> str | None:
         """Store a research finding permanently.
+
+        Writes a genericized topic to the plaintext ``topic`` column for
+        index-assisted lookup and an empty string to the ``finding``
+        column.  Full data lives in ``encrypted_data`` only.
 
         Returns the knowledge entry ID, or None if storage failed.
         """
@@ -53,7 +62,7 @@ class KnowledgeBase:
                     user_confirmed, category, created_at, encrypted_data)
                    VALUES (?, ?, ?, ?, ?, ?, 'research', ?, ?)""",
                 (
-                    kb_id, topic, finding[:200], source,
+                    kb_id, self._genericize_topic(topic), '', source,
                     relevance_score, int(user_confirmed),
                     now, enc_data,
                 ),
@@ -72,7 +81,8 @@ class KnowledgeBase:
     ) -> str | None:
         """Store a user correction — system was wrong about something.
 
-        Returns the correction entry ID.
+        Returns the correction entry ID.  The ``finding`` column is left
+        empty; the full correction lives in ``encrypted_data``.
         """
         try:
             kb_id = uuid.uuid4().hex
@@ -93,7 +103,7 @@ class KnowledgeBase:
                    VALUES (?, ?, ?, ?, 1.0, 1, 'correction', ?, ?)""",
                 (
                     kb_id, "correction",
-                    correction[:200], source, now, enc_data,
+                    '', source, now, enc_data,
                 ),
             )
             self._db.conn.commit()
@@ -105,20 +115,24 @@ class KnowledgeBase:
     def query(self, topic: str, top_k: int = 5) -> list[dict]:
         """Retrieve relevant knowledge for a topic.
 
-        Uses simple keyword matching on the topic field.
+        Over-fetches via the genericized topic index, then filters on
+        decrypted data for accurate matching.
         """
         try:
-            # Search by topic keyword match
+            generic = self._genericize_topic(topic)
+            # Over-fetch: grab more rows than needed, filter after decrypt
+            fetch_limit = top_k * 4
             rows = self._db.conn.execute(
-                """SELECT id, topic, finding, source, relevance_score,
-                          category, created_at
+                """SELECT id, topic, source, relevance_score,
+                          category, created_at, encrypted_data
                    FROM knowledge_base
-                   WHERE topic LIKE ? OR finding LIKE ?
+                   WHERE topic LIKE ?
                    ORDER BY relevance_score DESC, created_at DESC
                    LIMIT ?""",
-                (f"%{topic}%", f"%{topic}%", top_k),
+                (f"%{generic}%", fetch_limit),
             ).fetchall()
 
+            topic_lower = topic.lower()
             results = []
             for row in rows:
                 kb_id = row["id"]
@@ -128,15 +142,23 @@ class KnowledgeBase:
                 except Exception:
                     data = {}
 
+                # Match against decrypted topic and finding
+                dec_topic = (data.get("topic") or "").lower()
+                dec_finding = (data.get("finding") or "").lower()
+                if topic_lower not in dec_topic and topic_lower not in dec_finding:
+                    continue
+
                 results.append({
                     "id": kb_id,
-                    "topic": row["topic"],
-                    "finding": data.get("finding", row["finding"]),
-                    "source": row["source"],
+                    "topic": data.get("topic", row["topic"]),
+                    "finding": data.get("finding", ""),
+                    "source": data.get("source", row["source"]),
                     "relevance_score": row["relevance_score"],
                     "category": row["category"],
                     "created_at": row["created_at"],
                 })
+                if len(results) >= top_k:
+                    break
             return results
         except Exception as e:
             logger.debug("Knowledge base query failed: %s", e)
@@ -182,20 +204,42 @@ class KnowledgeBase:
     ) -> bool:
         """Check if a similar entry already exists (for dedup).
 
-        Uses SequenceMatcher on topic+finding against entries
-        with the same source. Returns True if a match is found.
+        Uses SequenceMatcher on topic+finding against decrypted entries
+        with the same source. Falls back to plaintext columns for
+        pre-migration rows. Returns True if a match is found.
         """
         from difflib import SequenceMatcher
 
         try:
             rows = self._db.conn.execute(
-                """SELECT topic, finding FROM knowledge_base
+                """SELECT id, topic, finding, encrypted_data
+                   FROM knowledge_base
                    WHERE source = ? LIMIT 200""",
                 (source,),
             ).fetchall()
             candidate = f"{topic}|{finding}".lower()
             for row in rows:
-                existing = f"{row['topic']}|{row['finding']}".lower()
+                # Prefer decrypted data; fall back to plaintext columns
+                dec_topic = ""
+                dec_finding = ""
+                kb_id = row.get("id", "") if hasattr(row, "get") else row["id"]
+                enc = row.get("encrypted_data") if hasattr(row, "get") else None
+                if enc and kb_id:
+                    aad = f"knowledge_base.encrypted_data.{kb_id}"
+                    try:
+                        data = self._db._decrypt(enc, aad)
+                        if isinstance(data, dict):
+                            dec_topic = data.get("topic", "")
+                            dec_finding = data.get("finding", "")
+                    except Exception:
+                        pass
+                if not dec_topic:
+                    t = row.get("topic", "") if hasattr(row, "get") else ""
+                    dec_topic = t or ""
+                if not dec_finding:
+                    f = row.get("finding", "") if hasattr(row, "get") else ""
+                    dec_finding = f or ""
+                existing = f"{dec_topic}|{dec_finding}".lower()
                 ratio = SequenceMatcher(None, candidate, existing).ratio()
                 if ratio >= threshold:
                     return True

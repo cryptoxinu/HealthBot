@@ -1,8 +1,13 @@
 """Audit report dataclasses and constants for vault security audit."""
 from __future__ import annotations
 
+import logging
 import re
+import sqlite3
 from dataclasses import dataclass, field
+from pathlib import Path
+
+logger = logging.getLogger("healthbot")
 
 # Allowlisted plaintext files that are safe in the vault directory.
 SAFE_PLAINTEXT: set[str] = {"manifest.json", "app.json"}
@@ -11,9 +16,8 @@ SAFE_PLAINTEXT_PREFIX: str = "healthbot.log"
 # Extensions considered normal in the vault tree.
 ALLOWED_EXTENSIONS: set[str] = {".enc", ".db", ".db-wal", ".db-shm", ".json", ".log", ".bak.enc"}
 
-# Tables whose rows contain an ``encrypted_data`` BLOB column that must be
-# properly AES-256-GCM formatted (minimum: 12-byte nonce + 16-byte tag = 28).
-ENCRYPTED_TABLES: list[str] = [
+# Fallback list of encrypted tables — used when introspection fails.
+_FALLBACK_ENCRYPTED_TABLES: list[str] = [
     "observations",
     "medications",
     "wearable_daily",
@@ -23,11 +27,62 @@ ENCRYPTED_TABLES: list[str] = [
     "documents",
 ]
 
+# Default export (for backward compatibility). Will be overridden at
+# runtime by discover_encrypted_tables() when a DB path is available.
+ENCRYPTED_TABLES: list[str] = list(_FALLBACK_ENCRYPTED_TABLES)
+
 # Column that holds the encrypted blob in each table.  ``documents`` uses a
 # different name (``meta_encrypted``), everything else uses ``encrypted_data``.
 ENCRYPTED_COLUMN: dict[str, str] = {
     "documents": "meta_encrypted",
 }
+
+
+def discover_encrypted_tables(db_path: Path) -> tuple[list[str], dict[str, str]]:
+    """Auto-discover tables with encrypted columns via PRAGMA introspection.
+
+    Returns (table_list, column_map) where column_map maps table names
+    to their encrypted column name when it differs from ``encrypted_data``.
+    Falls back to the hardcoded list if introspection fails.
+    """
+    try:
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    except sqlite3.OperationalError:
+        logger.debug("discover_encrypted_tables: cannot open %s", db_path)
+        return list(_FALLBACK_ENCRYPTED_TABLES), dict(ENCRYPTED_COLUMN)
+
+    tables: list[str] = []
+    col_map: dict[str, str] = {}
+    try:
+        # Get all table names
+        rows = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ).fetchall()
+        for (table_name,) in rows:
+            try:
+                cols = conn.execute(
+                    f"PRAGMA table_info({table_name})"  # noqa: S608
+                ).fetchall()
+            except sqlite3.OperationalError:
+                continue
+            col_names = [c[1] for c in cols]
+            if "encrypted_data" in col_names:
+                tables.append(table_name)
+            elif "meta_encrypted" in col_names:
+                tables.append(table_name)
+                col_map[table_name] = "meta_encrypted"
+            elif "encrypted_text" in col_names:
+                tables.append(table_name)
+                col_map[table_name] = "encrypted_text"
+    except Exception as exc:
+        logger.debug("discover_encrypted_tables introspection failed: %s", exc)
+        return list(_FALLBACK_ENCRYPTED_TABLES), dict(ENCRYPTED_COLUMN)
+    finally:
+        conn.close()
+
+    if not tables:
+        return list(_FALLBACK_ENCRYPTED_TABLES), dict(ENCRYPTED_COLUMN)
+    return tables, col_map
 
 # Patterns that indicate plaintext health data in a file.
 PLAINTEXT_PATTERNS: list[re.Pattern[str]] = [

@@ -57,7 +57,10 @@ class Anonymizer:
 
     # Canary token — a known fake SSN used to verify the pipeline works.
     # If this survives anonymization, the pipeline failed catastrophically.
-    _CANARY_SSN = "999-88-7777"
+    # Uses 078-05-1120 (a valid-format SSN in the detectable range, historically
+    # voided by SSA). Previous value 999-xx-xxxx was excluded by the regex's
+    # 900-999 area number filter.
+    _CANARY_SSN = "078-05-1120"
     _CANARY_TEXT = f"Patient SSN: {_CANARY_SSN}"
 
     _CACHE_MAX_SIZE = 500

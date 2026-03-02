@@ -187,10 +187,12 @@ class SubstanceResearcher:
     def _pubmed_search(self, name: str) -> list[dict]:
         """Search PubMed for peer-reviewed evidence."""
         try:
+            import asyncio
+
             from healthbot.research.pubmed_client import PubMedClient
-            client = PubMedClient()
-            articles = client.search(
-                f"{name} pharmacology mechanism", max_results=5,
+            client = PubMedClient(self._config, self._fw)
+            articles = asyncio.run(
+                client.search(f"{name} pharmacology mechanism", max_results=5),
             )
             return articles or []
         except Exception as e:

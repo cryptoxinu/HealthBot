@@ -138,10 +138,19 @@ class HealthDB(MemoryMixin):
     def insert_document(
         self, doc: Document, user_id: int = 0, commit: bool = True,
     ) -> str:
-        """Insert a document record."""
+        """Insert a document record.
+
+        The filename is stored inside meta_encrypted (not in the
+        plaintext ``filename`` column) to avoid leaking document
+        names on disk.
+        """
         doc_id = doc.id or uuid.uuid4().hex
         aad = f"documents.meta_encrypted.{doc_id}"
-        meta_enc = self._encrypt(doc.meta, aad) if doc.meta else None
+        # Merge filename into meta blob so it's encrypted
+        meta = dict(doc.meta) if doc.meta else {}
+        if doc.filename:
+            meta["filename"] = doc.filename
+        meta_enc = self._encrypt(meta, aad) if meta else None
         try:
             self.conn.execute(
                 """INSERT INTO documents (doc_id, source, sha256, received_at,
@@ -150,7 +159,7 @@ class HealthDB(MemoryMixin):
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (doc_id, doc.source, doc.sha256, self._now(),
                  doc.mime_type, doc.size_bytes, doc.page_count,
-                 doc.enc_blob_path, doc.filename, meta_enc, user_id),
+                 doc.enc_blob_path, '', meta_enc, user_id),
             )
         except Exception:
             # Fallback for pre-migration schema without user_id column
@@ -161,7 +170,7 @@ class HealthDB(MemoryMixin):
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (doc_id, doc.source, doc.sha256, self._now(),
                  doc.mime_type, doc.size_bytes, doc.page_count,
-                 doc.enc_blob_path, doc.filename, meta_enc),
+                 doc.enc_blob_path, '', meta_enc),
             )
         if commit:
             self.conn.commit()
@@ -294,6 +303,75 @@ class HealthDB(MemoryMixin):
             return self._decrypt(row["meta_encrypted"], aad)
         except Exception:
             return {}
+
+    def get_document_filename(self, doc_id: str) -> str:
+        """Return the filename for a document.
+
+        Prefers the encrypted ``meta_encrypted.filename`` field; falls
+        back to the legacy plaintext ``filename`` column for pre-migration
+        rows.
+        """
+        row = self.conn.execute(
+            "SELECT filename, meta_encrypted FROM documents WHERE doc_id = ?",
+            (doc_id,),
+        ).fetchone()
+        if not row:
+            return ""
+        # Try encrypted meta first
+        if row["meta_encrypted"]:
+            aad = f"documents.meta_encrypted.{doc_id}"
+            try:
+                meta = self._decrypt(row["meta_encrypted"], aad)
+                if isinstance(meta, dict) and meta.get("filename"):
+                    return meta["filename"]
+            except Exception:
+                pass
+        # Fallback to legacy plaintext column
+        return row["filename"] or ""
+
+    def migrate_document_filenames(self) -> int:
+        """Migrate plaintext filename column into meta_encrypted.
+
+        Call after vault unlock. Returns number of rows migrated.
+        """
+        rows = self.conn.execute(
+            "SELECT doc_id, filename, meta_encrypted FROM documents"
+            " WHERE filename IS NOT NULL AND filename != ''",
+        ).fetchall()
+        migrated = 0
+        for r in rows:
+            doc_id = r["doc_id"]
+            fname = r["filename"]
+            aad = f"documents.meta_encrypted.{doc_id}"
+            # Decrypt existing meta or start fresh
+            meta: dict = {}
+            if r["meta_encrypted"]:
+                try:
+                    meta = self._decrypt(r["meta_encrypted"], aad)
+                    if not isinstance(meta, dict):
+                        meta = {}
+                except Exception:
+                    meta = {}
+            if meta.get("filename"):
+                # Already has filename in encrypted meta — just blank the column
+                self.conn.execute(
+                    "UPDATE documents SET filename = '' WHERE doc_id = ?",
+                    (doc_id,),
+                )
+                migrated += 1
+                continue
+            meta["filename"] = fname
+            meta_enc = self._encrypt(meta, aad)
+            self.conn.execute(
+                "UPDATE documents SET filename = '', meta_encrypted = ?"
+                " WHERE doc_id = ?",
+                (meta_enc, doc_id),
+            )
+            migrated += 1
+        if migrated:
+            self.conn.commit()
+            logger.info("Migrated %d document filenames to meta_encrypted", migrated)
+        return migrated
 
     def update_document_meta(
         self, doc_id: str, meta: dict, commit: bool = True,
@@ -1177,22 +1255,102 @@ class HealthDB(MemoryMixin):
         date_effective: str | None, text: str,
         commit: bool = True,
     ) -> None:
-        """Update the search index text for a record."""
-        self.conn.execute(
-            """INSERT OR REPLACE INTO search_index
-               (doc_id, record_type, date_effective, text_for_search)
-               VALUES (?, ?, ?, ?)""",
-            (doc_id, record_type, date_effective, text),
-        )
+        """Update the search index text for a record.
+
+        Encrypts text into ``encrypted_text`` and writes NULL to the
+        legacy ``text_for_search`` column to avoid plaintext storage.
+        """
+        aad = f"search_index.encrypted_text.{doc_id}"
+        enc_text = self._encrypt(text, aad)
+        try:
+            self.conn.execute(
+                """INSERT OR REPLACE INTO search_index
+                   (doc_id, record_type, date_effective, text_for_search,
+                    encrypted_text)
+                   VALUES (?, ?, ?, NULL, ?)""",
+                (doc_id, record_type, date_effective, enc_text),
+            )
+        except Exception:
+            # Fallback for pre-migration schema without encrypted_text column
+            self.conn.execute(
+                """INSERT OR REPLACE INTO search_index
+                   (doc_id, record_type, date_effective, text_for_search)
+                   VALUES (?, ?, ?, ?)""",
+                (doc_id, record_type, date_effective, text),
+            )
         if commit:
             self.conn.commit()
 
     def get_all_search_texts(self) -> list[tuple[str, str, str]]:
-        """Return (doc_id, record_type, text) for all indexed records."""
-        rows = self.conn.execute(
-            "SELECT doc_id, record_type, text_for_search FROM search_index"
-        ).fetchall()
-        return [(r["doc_id"], r["record_type"], r["text_for_search"]) for r in rows]
+        """Return (doc_id, record_type, text) for all indexed records.
+
+        Prefers decrypted ``encrypted_text``; falls back to legacy
+        ``text_for_search`` for pre-migration rows.
+        """
+        try:
+            rows = self.conn.execute(
+                "SELECT doc_id, record_type, text_for_search, encrypted_text"
+                " FROM search_index",
+            ).fetchall()
+        except Exception:
+            # Pre-migration: encrypted_text column doesn't exist yet
+            rows = self.conn.execute(
+                "SELECT doc_id, record_type, text_for_search FROM search_index",
+            ).fetchall()
+            return [
+                (r["doc_id"], r["record_type"], r["text_for_search"] or "")
+                for r in rows
+            ]
+
+        results: list[tuple[str, str, str]] = []
+        for r in rows:
+            doc_id = r["doc_id"]
+            enc_blob = r["encrypted_text"]
+            if enc_blob:
+                aad = f"search_index.encrypted_text.{doc_id}"
+                try:
+                    data = self._decrypt(enc_blob, aad)
+                    text = data if isinstance(data, str) else str(data)
+                except Exception:
+                    text = r["text_for_search"] or ""
+            else:
+                text = r["text_for_search"] or ""
+            results.append((doc_id, r["record_type"], text))
+        return results
+
+    def migrate_search_index_encryption(self) -> int:
+        """Migrate existing plaintext search_index rows to encrypted_text.
+
+        Call after vault unlock. Returns number of rows migrated.
+        """
+        migrated = 0
+        try:
+            rows = self.conn.execute(
+                "SELECT doc_id, text_for_search FROM search_index"
+                " WHERE text_for_search IS NOT NULL"
+                " AND text_for_search != ''"
+                " AND (encrypted_text IS NULL)",
+            ).fetchall()
+        except Exception:
+            return 0
+
+        for r in rows:
+            doc_id = r["doc_id"]
+            text = r["text_for_search"]
+            if not text:
+                continue
+            aad = f"search_index.encrypted_text.{doc_id}"
+            enc_text = self._encrypt(text, aad)
+            self.conn.execute(
+                "UPDATE search_index SET encrypted_text = ?, text_for_search = NULL"
+                " WHERE doc_id = ?",
+                (enc_text, doc_id),
+            )
+            migrated += 1
+        if migrated:
+            self.conn.commit()
+            logger.info("Migrated %d search_index rows to encrypted_text", migrated)
+        return migrated
 
     # --- Providers ---
 

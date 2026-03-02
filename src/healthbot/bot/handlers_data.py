@@ -1584,7 +1584,10 @@ class DataHandlers:
             try:
                 import io
                 pdf_bytes = vault.retrieve_blob(blob_id)
-                fname = doc["filename"] or f"document_{doc['received_at'][:10]}.pdf"
+                fname = (
+                    db.get_document_filename(doc["doc_id"])
+                    or f"document_{doc['received_at'][:10]}.pdf"
+                )
                 buf = io.BytesIO(pdf_bytes)
                 buf.name = fname
                 await update.message.reply_document(document=buf)
@@ -1596,7 +1599,7 @@ class DataHandlers:
         # /docs — list all
         lines = ["Uploaded Documents:", ""]
         for i, doc in enumerate(docs, 1):
-            fname = doc["filename"] or "untitled"
+            fname = db.get_document_filename(doc["doc_id"]) or "untitled"
             size_kb = (doc.get("size_bytes") or 0) / 1024
             date = (doc["received_at"] or "")[:10]
             src = doc["source"].replace("_", " ")

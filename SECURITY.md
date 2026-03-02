@@ -10,7 +10,7 @@
 5. **Malicious PDF ingestion** — PDF safety validation (JS/Launch/encrypted rejection)
 6. **Ciphertext manipulation** — AEAD (AES-256-GCM) with per-field AAD
 7. **Unauthorized Telegram access** — User ID allowlist + rate limiting
-8. **Key exposure on disk** — Keys never written to files; passphrase-derived only
+8. **Key exposure on disk** — Keys never written to files; passphrase-derived only. Note: MCP auto-unlock optionally accepts `HEALTHBOT_PASSPHRASE` as an env var for unattended startup (user-initiated, not stored by HealthBot).
 9. **Session hijacking** — 30-minute auto-lock, key zeroing, on_lock consolidation
 
 ### What We Do NOT Protect Against

@@ -81,7 +81,8 @@ YOU (Telegram)
  │              Anonymized prompt only ──────► Claude CLI       │
  │              (no names, SSN, DOB, etc)     (cloud, safe)    │
  │                                                             │
- └─ /commands (103 total) ──► 100% local, no AI ───────────────┘
+ └─ /commands (103 total) ──► 100% local, no AI* ──────────────┘
+ *except /deep and /research_cloud which use Claude CLI (anonymized)
 ```
 
 **The key guarantee**: Your identifiable medical data (names, SSN, DOB, addresses) is NEVER sent to any cloud service. PDFs are parsed with regex — no AI touches the raw file. Claude only sees anonymized summaries from the Clean DB.

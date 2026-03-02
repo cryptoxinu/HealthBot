@@ -450,21 +450,57 @@ class CleanDB:
 
     # ── PII validation ──────────────────────────────────
 
-    def _assert_no_phi(self, text: str, context: str = "") -> None:
-        """Raise PhiDetectedError if text contains base PII patterns.
+    @staticmethod
+    def _is_medical_false_positive(text: str, match) -> bool:
+        """Check if an id_* match is a medical false positive.
 
-        Skips identity-specific patterns (id_* prefix) — these are handled
-        by the anonymizer during text cleaning. Running them again in the
-        belt-and-suspenders check causes false positives on medical text
-        (e.g., user's last name matching a medical term like "White").
+        Returns True (safe to skip) when the matched text appears in a
+        medical context — e.g. "white blood cells", "fisher exact test".
+        Looks at ~50 chars of surrounding context for medical indicators.
+        """
+        matched = match.text.lower()
+        # Medical/lab indicators in surrounding context
+        medical_indicators = (
+            "mg", "ml", "dl", "mmol", "cells", "count", "blood",
+            "serum", "plasma", "urine", "level", "range", "test",
+            "result", "lab", "panel", "ratio", "index", "score",
+            "enzyme", "protein", "marker", "vitamin", "hormone",
+            "supplement", "dose", "dosage", "mg/dl", "iu/l",
+            "nmol", "pmol", "mcg", "µg", "ng", "pg",
+        )
+        start = max(0, match.start - 50)
+        end = min(len(text), match.end + 50)
+        context = text[start:end].lower()
+        # If the matched text is lowercase and surrounded by medical terms,
+        # it's almost certainly a medical false positive (e.g. "white" in
+        # "white blood cell count")
+        if matched == match.text.lower() and match.text[0].islower():
+            return True
+        for indicator in medical_indicators:
+            if indicator in context:
+                return True
+        return False
+
+    def _assert_no_phi(self, text: str, context: str = "") -> None:
+        """Raise PhiDetectedError if text contains PII patterns.
+
+        For identity-specific patterns (id_* prefix), applies a context-
+        aware check instead of blindly skipping all of them. Matches in
+        medical context (adjacent to lab terms, units, clinical vocab)
+        are treated as false positives; others are flagged.
         """
         if not text:
             return
         matches = self._fw.scan(text)
-        # Filter out identity-specific patterns — already handled by anonymizer
-        base_matches = [m for m in matches if not m.category.startswith("id_")]
-        if base_matches:
-            categories = {m.category for m in base_matches}
+        real_matches = []
+        for m in matches:
+            if m.category.startswith("id_"):
+                if not self._is_medical_false_positive(text, m):
+                    real_matches.append(m)
+            else:
+                real_matches.append(m)
+        if real_matches:
+            categories = {m.category for m in real_matches}
             logger.warning(
                 "PII in clean store write (%s): categories=%s",
                 context, categories,

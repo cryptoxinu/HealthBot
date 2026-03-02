@@ -11,13 +11,12 @@ import sqlite3
 from healthbot.config import Config
 from healthbot.security.audit_report import (
     ALLOWED_EXTENSIONS,
-    ENCRYPTED_COLUMN,
-    ENCRYPTED_TABLES,
     PLAINTEXT_PATTERNS,
     SAFE_PLAINTEXT,
     SAFE_PLAINTEXT_PREFIX,
     AuditFinding,
     AuditReport,
+    discover_encrypted_tables,
 )
 from healthbot.security.phi_firewall import PhiFirewall
 
@@ -157,7 +156,11 @@ class VaultAuditor:
     # ------------------------------------------------------------------
 
     def _check_db_encryption(self) -> list[AuditFinding]:
-        """Sample rows from encrypted tables; detect plaintext JSON."""
+        """Sample rows from encrypted tables; detect plaintext JSON.
+
+        Uses PRAGMA introspection to auto-discover all tables with
+        encrypted columns, falling back to the hardcoded list on failure.
+        """
         findings: list[AuditFinding] = []
         db_path = self._config.db_path
 
@@ -168,6 +171,9 @@ class VaultAuditor:
                 details="Database does not exist (nothing to audit)",
             ))
             return findings
+
+        # Auto-discover encrypted tables
+        tables, col_map = discover_encrypted_tables(db_path)
 
         problem_found = False
         try:
@@ -181,8 +187,8 @@ class VaultAuditor:
             return findings
 
         try:
-            for table in ENCRYPTED_TABLES:
-                col = ENCRYPTED_COLUMN.get(table, "encrypted_data")
+            for table in tables:
+                col = col_map.get(table, "encrypted_data")
                 try:
                     rows = conn.execute(
                         f"SELECT {col} FROM {table} LIMIT 50"  # noqa: S608
@@ -229,7 +235,8 @@ class VaultAuditor:
             findings.append(AuditFinding(
                 check_name="db_encryption",
                 status="PASS",
-                details="All sampled DB fields appear properly encrypted",
+                details=f"All sampled DB fields appear properly encrypted "
+                        f"({len(tables)} tables checked)",
             ))
         return findings
 
