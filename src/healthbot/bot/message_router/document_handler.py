@@ -92,6 +92,11 @@ class DocumentMixin:
         user_id = update.effective_user.id if update.effective_user else 0
         doc = update.message.document
 
+        # Knowledge import: .json or .enc files
+        if doc.file_name and doc.file_name.lower().endswith((".json", ".enc")):
+            await self._handle_knowledge_import(update, context, user_id)
+            return
+
         # ZIP files: detect contents and route
         if doc.file_name and doc.file_name.lower().endswith(".zip"):
             await self._handle_zip_upload(update, context)
@@ -642,6 +647,72 @@ class DocumentMixin:
             importer.import_fhir_bundle(json_bytes)
         except Exception as e:
             logger.debug("JSON import skipped (not FHIR): %s", e)
+
+    async def _handle_knowledge_import(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE,
+        user_id: int,
+    ) -> None:
+        """Handle uploaded .json or .enc files for knowledge import."""
+        import asyncio
+
+        doc = update.message.document
+        fname = (doc.file_name or "").lower()
+
+        try:
+            file = await context.bot.get_file(doc.file_id)
+            file_bytes = bytes(await file.download_as_bytearray())
+        except Exception as e:
+            logger.error("Knowledge import download error: %s", e)
+            await update.message.reply_text("Failed to download file.")
+            return
+
+        if fname.endswith(".enc"):
+            # Encrypted: stash bytes and ask for password
+            self._awaiting_import_password[user_id] = file_bytes
+            await update.message.reply_text(
+                "Encrypted knowledge export detected.\n"
+                "Send the password to decrypt and import.\n"
+                "(Your password message will be deleted for security.)"
+            )
+            return
+
+        # .json: check if it's a knowledge export
+        from healthbot.ingest.knowledge_import import is_knowledge_export
+
+        if not is_knowledge_export(file_bytes):
+            # Not a knowledge export — fall through to existing FHIR/JSON handling
+            self._ingest_json_from_zip(file_bytes)
+            await update.message.reply_text(
+                "JSON file processed (tried FHIR import)."
+            )
+            return
+
+        # Plain JSON knowledge import
+        await update.message.reply_text("Knowledge export detected. Importing...")
+        try:
+            from healthbot.ingest.knowledge_import import KnowledgeImporter
+
+            db = self._get_db()
+            importer = KnowledgeImporter(
+                db=db,
+                config=self._config,
+                key_manager=self._km,
+                phi_firewall=self._fw,
+            )
+            report = await asyncio.to_thread(
+                importer.import_bytes, file_bytes, user_id,
+            )
+            if report.errors and report.total_imported == 0:
+                await update.message.reply_text(
+                    "Import failed: " + "; ".join(report.errors)
+                )
+            else:
+                await update.message.reply_text(report.summary())
+        except Exception as e:
+            logger.error("Knowledge import error: %s", e)
+            await update.message.reply_text(
+                f"Knowledge import failed: {type(e).__name__}"
+            )
 
     async def _handle_date_reply(
         self, update: Update, user_id: int,

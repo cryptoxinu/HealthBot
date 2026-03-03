@@ -148,6 +148,78 @@ class ExportMixin:
             logger.error("AI export error: %s", e)
             await update.message.reply_text(f"Export failed: {type(e).__name__}")
 
+    # ── Knowledge export ───────────────────────────────────────────
+
+    @require_unlocked
+    async def export_knowledge(
+        self, update: Update, context: ContextTypes.DEFAULT_TYPE,
+    ) -> None:
+        """Handle /export_knowledge — export accumulated knowledge as JSON.
+
+        Usage:
+            /export_knowledge              → plain JSON, PII-stripped
+            /export_knowledge password X   → encrypted with password X
+        """
+        args = context.args or []
+        password = None
+        mode = "plain"
+
+        if len(args) >= 2 and args[0].lower() == "password":
+            password = " ".join(args[1:])
+            mode = "encrypted"
+
+        await update.message.reply_text("Exporting knowledge stores...")
+        try:
+            async with TypingIndicator(update.effective_chat):
+                import asyncio
+                import io
+
+                from healthbot.export.knowledge_export import KnowledgeExporter
+
+                db = self._core._get_db()
+                uid = update.effective_user.id
+                exporter = KnowledgeExporter(
+                    db=db,
+                    config=self._core._config,
+                    key_manager=self._core._km,
+                    phi_firewall=self._core._fw,
+                )
+                file_bytes, counts = await asyncio.to_thread(
+                    exporter.export_all, uid, mode, password,
+                )
+
+                # Build summary
+                parts = []
+                for store, count in counts.items():
+                    if count:
+                        label = store.replace("_", " ")
+                        parts.append(f"{count} {label}")
+
+                total = sum(counts.values())
+                summary = ", ".join(parts) if parts else "no records"
+
+                if mode == "encrypted":
+                    fname = "knowledge_export.enc"
+                else:
+                    fname = "knowledge_export.json"
+
+                doc = io.BytesIO(file_bytes)
+                doc.name = fname
+                await update.message.reply_document(document=doc)
+
+                msg = f"Knowledge export complete ({total} records: {summary})."
+                if mode == "plain":
+                    msg += "\nPII has been redacted from all text fields."
+                else:
+                    msg += "\nEncrypted with your password. Keep it safe."
+                await update.message.reply_text(msg)
+
+        except Exception as e:
+            logger.error("Knowledge export error: %s", e)
+            await update.message.reply_text(
+                f"Knowledge export failed: {type(e).__name__}"
+            )
+
     # ── Document retrieval ──────────────────────────────────────────
 
     @require_unlocked

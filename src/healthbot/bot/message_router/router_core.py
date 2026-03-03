@@ -66,6 +66,8 @@ class MessageRouter(
         self._track_msg_cb: callable | None = None  # (chat_id, msg_id) for wipe tracking
         self._last_user_input: str = ""
         self._last_bot_response: str = ""
+        # Knowledge import: user_id -> encrypted file bytes awaiting password
+        self._awaiting_import_password: dict[int, bytes] = {}
         self._post_ingest_cb: callable | None = None  # targeted analysis
         self._post_ingest_sync_cb: callable | None = None  # clean sync
         # Pending date reply: user_id -> blob_id of undated results
@@ -233,6 +235,19 @@ class MessageRouter(
             if handled:
                 return
 
+        # Knowledge import password interception
+        if (
+            update.message.text
+            and user_id in self._awaiting_import_password
+        ):
+            password = update.message.text
+            try:
+                await update.message.delete()
+            except Exception:
+                pass
+            await self._handle_import_password(update, user_id, password)
+            return
+
         # Reset/delete confirmation interception
         if (
             self._reset_handlers
@@ -303,10 +318,47 @@ class MessageRouter(
         if update.message.text and not self._km.is_unlocked:
             await update.message.reply_text("Vault is locked. Send /unlock first.")
 
+    async def _handle_import_password(
+        self, update: Update, user_id: int, password: str,
+    ) -> None:
+        """Decrypt and import a knowledge export using the provided password."""
+        enc_bytes = self._awaiting_import_password.pop(user_id, None)
+        if not enc_bytes:
+            await update.message.reply_text("No pending import. Upload a file first.")
+            return
+
+        try:
+            import asyncio
+
+            from healthbot.ingest.knowledge_import import KnowledgeImporter
+
+            db = self._get_db()
+            importer = KnowledgeImporter(
+                db=db,
+                config=self._config,
+                key_manager=self._km,
+                phi_firewall=self._fw,
+            )
+            report = await asyncio.to_thread(
+                importer.import_bytes, enc_bytes, user_id, password,
+            )
+            if report.errors and report.total_imported == 0:
+                await update.message.reply_text(
+                    "Import failed: " + "; ".join(report.errors)
+                )
+            else:
+                await update.message.reply_text(report.summary())
+        except Exception as e:
+            logger.error("Knowledge import (encrypted) error: %s", e)
+            await update.message.reply_text(
+                f"Import failed: {type(e).__name__}"
+            )
+
     def on_vault_lock(self) -> None:
         """Clear state on vault lock (security invariant)."""
         self._awaiting_passphrase.clear()
         self._awaiting_onboard_consent.clear()
+        self._awaiting_import_password.clear()
         self.upload_mode = False
         self._upload_count_cb = None
         if self._onboard_handlers:

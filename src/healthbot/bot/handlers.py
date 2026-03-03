@@ -71,7 +71,8 @@ class Handlers:
         "savedmessages": "_session",
         "apple_sync": "_data", "import_health": "_data",
         "import_mychart": "_data", "export_fhir": "_data",
-        "ai_export": "_data", "rescan": "_data", "docs": "_data",
+        "ai_export": "_data", "export_knowledge": "_data",
+        "rescan": "_data", "docs": "_data",
         "import_fasten": "_data", "scrub_pii": "_data", "cleansync": "_data",
         "debug": "_data", "genetics": "_data",
     }

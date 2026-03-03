@@ -247,6 +247,7 @@ def create_application(
     app.add_handler(CommandHandler("apple_sync", handlers.apple_sync))
     app.add_handler(CommandHandler("export", handlers.export_fhir))
     app.add_handler(CommandHandler("ai_export", handlers.ai_export))
+    app.add_handler(CommandHandler("export_knowledge", handlers.export_knowledge))
     app.add_handler(CommandHandler("refresh", handlers.refresh))
     app.add_handler(CommandHandler("claude_auth", handlers.claude_auth))
     app.add_handler(CommandHandler("auth_status", handlers.auth_status))
