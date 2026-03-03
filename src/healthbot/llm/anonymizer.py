@@ -233,7 +233,8 @@ class Anonymizer:
                     pass
             return []
 
-    def _heuristic_name_scan(self, text: str) -> list[str]:
+    @classmethod
+    def _heuristic_name_scan(cls, text: str) -> list[str]:
         """Detect likely person names via Title Case word pairs.
 
         Fallback for when NER is unavailable. Filters out:
@@ -253,17 +254,17 @@ class Anonymizer:
             ignore_texts: set[str] = set()
 
         suspects: list[str] = []
-        for m in self._CAPITALIZED_PAIR.finditer(text):
+        for m in cls._CAPITALIZED_PAIR.finditer(text):
             first, second = m.group(1), m.group(2)
             full = f"{first} {second}"
 
             # Skip common Title Case header/document words
-            if (first in self._COMMON_TITLE_WORDS
-                    or second in self._COMMON_TITLE_WORDS):
+            if (first in cls._COMMON_TITLE_WORDS
+                    or second in cls._COMMON_TITLE_WORDS):
                 continue
 
             # Skip medical eponyms
-            if first in self._MEDICAL_EPONYMS or second in self._MEDICAL_EPONYMS:
+            if first in cls._MEDICAL_EPONYMS or second in cls._MEDICAL_EPONYMS:
                 continue
 
             # Skip known medical terms
@@ -280,7 +281,7 @@ class Anonymizer:
             start = max(0, m.start() - 50)
             end = min(len(text), m.end() + 50)
             window = text[start:end]
-            if self._MEDICAL_CONTEXT.search(window):
+            if cls._MEDICAL_CONTEXT.search(window):
                 continue
 
             suspects.append(full)
@@ -741,3 +742,13 @@ class Anonymizer:
                 merged.append((start, end, tag))
 
         return merged
+
+
+def heuristic_name_scan(text: str) -> list[str]:
+    """Standalone heuristic name detector for use as a callback.
+
+    Thin wrapper around Anonymizer._heuristic_name_scan.
+    Matches the Callable[[str], list[str]] signature expected by
+    build_research_packet().
+    """
+    return Anonymizer._heuristic_name_scan(text)

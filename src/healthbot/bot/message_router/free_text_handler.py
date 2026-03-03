@@ -212,9 +212,10 @@ class FreeTextMixin:
         """Route technical questions to Claude CLI for debugging.
 
         Pulls recent errors from the error buffer, builds a debug prompt
-        (no PHI), and calls Claude CLI with read-only diagnostic access
-        (can read source code and search the web, but cannot edit files
-        or run commands).
+        (no PHI), and calls Claude CLI with full code access (Read, Edit,
+        Bash, Write, Glob, Grep, WebSearch, WebFetch) so it can diagnose
+        AND fix issues. Health data stays safe — it lives in the encrypted
+        database, not in source code.
         """
         await update.message.reply_text("Looking into it...")
 

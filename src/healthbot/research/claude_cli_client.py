@@ -15,8 +15,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from healthbot.config import Config
+from healthbot.llm.anonymizer import heuristic_name_scan
 from healthbot.llm.claude_client import (
     _CLAUDE_SEMAPHORE,
+    _EVOLUTION_TOOL_FLAGS,
     _FIX_TOOL_FLAGS,
     _PRIVACY_FLAGS,
     _PRIVACY_PREAMBLE,
@@ -66,7 +68,10 @@ class ClaudeCLIResearchClient:
         3. Check response for PHI leakage
         4. Cache by query_hash
         """
-        packet = build_research_packet(query, context, self._firewall)
+        packet = build_research_packet(
+            query, context, self._firewall,
+            heuristic_name_check=heuristic_name_scan,
+        )
 
         if packet.blocked:
             return f"Research blocked: {packet.block_reason}"
@@ -256,6 +261,47 @@ class ClaudeCLIResearchClient:
                 error="Claude CLI not found or not authenticated.",
             )
 
+        # ── PHI gate on inputs ──────────────────────────────
+        # Hard-block if data_type itself contains PHI
+        if self._firewall.contains_phi(data_type):
+            from healthbot.security.pii_alert import PiiAlertService
+            PiiAlertService.get_instance().record(
+                category="PHI_in_schema_evolution",
+                destination="claude_cli",
+            )
+            return SchemaEvolutionResult(
+                success=False,
+                data_type=data_type,
+                summary="PHI in data_type",
+                error="PHI detected in data_type — evolution blocked.",
+            )
+        # Redact reason if PHI detected
+        if self._firewall.contains_phi(reason):
+            from healthbot.security.pii_alert import PiiAlertService
+            PiiAlertService.get_instance().record(
+                category="PHI_in_schema_evolution",
+                destination="claude_cli",
+            )
+            reason = self._firewall.redact(reason)
+        # Drop sample_data entirely if PHI detected (too risky to redact structured data)
+        if sample_data and self._firewall.contains_phi(str(sample_data)):
+            from healthbot.security.pii_alert import PiiAlertService
+            PiiAlertService.get_instance().record(
+                category="PHI_in_schema_evolution",
+                destination="claude_cli",
+            )
+            sample_data = None
+        # Redact field description values if PHI detected
+        for f in fields:
+            desc = f.get("description", "")
+            if desc and self._firewall.contains_phi(desc):
+                from healthbot.security.pii_alert import PiiAlertService
+                PiiAlertService.get_instance().record(
+                    category="PHI_in_schema_evolution",
+                    destination="claude_cli",
+                )
+                f["description"] = self._firewall.redact(desc)
+
         from healthbot.research.schema_evolution_prompt import build_evolution_prompt
         prompt = build_evolution_prompt(data_type, fields, reason, sample_data)
 
@@ -276,9 +322,11 @@ class ClaudeCLIResearchClient:
                 payload_hash, data_type,
             )
 
+            vault_dir = str(Path.home() / ".healthbot")
             result = subprocess.run(
                 [str(self._cli_path), "--print", "--model", "claude-opus-4-6",
-                 *_PRIVACY_FLAGS, *_FIX_TOOL_FLAGS],
+                 *_PRIVACY_FLAGS, *_EVOLUTION_TOOL_FLAGS,
+                 "--deny-dir", vault_dir],
                 input=prompt,
                 capture_output=True,
                 text=True,
@@ -312,6 +360,11 @@ class ClaudeCLIResearchClient:
             )
 
         response = result.stdout.strip()
+
+        # Check response for PHI leakage (matches research() and debug() pattern)
+        if self._firewall.contains_phi(response):
+            response = self._firewall.redact(response)
+
         return self._parse_evolution_result(data_type, response)
 
     @staticmethod

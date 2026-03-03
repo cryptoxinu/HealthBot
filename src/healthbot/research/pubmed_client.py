@@ -15,6 +15,7 @@ import defusedxml.ElementTree as ET  # noqa: N817
 import httpx
 
 from healthbot.config import Config
+from healthbot.llm.anonymizer import heuristic_name_scan
 from healthbot.research.research_packet import build_research_packet
 from healthbot.security.phi_firewall import PhiFirewall
 
@@ -77,7 +78,10 @@ class PubMedClient:
             return []
         if max_results is None:
             max_results = self._config.pubmed_max_results
-        packet = build_research_packet(query, firewall=self._firewall)
+        packet = build_research_packet(
+            query, firewall=self._firewall,
+            heuristic_name_check=heuristic_name_scan,
+        )
         if packet.blocked:
             return []
 
