@@ -142,9 +142,15 @@ class HandlerCore:
             if NerLayer.is_available():
                 lines.append("  GLiNER NER:  OK")
             else:
-                lines.append("  GLiNER NER:  NOT INSTALLED")
+                lines.append(
+                    "  GLiNER NER:  NOT INSTALLED — unlabeled names "
+                    "NOT detected (run: make setup-nlp)"
+                )
         except Exception:
-            lines.append("  GLiNER NER:  NOT INSTALLED")
+            lines.append(
+                "  GLiNER NER:  NOT INSTALLED — unlabeled names "
+                "NOT detected (run: make setup-nlp)"
+            )
 
         # Wearables (check Keychain for credentials)
         try:

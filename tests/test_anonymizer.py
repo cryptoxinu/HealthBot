@@ -230,3 +230,143 @@ class TestAnonymizePhased:
         cleaned, spans = anon.anonymize_phased(text)
         assert cleaned == text
         assert spans == []
+
+
+class TestHeuristicNameScan:
+    """Test heuristic Title Case name detection (A1)."""
+
+    def setup_method(self):
+        self.anon = _make_anon()
+
+    def test_detects_plain_name(self):
+        suspects = self.anon._heuristic_name_scan("Sarah Johnson called today")
+        assert "Sarah Johnson" in suspects
+
+    def test_ignores_medical_eponyms(self):
+        suspects = self.anon._heuristic_name_scan(
+            "Patient has Graves Disease with high cortisol"
+        )
+        assert not suspects
+
+    def test_ignores_hashimoto(self):
+        suspects = self.anon._heuristic_name_scan(
+            "Hashimoto Thyroiditis confirmed"
+        )
+        assert not suspects
+
+    def test_ignores_near_medical_context(self):
+        suspects = self.anon._heuristic_name_scan(
+            "The Bell Palsy diagnosis was confirmed"
+        )
+        assert not suspects
+
+    def test_multiple_names(self):
+        suspects = self.anon._heuristic_name_scan(
+            "Meeting with Sarah Johnson and Michael Smith tomorrow"
+        )
+        assert len(suspects) == 2
+        assert "Sarah Johnson" in suspects
+        assert "Michael Smith" in suspects
+
+    def test_empty_text(self):
+        suspects = self.anon._heuristic_name_scan("")
+        assert suspects == []
+
+    def test_no_title_case(self):
+        suspects = self.anon._heuristic_name_scan("all lowercase text here")
+        assert suspects == []
+
+
+class TestAnonymizeHeuristicStripping:
+    """Test anonymize() strips heuristic-detected names when NER unavailable."""
+
+    def test_strips_unlabeled_name(self):
+        anon = _make_anon(use_ner=False)
+        text = "Sees Anderson for cardiology checkups"
+        cleaned, had_phi = anon.anonymize(text)
+        assert "Anderson" not in cleaned
+        assert had_phi is True
+
+    def test_preserves_medical_text(self):
+        anon = _make_anon(use_ner=False)
+        text = "glucose 108 mg/dL within normal range"
+        cleaned, had_phi = anon.anonymize(text)
+        assert had_phi is False
+        assert "108" in cleaned
+
+
+class TestAssertSafeHeuristicFallback:
+    """Test assert_safe() uses heuristic when NER unavailable (A2)."""
+
+    def test_blocks_name_without_ner(self):
+        anon = _make_anon(use_ner=False)
+        with pytest.raises(AnonymizationError, match="heuristic_name"):
+            anon.assert_safe("Sarah Johnson called about results")
+
+    def test_allows_medical_text_without_ner(self):
+        anon = _make_anon(use_ner=False)
+        # Should NOT raise — Graves Disease is a medical eponym
+        anon.assert_safe("Graves Disease with high cortisol levels")
+
+    def test_allows_clean_text_without_ner(self):
+        anon = _make_anon(use_ner=False)
+        anon.assert_safe("glucose 108 mg/dL within normal range")
+
+
+class TestNerCircuitBreaker:
+    """Test NER circuit breaker (A3)."""
+
+    def test_disables_ner_after_failures(self):
+        anon = _make_anon(use_ner=False)
+        # Simulate having NER that fails
+        mock_ner = MagicMock()
+        mock_ner.detect.side_effect = RuntimeError("NER crashed")
+        anon._ner = mock_ner
+        anon._ner_was_available = True
+
+        assert anon.has_ner is True
+
+        # Call 3 times — should trip circuit breaker
+        for _ in range(3):
+            result = anon._ner_call_safe("test text")
+            assert result == []
+
+        assert anon.has_ner is False
+        assert anon._ner is None
+
+    def test_resets_on_success(self):
+        anon = _make_anon(use_ner=False)
+        mock_ner = MagicMock()
+        # Fail twice, then succeed
+        mock_ner.detect.side_effect = [
+            RuntimeError("fail"),
+            RuntimeError("fail"),
+            [MagicMock(label="person", text="Test", start=0, end=4, score=0.9)],
+        ]
+        anon._ner = mock_ner
+        anon._ner_call_safe("test")
+        anon._ner_call_safe("test")
+        assert anon._ner_failure_count == 2
+        anon._ner_call_safe("test")
+        assert anon._ner_failure_count == 0
+        assert anon.has_ner is True
+
+
+class TestIsUncertainNerAvailable:
+    """Test _is_uncertain with ner_available param (A4)."""
+
+    def test_long_text_uncertain_without_ner(self):
+        from healthbot.data.clean_sync import _is_uncertain
+        long_text = "A" * 100
+        assert _is_uncertain(long_text, [], ner_available=False) is True
+
+    def test_short_text_ok_without_ner(self):
+        from healthbot.data.clean_sync import _is_uncertain
+        assert _is_uncertain("short", [], ner_available=False) is False
+
+    def test_long_text_ok_with_ner_and_no_spans(self):
+        from healthbot.data.clean_sync import _is_uncertain
+        long_text = "A" * 100
+        # With NER available, long text with no spans is uncertain
+        # (condition c) — this tests the existing behavior
+        assert _is_uncertain(long_text, [], ner_available=True) is True

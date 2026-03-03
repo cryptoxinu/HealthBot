@@ -183,7 +183,49 @@ class AiExporter:
             "genetics": build_genetics(db, user_id, report),
             "health_context": build_health_context(db, user_id, report, self._anon),
             "journal": build_journal(db, user_id, report, self._anon),
+            "schema_evolution": self._section_schema_evolution(),
         }
+
+    def _section_schema_evolution(self) -> str:
+        """Schema evolution history — what tables Claude created autonomously."""
+        try:
+            from healthbot.data.clean_db import CleanDB
+            km = self._km
+            if not km:
+                return ""
+            config = getattr(self._db, "_config", None)
+            if not config:
+                return ""
+            clean_path = getattr(config, "clean_db_path", None)
+            if not clean_path or not clean_path.exists():
+                return ""
+            clean = CleanDB(clean_path, phi_firewall=self._fw)
+            clean.open(clean_key=km.get_clean_key())
+            try:
+                events = clean.get_schema_evolution_log(limit=20)
+            finally:
+                clean.close()
+        except Exception:
+            return ""
+
+        if not events:
+            return ""
+
+        lines = ["## Schema Evolution History\n"]
+        for ev in events:
+            status_icon = "OK" if ev["status"] == "success" else "FAILED"
+            lines.append(f"### {ev['data_type']} [{status_icon}] — {ev['created_at']}")
+            lines.append(f"**Reason**: {ev['reason']}")
+            lines.append(f"**Changes**: {ev['changes_summary']}")
+            lines.append(f"**Files**: {', '.join(ev['files_modified'])}")
+            if ev["ddl_executed"]:
+                lines.append("**DDL**:")
+                for ddl in ev["ddl_executed"]:
+                    lines.append(f"```sql\n{ddl}\n```")
+            if ev["error_message"]:
+                lines.append(f"**Error**: {ev['error_message']}")
+            lines.append("")
+        return "\n".join(lines)
 
     def _render_markdown(self, sections: dict[str, str]) -> str:
         today = date.today().isoformat()
@@ -210,6 +252,11 @@ class AiExporter:
             "## Genetic Risk Profile", "", sections["genetics"], "",
             "## Health Context", "", sections["health_context"], "",
             "## Medical Journal (Recent)", "", sections["journal"], "",
+        ]
+        # Append schema evolution section if present
+        if sections.get("schema_evolution"):
+            parts.extend([sections["schema_evolution"], ""])
+        parts.extend([
             "## Instructions for AI",
             "",
             "You are reviewing an anonymized health data export. Key guidelines:",
@@ -227,7 +274,7 @@ class AiExporter:
             "- Review hypotheses and update confidence based on all available evidence.",
             "- When new data changes the picture, say so directly.",
             "- Be direct and specific in medical analysis.",
-        ]
+        ])
         return "\n".join(parts)
 
     # ── Layer 2: Regex + NER scan ────────────────────────

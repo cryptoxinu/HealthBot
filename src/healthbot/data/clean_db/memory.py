@@ -1,5 +1,8 @@
-"""Clean DB memory mixin — user memory, audit log, corrections, improvements."""
+"""Clean DB memory mixin — user memory, audit log, corrections, improvements, schema evolution."""
 from __future__ import annotations
+
+import json
+import uuid
 
 
 class MemoryMixin:
@@ -188,3 +191,47 @@ class MemoryMixin:
         )
         self._auto_commit()
         return cursor.rowcount > 0
+
+    # ── Schema evolution log ──────────────────────────────
+
+    def log_schema_evolution(
+        self,
+        *,
+        data_type: str,
+        reason: str,
+        changes_summary: str,
+        files_modified: list[str],
+        ddl_executed: list[str],
+        migration_version: int | None,
+        status: str,
+        error_message: str = "",
+    ) -> str:
+        """Record a schema evolution event. Returns the event ID."""
+        evo_id = uuid.uuid4().hex
+        self.conn.execute(
+            """INSERT INTO schema_evolution_log
+               (id, data_type, reason, changes_summary, files_modified,
+                ddl_executed, migration_version, status, error_message, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                evo_id, data_type, reason, changes_summary,
+                json.dumps(files_modified), json.dumps(ddl_executed),
+                migration_version, status, error_message, self._now(),
+            ),
+        )
+        self._auto_commit()
+        return evo_id
+
+    def get_schema_evolution_log(self, limit: int = 50) -> list[dict]:
+        """Get recent schema evolution events."""
+        rows = self.conn.execute(
+            "SELECT * FROM schema_evolution_log ORDER BY created_at DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+        results = []
+        for r in rows:
+            d = dict(r)
+            d["files_modified"] = json.loads(d["files_modified"])
+            d["ddl_executed"] = json.loads(d["ddl_executed"])
+            results.append(d)
+        return results

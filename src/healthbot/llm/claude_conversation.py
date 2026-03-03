@@ -66,7 +66,7 @@ logger = logging.getLogger("healthbot")
 # Matches block type labels followed by a JSON object with up to 2 levels
 # of brace nesting (e.g. {"key": {"nested": "value"}}).
 _BLOCK_PATTERN = re.compile(
-    r"(HYPOTHESIS|ACTION|RESEARCH|INSIGHT|CONDITION|DATA_QUALITY|MEMORY|CORRECTION|SYSTEM_IMPROVEMENT|HEALTH_DATA|ANALYSIS_RULE|CHART|CITATION|CHECK_INTERACTION):\s*(\{[^{}]*(?:\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}[^{}]*)*\})",
+    r"(HYPOTHESIS|ACTION|RESEARCH|INSIGHT|CONDITION|DATA_QUALITY|MEMORY|CORRECTION|SYSTEM_IMPROVEMENT|HEALTH_DATA|ANALYSIS_RULE|CHART|CITATION|CHECK_INTERACTION|SCHEMA_EVOLVE):\s*(\{[^{}]*(?:\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}[^{}]*)*\})",
 )
 
 

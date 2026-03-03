@@ -6,6 +6,7 @@ PHI is hard-blocked (not sanitized-and-sent).
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
@@ -63,6 +64,7 @@ def build_research_packet(
     context: str = "",
     firewall: PhiFirewall | None = None,
     demographics: dict | None = None,
+    heuristic_name_check: Callable[[str], list[str]] | None = None,
 ) -> ResearchQueryPacket:
     """Build a research packet. Hard-blocks if PHI detected.
 
@@ -92,6 +94,28 @@ def build_research_packet(
             blocked=True,
             block_reason="PHI detected in query. Research blocked.",
         )
+
+    # Heuristic name check (when NER unavailable — catches unlabeled names)
+    if heuristic_name_check:
+        suspects = heuristic_name_check(raw_query)
+        if suspects:
+            try:
+                from healthbot.security.pii_alert import PiiAlertService
+                svc = PiiAlertService.get_instance()
+                svc.record(category="heuristic_name_in_query", destination="research")
+            except Exception:
+                pass
+            return ResearchQueryPacket(
+                query="",
+                query_hash=query_hash,
+                context="",
+                created_at=now,
+                blocked=True,
+                block_reason=(
+                    f"Suspected person name(s) in query: "
+                    f"{', '.join(suspects[:3])}. Research blocked."
+                ),
+            )
 
     # Add anonymized demographic context (not PHI — decade, sex, BMI category)
     demo_ctx = _build_demographic_context(demographics)

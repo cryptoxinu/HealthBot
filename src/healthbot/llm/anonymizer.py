@@ -24,6 +24,9 @@ from healthbot.security.phi_firewall import PhiFirewall
 
 logger = logging.getLogger("healthbot")
 
+# Circuit breaker: disable NER after this many consecutive failures
+_NER_CIRCUIT_BREAKER_THRESHOLD = 3
+
 
 class AnonymizationError(Exception):
     """Raised when PII is detected in a final outbound payload."""
@@ -65,6 +68,78 @@ class Anonymizer:
 
     _CACHE_MAX_SIZE = 500
 
+    # ── Heuristic name detection (fallback when NER unavailable) ──
+
+    # Disease-eponym surnames: Title Case words that are medical, not person names.
+    _MEDICAL_EPONYMS: frozenset[str] = frozenset({
+        "Graves", "Addison", "Cushing", "Hashimoto", "Parkinson",
+        "Alzheimer", "Hodgkin", "Crohn", "Raynaud", "Marfan",
+        "Turner", "Bell", "Wilson", "Huntington", "Paget",
+        "Sjögren", "Sjogren", "Behçet", "Behcet", "Kawasaki",
+        "Reiter", "Wegener", "Barrett", "Dupuytren", "Kaposi",
+        "Ménière", "Meniere", "Tourette", "Addisonian", "Down",
+        "Ehlers", "Danlos", "Guillain", "Barré", "Barre",
+        "Conn", "Klinefelter", "Whipple",
+    })
+
+    # Medical context words — if near a Title Case pair, it's likely medical
+    _MEDICAL_CONTEXT: re.Pattern[str] = re.compile(
+        r"\b(?:disease|syndrome|disorder|sign|test|score|index|scale|"
+        r"classification|criteria|maneuver|procedure|method|technique|"
+        r"law|rule|reflex|phenomenon|palsy|mg|mL|mcg|mmol|"
+        r"diagnosis|diagnosed|treatment|therapy|symptom|patient|"
+        r"clinical|pathology|lesion|tumor|carcinoma|biopsy)\b",
+        re.IGNORECASE,
+    )
+
+    # Matches two consecutive Title Case words (potential name)
+    _CAPITALIZED_PAIR: re.Pattern[str] = re.compile(
+        r"\b([A-Z][a-z]{2,})\s+([A-Z][a-z]{2,})\b",
+    )
+
+    # Common English words that appear Title Case in headers/sentences but aren't names.
+    # These are document structure words, status labels, and general vocabulary
+    # that commonly appear in Title Case but are not person names.
+    _COMMON_TITLE_WORDS: frozenset[str] = frozenset({
+        # Document structure
+        "Health", "Data", "Lab", "Results", "Active", "Medications",
+        "Medical", "Trends", "Panel", "Gaps", "What", "Changed",
+        "Since", "Last", "Drug", "Interactions", "Intelligence",
+        "Export", "Ready", "Wearable", "Genetic", "Risk", "Profile",
+        "Current", "Recent", "Summary", "History", "Review",
+        "Daily", "Weekly", "Monthly", "Annual", "Clinical",
+        "Patient", "Blood", "Test", "Report", "Total", "High",
+        "Low", "Normal", "Healthy", "Complete", "General",
+        "Body", "Weight", "Heart", "Rate", "Sleep", "Recovery",
+        "Vitamin", "Supplement", "Index", "Score", "Level",
+        "Left", "Right", "Upper", "Lower", "New", "Old",
+        "First", "Second", "Third", "Primary", "Secondary",
+        "Red", "White", "Green", "Black", "Blue",
+        "Instructions", "Guidelines", "Protocol", "Context",
+        "Discovered", "Correlations", "Hypotheses",
+        "Medication", "Therapeutic", "Response",
+        "Journal", "Demographics", "Observation",
+        # Status and connection
+        "Connection", "Status", "Integration", "Validation",
+        "Schema", "Evolution", "Table", "Database",
+        "System", "Improvement", "Analysis", "Rule",
+        "Quality", "Check", "Overdue", "Screening",
+        "Action", "Research", "Finding", "Insight",
+        "Average", "Averages", "Maximum", "Minimum", "Standard",
+        "Not", "Available", "Running", "Installed",
+        "Emergency", "Contact", "Information", "Card",
+        "Anonymized", "Encrypted", "Processed",
+        "All", "Any", "The", "For", "From", "With",
+        "This", "That", "These", "Those", "Each",
+        "Key", "Important", "Note", "Warning",
+        # Time and measurement
+        "Day", "Night", "Morning", "Evening", "Hour",
+        "Week", "Month", "Year", "Minute", "Strain",
+        "Step", "Steps", "Calories", "Distance", "Duration",
+        "Variability", "Resting", "Deep", "Light", "Cycle",
+        "Peak", "Zone", "Baseline", "Target", "Range",
+    })
+
     def __init__(
         self,
         phi_firewall: PhiFirewall | None = None,
@@ -80,8 +155,14 @@ class Anonymizer:
         self._cache: dict[str, tuple[str, bool]] = {}
         self._cache_lock = threading.Lock()
 
+        # NER circuit breaker state
+        self._ner_was_available: bool = False
+        self._ner_failure_count: int = 0
+
         if use_ner:
             self._ner = self._try_init_ner()
+
+        self._ner_was_available = self._ner is not None
 
         if not self._ner and not self._ollama_layer:
             logger.warning(
@@ -115,6 +196,96 @@ class Anonymizer:
     def has_ner(self) -> bool:
         """Whether NER layer is active."""
         return self._ner is not None
+
+    def _ner_call_safe(self, text: str) -> list:
+        """Call NER with circuit breaker — disable after repeated failures.
+
+        Returns detected entities or empty list on failure. After
+        _NER_CIRCUIT_BREAKER_THRESHOLD consecutive failures, NER is
+        disabled and a CRITICAL alert is logged.
+        """
+        if not self._ner:
+            return []
+        try:
+            result = self._ner.detect(text)
+            self._ner_failure_count = 0  # Reset on success
+            return result
+        except Exception as e:
+            self._ner_failure_count += 1
+            logger.warning("NER call failed (%d/%d): %s",
+                           self._ner_failure_count,
+                           _NER_CIRCUIT_BREAKER_THRESHOLD, e)
+            if self._ner_failure_count >= _NER_CIRCUIT_BREAKER_THRESHOLD:
+                logger.critical(
+                    "NER circuit breaker tripped — disabling NER after %d "
+                    "consecutive failures. Falling back to regex + heuristic.",
+                    self._ner_failure_count,
+                )
+                self._ner = None
+                try:
+                    from healthbot.security.pii_alert import PiiAlertService
+                    svc = PiiAlertService.get_instance()
+                    svc.record(
+                        category="NER_circuit_break",
+                        destination="anonymizer",
+                    )
+                except (ImportError, OSError, RuntimeError):
+                    pass
+            return []
+
+    def _heuristic_name_scan(self, text: str) -> list[str]:
+        """Detect likely person names via Title Case word pairs.
+
+        Fallback for when NER is unavailable. Filters out:
+        - Medical eponyms (Graves, Hashimoto, etc.)
+        - Known medical terms (from ner_layer.MEDICAL_TERMS)
+        - Known ignore texts (from ner_layer.IGNORE_TEXTS)
+        - Pairs near medical context words (within 50-char window)
+
+        Returns list of suspected name strings.
+        """
+        try:
+            from healthbot.security.ner_layer import IGNORE_TEXTS, MEDICAL_TERMS
+            medical_terms = MEDICAL_TERMS
+            ignore_texts = IGNORE_TEXTS
+        except ImportError:
+            medical_terms = frozenset()
+            ignore_texts: set[str] = set()
+
+        suspects: list[str] = []
+        for m in self._CAPITALIZED_PAIR.finditer(text):
+            first, second = m.group(1), m.group(2)
+            full = f"{first} {second}"
+
+            # Skip common Title Case header/document words
+            if (first in self._COMMON_TITLE_WORDS
+                    or second in self._COMMON_TITLE_WORDS):
+                continue
+
+            # Skip medical eponyms
+            if first in self._MEDICAL_EPONYMS or second in self._MEDICAL_EPONYMS:
+                continue
+
+            # Skip known medical terms
+            if (first.lower() in medical_terms
+                    or second.lower() in medical_terms
+                    or full.lower() in medical_terms):
+                continue
+
+            # Skip known ignore texts
+            if first in ignore_texts or second in ignore_texts or full in ignore_texts:
+                continue
+
+            # Skip if near medical context words (50-char window)
+            start = max(0, m.start() - 50)
+            end = min(len(text), m.end() + 50)
+            window = text[start:end]
+            if self._MEDICAL_CONTEXT.search(window):
+                continue
+
+            suspects.append(full)
+
+        return suspects
 
     # NER canary: a name in medical context that NER should catch
     _NER_CANARY_TEXT = "Contact Dr. Sarah Johnson for results"
@@ -190,11 +361,10 @@ class Anonymizer:
         # Collect all PII spans: (start, end, tag)
         spans: list[tuple[int, int, str]] = []
 
-        # Layer 1: NER (if available)
-        if self._ner:
-            for e in self._ner.detect(text):
-                tag = f"NER-{e.label.replace(' ', '_')}"
-                spans.append((e.start, e.end, tag))
+        # Layer 1: NER (if available) — with circuit breaker
+        for e in self._ner_call_safe(text):
+            tag = f"NER-{e.label.replace(' ', '_')}"
+            spans.append((e.start, e.end, tag))
 
         # Layer 2: Regex (always)
         for m in self._fw.scan(text):
@@ -207,6 +377,13 @@ class Anonymizer:
                 spans.extend(llm_spans)
             except Exception as e:
                 logger.warning("Ollama anonymization layer failed (non-fatal): %s", e)
+
+        # Heuristic name detection (when NER unavailable)
+        if not self.has_ner:
+            for name in self._heuristic_name_scan(text):
+                idx = text.find(name)
+                if idx >= 0:
+                    spans.append((idx, idx + len(name), "heuristic_name"))
 
         if not spans:
             self._cache_put(cache_key, (text, False))
@@ -256,17 +433,16 @@ class Anonymizer:
         # Collect all PII spans with metadata
         pii_spans: list[PiiSpan] = []
 
-        # Layer 1: NER (if available)
-        if self._ner:
-            for e in self._ner.detect(text):
-                tag = f"NER-{e.label.replace(' ', '_')}"
-                text_hash = hashlib.sha256(
-                    text[e.start:e.end].encode(),
-                ).hexdigest()[:12]
-                pii_spans.append(PiiSpan(
-                    start=e.start, end=e.end, tag=tag,
-                    layer="NER", confidence=e.score, text_hash=text_hash,
-                ))
+        # Layer 1: NER (if available) — with circuit breaker
+        for e in self._ner_call_safe(text):
+            tag = f"NER-{e.label.replace(' ', '_')}"
+            text_hash = hashlib.sha256(
+                text[e.start:e.end].encode(),
+            ).hexdigest()[:12]
+            pii_spans.append(PiiSpan(
+                start=e.start, end=e.end, tag=tag,
+                layer="NER", confidence=e.score, text_hash=text_hash,
+            ))
 
         # Layer 2: Regex (always)
         for m in self._fw.scan(text):
@@ -292,6 +468,21 @@ class Anonymizer:
                     ))
             except Exception as e:
                 logger.warning("Ollama anonymization layer failed (non-fatal): %s", e)
+
+        # Heuristic name detection (when NER unavailable)
+        if not self.has_ner:
+            for name in self._heuristic_name_scan(text):
+                idx = text.find(name)
+                if idx >= 0:
+                    text_hash = hashlib.sha256(
+                        name.encode(),
+                    ).hexdigest()[:12]
+                    pii_spans.append(PiiSpan(
+                        start=idx, end=idx + len(name),
+                        tag="heuristic_name",
+                        layer="regex", confidence=0.7,
+                        text_hash=text_hash,
+                    ))
 
         if not pii_spans:
             return text, []
@@ -325,17 +516,16 @@ class Anonymizer:
 
         pii_spans: list[PiiSpan] = []
 
-        # Layer 1: NER (if available)
-        if self._ner:
-            for e in self._ner.detect(text):
-                tag = f"NER-{e.label.replace(' ', '_')}"
-                text_hash = hashlib.sha256(
-                    text[e.start:e.end].encode(),
-                ).hexdigest()[:12]
-                pii_spans.append(PiiSpan(
-                    start=e.start, end=e.end, tag=tag,
-                    layer="NER", confidence=e.score, text_hash=text_hash,
-                ))
+        # Layer 1: NER (if available) — with circuit breaker
+        for e in self._ner_call_safe(text):
+            tag = f"NER-{e.label.replace(' ', '_')}"
+            text_hash = hashlib.sha256(
+                text[e.start:e.end].encode(),
+            ).hexdigest()[:12]
+            pii_spans.append(PiiSpan(
+                start=e.start, end=e.end, tag=tag,
+                layer="NER", confidence=e.score, text_hash=text_hash,
+            ))
 
         # Layer 2: Regex (always — includes identity profile patterns)
         for m in self._fw.scan(text):
@@ -348,6 +538,21 @@ class Anonymizer:
             ))
 
         # Layer 3: Explicitly skipped (Ollama reserved for hybrid pass 2)
+
+        # Heuristic name detection (when NER unavailable)
+        if not self.has_ner:
+            for name in self._heuristic_name_scan(text):
+                idx = text.find(name)
+                if idx >= 0:
+                    text_hash = hashlib.sha256(
+                        name.encode(),
+                    ).hexdigest()[:12]
+                    pii_spans.append(PiiSpan(
+                        start=idx, end=idx + len(name),
+                        tag="heuristic_name",
+                        layer="regex", confidence=0.7,
+                        text_hash=text_hash,
+                    ))
 
         if not pii_spans:
             return text, [], []
@@ -402,9 +607,9 @@ class Anonymizer:
         # Strip existing redaction tags for checking
         stripped = self._REDACTED_TAG.sub("", text)
 
-        # NER check
-        if self._ner:
-            entities = self._ner.detect(stripped)
+        # NER check — with circuit breaker
+        entities = self._ner_call_safe(stripped)
+        if entities:
             real = [
                 e for e in entities
                 if e.text.strip() not in self._FIELD_LABELS
@@ -454,9 +659,9 @@ class Anonymizer:
 
         issues: list[str] = []
 
-        # Check NER — filter out field labels and short noise
+        # Check NER — filter out field labels and short noise (circuit breaker)
         if self._ner:
-            entities = self._ner.detect(stripped)
+            entities = self._ner_call_safe(stripped)
             real = [
                 e for e in entities
                 if e.text.strip() not in self._FIELD_LABELS
@@ -465,6 +670,13 @@ class Anonymizer:
             if real:
                 labels = {e.label for e in real}
                 issues.append(f"NER: {', '.join(labels)}")
+        else:
+            # Heuristic fallback: detect unlabeled names when NER unavailable
+            suspects = self._heuristic_name_scan(stripped)
+            if suspects:
+                issues.append(
+                    f"heuristic_name: {', '.join(suspects[:5])}"
+                )
 
         # Check regex — skip identity-specific patterns (id_* prefix).
         # The anonymize() step already handled identity patterns; re-checking

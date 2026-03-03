@@ -158,14 +158,20 @@ _NER_CERTAINTY_THRESHOLD = 0.7   # NER spans below this trigger Ollama review
 _LONG_TEXT_THRESHOLD = 80         # Undetected text longer than this is uncertain
 
 
-def _is_uncertain(text: str, spans: list[PiiSpan]) -> bool:
+def _is_uncertain(
+    text: str, spans: list[PiiSpan], ner_available: bool = True,
+) -> bool:
     """Determine if a fast-pass result needs Ollama review.
 
     Returns True if:
     (a) NER detected something with low confidence
     (b) NER found an entity not confirmed by regex (unknown name/location)
     (c) Long text with zero detections (potential hiding spot for PII)
+    (d) Without NER, ALL text longer than threshold is uncertain
     """
+    # (d) Without NER, all long text is uncertain — route to Ollama review
+    if not ner_available and len(text) > _LONG_TEXT_THRESHOLD:
+        return True
     # (a) Low-confidence NER detection
     if any(s.layer == "NER" and s.confidence < _NER_CERTAINTY_THRESHOLD for s in spans):
         return True
@@ -967,7 +973,7 @@ class CleanSyncEngine:
             if self._on_touch is not None:
                 self._on_touch()
             cleaned, merged, raw_spans = self._anon.anonymize_fast_only(text)
-            if _is_uncertain(text, raw_spans):
+            if _is_uncertain(text, raw_spans, ner_available=self._anon.has_ner):
                 self._uncertain_queue.append((text, text_hash, cleaned, merged))
                 self.progress.hybrid_queued += 1
             self._clean.put_anon_cache(text_hash, cleaned)

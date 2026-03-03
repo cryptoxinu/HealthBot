@@ -289,6 +289,20 @@ CREATE TABLE IF NOT EXISTS memory_audit_log (
 );
 CREATE INDEX IF NOT EXISTS idx_audit_key ON memory_audit_log(key);
 CREATE INDEX IF NOT EXISTS idx_audit_changed ON memory_audit_log(changed_at DESC);
+
+CREATE TABLE IF NOT EXISTS schema_evolution_log (
+    id TEXT PRIMARY KEY,
+    data_type TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    changes_summary TEXT NOT NULL,
+    files_modified TEXT NOT NULL DEFAULT '[]',
+    ddl_executed TEXT NOT NULL DEFAULT '[]',
+    migration_version INTEGER,
+    status TEXT DEFAULT 'success',
+    error_message TEXT DEFAULT '',
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_schema_evo_date ON schema_evolution_log(created_at DESC);
 """
 
 

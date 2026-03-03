@@ -171,6 +171,9 @@ def route_block(mgr, block_type: str, block: dict) -> None:
     elif block_type == "ANALYSIS_RULE" and block.get("name") and block.get("rule"):
         handle_analysis_rule_block(mgr, block)
 
+    elif block_type == "SCHEMA_EVOLVE" and block.get("data_type"):
+        handle_schema_evolve_block(mgr, block)
+
     elif block_type == "DATA_QUALITY" and mgr._db:
         handle_data_quality(mgr, block)
 
@@ -672,6 +675,100 @@ def handle_system_improvement(mgr, block: dict) -> None:
             })
         except Exception as exc:
             logger.warning("System improvement callback failed: %s", exc)
+
+
+def handle_schema_evolve_block(mgr, block: dict) -> None:
+    """Handle SCHEMA_EVOLVE block — trigger autonomous schema creation.
+
+    Uses Claude CLI with full tool access to create new DB tables,
+    sync workers, and clean DB counterparts. Logs everything to
+    schema_evolution_log for audit trail.
+    """
+    data_type = block.get("data_type", "")
+    fields = block.get("fields", [])
+    reason = block.get("reason", "")
+    sample = block.get("sample", {})
+
+    if not data_type or not fields:
+        logger.warning("SCHEMA_EVOLVE block missing data_type or fields")
+        return
+
+    # Get CLI client for schema evolution
+    cli_client = getattr(mgr, "_research_client", None)
+    if not cli_client:
+        logger.warning("SCHEMA_EVOLVE: research client not available")
+        return
+
+    logger.info("Schema evolution triggered for: %s (fields=%d)", data_type, len(fields))
+
+    try:
+        result = cli_client.evolve_schema(data_type, fields, reason, sample)
+    except Exception as exc:
+        logger.error("Schema evolution failed: %s", exc)
+        result = None
+
+    # Log to audit table
+    clean_db = get_clean_db(mgr)
+    if clean_db:
+        try:
+            if result:
+                clean_db.log_schema_evolution(
+                    data_type=data_type,
+                    reason=reason,
+                    changes_summary=result.summary,
+                    files_modified=result.files_modified,
+                    ddl_executed=result.ddl_executed,
+                    migration_version=result.migration_version,
+                    status="success" if result.success else "failed",
+                    error_message=result.error,
+                )
+            else:
+                clean_db.log_schema_evolution(
+                    data_type=data_type,
+                    reason=reason,
+                    changes_summary="Evolution call failed",
+                    files_modified=[],
+                    ddl_executed=[],
+                    migration_version=None,
+                    status="failed",
+                    error_message="Exception during evolve_schema()",
+                )
+        except Exception as exc:
+            logger.warning("Failed to log schema evolution: %s", exc)
+        finally:
+            clean_db.close()
+
+    if result and result.success:
+        # Run migrations on both DBs
+        if mgr._db and hasattr(mgr._db, "run_migrations"):
+            try:
+                mgr._db.run_migrations()
+            except Exception as exc:
+                logger.warning("Raw DB migration after evolution failed: %s", exc)
+
+        clean_db2 = get_clean_db(mgr)
+        if clean_db2:
+            try:
+                if hasattr(clean_db2, "run_migrations"):
+                    clean_db2.run_migrations()
+            except Exception as exc:
+                logger.warning("Clean DB migration after evolution failed: %s", exc)
+            finally:
+                clean_db2.close()
+
+        # Add feedback for Telegram notification
+        feedback = (
+            f"[Schema evolved: created dedicated '{data_type}' table. "
+            f"Files: {', '.join(result.files_modified)}. "
+            f"View full log: /ai_export]"
+        )
+        if hasattr(mgr, "_memory_feedback"):
+            mgr._memory_feedback.append(feedback)
+        logger.info("Schema evolution succeeded: %s — %s", data_type, result.summary)
+    elif result:
+        logger.error("Schema evolution failed for %s: %s", data_type, result.error)
+    else:
+        logger.error("Schema evolution returned no result for %s", data_type)
 
 
 def handle_data_quality(mgr, block: dict) -> None:

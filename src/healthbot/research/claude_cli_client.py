@@ -8,13 +8,16 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
 import subprocess
 from collections import OrderedDict
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from healthbot.config import Config
 from healthbot.llm.claude_client import (
     _CLAUDE_SEMAPHORE,
+    _FIX_TOOL_FLAGS,
     _PRIVACY_FLAGS,
     _PRIVACY_PREAMBLE,
     _TOOL_FLAGS,
@@ -164,7 +167,7 @@ class ClaudeCLIResearchClient:
 
             result = subprocess.run(
                 [str(self._cli_path), "--print", "--model", "claude-opus-4-6",
-                 *_PRIVACY_FLAGS, *_READ_ONLY_TOOL_FLAGS],
+                 *_PRIVACY_FLAGS, *_FIX_TOOL_FLAGS],
                 input=prompt,
                 capture_output=True,
                 text=True,
@@ -232,6 +235,130 @@ class ClaudeCLIResearchClient:
         ])
         return "\n".join(parts)
 
+    def evolve_schema(
+        self,
+        data_type: str,
+        fields: list[dict],
+        reason: str,
+        sample_data: dict | None = None,
+    ) -> SchemaEvolutionResult:
+        """Autonomously create new DB table + sync worker for a new medical data type.
+
+        Uses _FIX_TOOL_FLAGS — Claude gets full code access
+        (Read, Write, Edit, Bash, Glob, Grep).
+        Runs from project directory so Claude can read existing patterns.
+        """
+        if not self._cli_path:
+            return SchemaEvolutionResult(
+                success=False,
+                data_type=data_type,
+                summary="Claude CLI not found",
+                error="Claude CLI not found or not authenticated.",
+            )
+
+        from healthbot.research.schema_evolution_prompt import build_evolution_prompt
+        prompt = build_evolution_prompt(data_type, fields, reason, sample_data)
+
+        project_dir = self._find_project_dir()
+
+        if not _CLAUDE_SEMAPHORE.acquire(timeout=120):
+            return SchemaEvolutionResult(
+                success=False,
+                data_type=data_type,
+                summary="Semaphore timeout",
+                error="Too many concurrent Claude CLI calls.",
+            )
+
+        try:
+            payload_hash = hashlib.sha256(prompt.encode()).hexdigest()[:16]
+            logger.info(
+                "Outbound to Claude CLI (schema evolution): hash=%s type=%s",
+                payload_hash, data_type,
+            )
+
+            result = subprocess.run(
+                [str(self._cli_path), "--print", "--model", "claude-opus-4-6",
+                 *_PRIVACY_FLAGS, *_FIX_TOOL_FLAGS],
+                input=prompt,
+                capture_output=True,
+                text=True,
+                timeout=300,  # Schema evolution may take longer
+                cwd=str(project_dir) if project_dir else None,
+                env=_build_subprocess_env(self._api_key),
+            )
+        except subprocess.TimeoutExpired:
+            return SchemaEvolutionResult(
+                success=False,
+                data_type=data_type,
+                summary="Timed out",
+                error="Schema evolution timed out after 300s.",
+            )
+        except FileNotFoundError:
+            return SchemaEvolutionResult(
+                success=False,
+                data_type=data_type,
+                summary="CLI not found",
+                error="Claude CLI binary not found.",
+            )
+        finally:
+            _CLAUDE_SEMAPHORE.release()
+
+        if result.returncode != 0:
+            return SchemaEvolutionResult(
+                success=False,
+                data_type=data_type,
+                summary="CLI error",
+                error=f"Claude CLI returned exit code {result.returncode}.",
+            )
+
+        response = result.stdout.strip()
+        return self._parse_evolution_result(data_type, response)
+
+    @staticmethod
+    def _parse_evolution_result(
+        data_type: str, response: str,
+    ) -> SchemaEvolutionResult:
+        """Parse Claude's schema evolution output to extract what was created."""
+        files_modified: list[str] = []
+        ddl_executed: list[str] = []
+        migration_version: int | None = None
+
+        # Extract file paths from the output
+        file_pat = re.compile(
+            r"(?:modified|created|edited|wrote)\s+[`']?([^\s`']+\.py)",
+            re.IGNORECASE,
+        )
+        for m in file_pat.finditer(response):
+            path = m.group(1)
+            if path not in files_modified:
+                files_modified.append(path)
+
+        # Extract DDL statements
+        ddl_pat = re.compile(
+            r"```sql\s*(CREATE\s+TABLE[^`]+?)```",
+            re.IGNORECASE | re.DOTALL,
+        )
+        for m in ddl_pat.finditer(response):
+            ddl_executed.append(m.group(1).strip())
+
+        # Extract migration version
+        version_match = re.search(r"version\s*[=:]\s*(\d+)", response, re.IGNORECASE)
+        if version_match:
+            migration_version = int(version_match.group(1))
+
+        success = bool(files_modified) or "success" in response.lower()
+        summary_lines = response.strip().split("\n")
+        summary = summary_lines[-1][:200] if summary_lines else "No output"
+
+        return SchemaEvolutionResult(
+            success=success,
+            data_type=data_type,
+            files_modified=files_modified,
+            ddl_executed=ddl_executed,
+            migration_version=migration_version,
+            summary=summary,
+        )
+
     def _build_prompt(self, packet: ResearchQueryPacket) -> str:
         """Build the prompt for Claude CLI."""
         parts = [
@@ -244,4 +371,17 @@ class ClaudeCLIResearchClient:
         if packet.context:
             parts.extend(["", f"Context: {packet.context}"])
         return "\n".join(parts)
+
+
+@dataclass
+class SchemaEvolutionResult:
+    """Result of an autonomous schema evolution operation."""
+
+    success: bool
+    data_type: str
+    files_modified: list[str] = field(default_factory=list)
+    ddl_executed: list[str] = field(default_factory=list)
+    migration_version: int | None = None
+    summary: str = ""
+    error: str = ""
 
