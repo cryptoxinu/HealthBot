@@ -2,6 +2,7 @@
 name = "healthbot-terminal"
 version = "1.0.0"
 description = "Local-first terminal health data vault for macOS -- your health data never leaves your machine"
+license = "GPL-3.0-or-later"
 requires-python = ">=3.13"
 dependencies = [
     "python-telegram-bot>=21.0",
