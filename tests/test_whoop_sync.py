@@ -1,6 +1,7 @@
 """Tests for WHOOP sync integration."""
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -16,6 +17,7 @@ class TestWhoopSyncScheduler:
         from healthbot.config import Config
 
         config = MagicMock(spec=Config)
+        config.clean_db_path = Path("/tmp/test_whoop_clean.db")
         km = MagicMock()
         km.is_unlocked = True
 
@@ -32,7 +34,7 @@ class TestWhoopSyncScheduler:
             mock_watcher_cls.return_value = mock_watcher
 
             # Mock Keychain to return None (no WHOOP credentials)
-            with patch("healthbot.bot.scheduler.Keychain", create=True) as mock_kc:
+            with patch("healthbot.security.keychain.Keychain") as mock_kc:
                 mock_kc_inst = MagicMock()
                 mock_kc_inst.retrieve.return_value = None
                 mock_kc.return_value = mock_kc_inst

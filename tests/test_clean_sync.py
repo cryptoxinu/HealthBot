@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -407,9 +408,7 @@ class TestOllamaLayer3Wiring:
 
         config = MagicMock()
         config.allowed_user_ids = [123]
-        # TODO: Use tmp_path / "clean.db" instead of MagicMock() to avoid
-        # creating MagicMock-named SQLite files in the project root.
-        config.clean_db_path = MagicMock()
+        config.clean_db_path = Path("/tmp/test_clean_sync.db")
         config.ollama_model = "qwen3:14b"
         config.ollama_url = "http://localhost:11434"
         config.ollama_timeout = 120

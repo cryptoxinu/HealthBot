@@ -32,6 +32,7 @@ class TestAlertScheduler:
         config = MagicMock(spec=Config)
         config.incoming_dir = MagicMock()
         config.vault_home = Path(tempfile.mkdtemp())
+        config.clean_db_path = Path(tempfile.mkdtemp()) / "clean.db"
         config.allowed_user_ids = [chat_id]
         config.auto_ai_export = False
         config.apple_health_export_path = ""
