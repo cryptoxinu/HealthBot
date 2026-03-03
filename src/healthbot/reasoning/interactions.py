@@ -64,6 +64,13 @@ class TherapeuticCorrelation:
     days_after_start: int
 
 
+# Pre-computed set of all substance keys from INTERACTIONS (avoid rebuilding per call)
+_ALL_SUBSTANCE_KEYS: frozenset[str] = frozenset(
+    key
+    for ix in INTERACTIONS
+    for key in (ix.substance_a, ix.substance_b)
+)
+
 # Severity ordering for sorting (highest risk first)
 _SEVERITY_ORDER: dict[str, int] = {
     "contraindicated": 0,
@@ -194,12 +201,7 @@ class InteractionChecker:
             return SUBSTANCE_ALIASES[lower]
 
         # 2. Check if it's already a KB key (appears in INTERACTIONS)
-        all_substance_keys = set()
-        for ix in INTERACTIONS:
-            all_substance_keys.add(ix.substance_a)
-            all_substance_keys.add(ix.substance_b)
-
-        if lower in all_substance_keys:
+        if lower in _ALL_SUBSTANCE_KEYS:
             return lower
 
         # 3. Word-boundary match: check if name contains a known alias as a

@@ -197,8 +197,8 @@ def sync_medications(
 
         try:
             name = anonymize(med.get("name", ""))
-            dose = str(med.get("dose", ""))
-            frequency = med.get("frequency", "")
+            dose = anonymize(str(med.get("dose", "")))
+            frequency = anonymize(med.get("frequency", ""))
 
             clean.upsert_medication(
                 med_id=med_id,
@@ -330,9 +330,9 @@ def sync_hypotheses(
 
         try:
             title = anonymize(h.get("title", ""))
-            evidence_for = json.dumps(h.get("evidence_for", []))
-            evidence_against = json.dumps(h.get("evidence_against", []))
-            missing_tests = json.dumps(h.get("missing_tests", []))
+            evidence_for = anonymize(json.dumps(h.get("evidence_for", [])))
+            evidence_against = anonymize(json.dumps(h.get("evidence_against", [])))
+            missing_tests = anonymize(json.dumps(h.get("missing_tests", [])))
 
             clean.upsert_hypothesis(
                 hyp_id=hyp_id,

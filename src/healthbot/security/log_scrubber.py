@@ -20,13 +20,26 @@ class PhiScrubFilter(logging.Filter):
         self._firewall = firewall
 
     def filter(self, record: logging.LogRecord) -> bool:
-        """Redact PHI from the message. Always returns True (keeps record)."""
-        record.msg = self._firewall.redact(str(record.msg))
-        if record.args and isinstance(record.args, tuple):
-            record.args = tuple(
-                self._firewall.redact(str(a)) if isinstance(a, str) else a
-                for a in record.args
-            )
+        """Redact PHI from the message. Always returns True (keeps record).
+
+        Pre-formats the message with its args so that all text (including
+        non-string args like dicts/lists that may contain PII) is scrubbed.
+        """
+        if record.args:
+            try:
+                record.msg = self._firewall.redact(str(record.msg % record.args))
+            except (TypeError, ValueError):
+                # Fallback: scrub msg and string args individually
+                record.msg = self._firewall.redact(str(record.msg))
+                if isinstance(record.args, tuple):
+                    record.args = tuple(
+                        self._firewall.redact(str(a)) if isinstance(a, str) else a
+                        for a in record.args
+                    )
+                    return True
+            record.args = None
+        else:
+            record.msg = self._firewall.redact(str(record.msg))
         return True
 
 

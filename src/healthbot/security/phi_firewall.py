@@ -7,6 +7,7 @@ labeled name patterns, and exact lab values in context.
 from __future__ import annotations
 
 import re
+import threading
 import unicodedata
 from dataclasses import dataclass
 
@@ -160,6 +161,7 @@ class PhiFirewall:
     """Scans text for PHI patterns and provides redaction."""
 
     def __init__(self, extra_patterns: dict[str, re.Pattern[str]] | None = None) -> None:
+        self._lock = threading.Lock()
         self._patterns = dict(PHI_PATTERNS)
         if extra_patterns:
             self._patterns.update(extra_patterns)
@@ -172,7 +174,8 @@ class PhiFirewall:
         (HandlerCore, CleanSync, Claude conversation, log scrubber) sees
         the new patterns immediately.
         """
-        self._patterns.update(extra_patterns)
+        with self._lock:
+            self._patterns.update(extra_patterns)
 
     def clear_identity_patterns(self) -> None:
         """Remove identity-profile patterns added at vault unlock.
@@ -181,15 +184,18 @@ class PhiFirewall:
         prefix (e.g. ``id_full_name_forward``, ``id_full_name_last``).
         Base PHI patterns (ssn, phone, email, etc.) don't use this prefix.
         """
-        self._patterns = {k: v for k, v in list(self._patterns.items())
-                          if not k.startswith("id_")}
+        with self._lock:
+            self._patterns = {k: v for k, v in list(self._patterns.items())
+                              if not k.startswith("id_")}
 
     def scan(self, text: str) -> list[PhiMatch]:
         """Return all PHI matches found in text."""
         # Normalize Unicode to catch homoglyph evasion (e.g. fullwidth digits)
         text = unicodedata.normalize("NFKC", text)
         matches: list[PhiMatch] = []
-        for category, pattern in self._patterns.items():
+        with self._lock:
+            patterns_snapshot = list(self._patterns.items())
+        for category, pattern in patterns_snapshot:
             for m in pattern.finditer(text):
                 # Skip dates that follow lab report labels (clinical metadata, not PHI)
                 # Also require DOB context keywords nearby to reduce false positives
@@ -221,7 +227,9 @@ class PhiFirewall:
         """Quick check: does text contain any PHI?"""
         # Normalize Unicode to catch homoglyph evasion (e.g. fullwidth digits)
         text = unicodedata.normalize("NFKC", text)
-        for category, pattern in self._patterns.items():
+        with self._lock:
+            patterns_snapshot = list(self._patterns.items())
+        for category, pattern in patterns_snapshot:
             if category == "dob_slash":
                 # Apply same safe-date-prefix + DOB context suppression as scan()
                 for m in pattern.finditer(text):

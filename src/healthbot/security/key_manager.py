@@ -258,6 +258,18 @@ class KeyManager:
             elapsed = time.time() - self._last_activity
             return self._config.session_timeout_seconds - elapsed
 
+    def replace_master_key(self, new_key: bytes) -> None:
+        """Replace the in-memory master key, securely zeroing the old one.
+
+        Used by VaultRekey during key rotation to swap keys without
+        requiring a full unlock cycle. Thread-safe.
+        """
+        with self._lock:
+            if self._master_key is not None:
+                self._zero_bytearray(self._master_key)
+            self._master_key = bytearray(new_key)
+            self._last_activity = time.time()
+
     def _zero_bytearray(self, data: bytearray) -> None:
         """Overwrite bytearray contents with zeros. Best-effort for CPython."""
         n = len(data)

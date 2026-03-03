@@ -251,7 +251,7 @@ def sync_health_records_ext(
             value = anonymize(str(inner.get("value", "")))
             source = anonymize(str(inner.get("source", "")))
             details = anonymize(str(inner.get("details", "")))
-            tags = str(inner.get("tags", ""))
+            tags = anonymize(str(inner.get("tags", "")))
 
             clean.upsert_health_record_ext(
                 record_id=rid,

@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 
 from healthbot.data.db import HealthDB
+from healthbot.security.phi_firewall import PhiFirewall
 
 logger = logging.getLogger("healthbot")
 
@@ -35,10 +36,21 @@ class HealthReport:
 
 
 class HealthReportBuilder:
-    """Build periodic health reports from all data sources."""
+    """Build periodic health reports from all data sources.
 
-    def __init__(self, db: HealthDB) -> None:
+    All free-text fields are passed through PhiFirewall.redact() before
+    inclusion in the report to prevent PII leakage from Tier 1 data.
+    """
+
+    def __init__(self, db: HealthDB, phi_firewall: PhiFirewall | None = None) -> None:
         self._db = db
+        self._fw = phi_firewall or PhiFirewall()
+
+    def _safe(self, value: str) -> str:
+        """Redact any PHI from a string value before including in report."""
+        if not value:
+            return value
+        return self._fw.redact(str(value))
 
     def build_weekly(self, user_id: int) -> HealthReport:
         """Build a report for the past 7 days."""
@@ -163,7 +175,7 @@ class HealthReportBuilder:
 
             if flag_count:
                 flag_names = ", ".join(
-                    r.get("test_name", "?") for r in flagged[:5]
+                    self._safe(r.get("test_name", "?")) for r in flagged[:5]
                 )
                 section.items.append(
                     f"{dt}: {total} tests, {flag_count} flagged ({flag_names})",
@@ -280,10 +292,10 @@ class HealthReportBuilder:
         section = ReportSection(title="Active Medications")
         meds = self._db.get_active_medications(user_id=user_id)
         for med in meds:
-            name = med.get("name", "")
-            dose = med.get("dose", "")
-            unit = med.get("unit", "")
-            freq = med.get("frequency", "")
+            name = self._safe(med.get("name", ""))
+            dose = self._safe(med.get("dose", ""))
+            unit = self._safe(med.get("unit", ""))
+            freq = self._safe(med.get("frequency", ""))
             section.items.append(f"{name} {dose} {unit} {freq}".strip())
         return section
 
@@ -301,7 +313,7 @@ class HealthReportBuilder:
         )
         categories: dict[str, int] = {}
         for row in rows:
-            cat = row.get("symptom_category", "general")
+            cat = self._safe(row.get("symptom_category", "general"))
             categories[cat] = categories.get(cat, 0) + 1
 
         for cat, count in sorted(
@@ -325,7 +337,7 @@ class HealthReportBuilder:
                     "off_track": "!", "no_data": "?",
                 }.get(p.status, "?")
                 section.items.append(
-                    f"{status_icon} {p.goal.display_name}: "
+                    f"{status_icon} {self._safe(p.goal.display_name)}: "
                     f"{p.pct_progress:.0f}% ({p.status})",
                 )
         except Exception:
@@ -344,7 +356,7 @@ class HealthReportBuilder:
             overdue = detector.check_overdue(user_id=user_id)
             for item in overdue[:5]:
                 section.items.append(
-                    f"Overdue: {item.test_name} "
+                    f"Overdue: {self._safe(item.test_name)} "
                     f"(last {item.last_date}, {item.days_overdue} days ago)",
                 )
         except Exception:
@@ -358,7 +370,7 @@ class HealthReportBuilder:
             retests = scheduler.get_pending_retests(user_id=user_id)
             for rt in retests[:5]:
                 section.items.append(
-                    f"Retest: {rt.display_name} (due in {rt.days_until_due} days)",
+                    f"Retest: {self._safe(rt.display_name)} (due in {rt.days_until_due} days)",
                 )
         except Exception:
             pass

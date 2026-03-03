@@ -25,14 +25,26 @@ _CONFUSABLE_PAIRS = {
     frozenset({"hyponatremia", "hypernatremia"}),
     frozenset({"hypocalcemia", "hypercalcemia"}),
     frozenset({"hypotension", "hypertension"}),
+    frozenset({"type 1 diabetes", "type 2 diabetes"}),
 }
 
 
 def _is_confusable_pair(title_a: str, title_b: str) -> bool:
-    """Return True if the two titles form a confusable medical pair."""
+    """Return True if the two titles form a confusable medical pair.
+
+    Uses substring matching so that e.g. "type 2 diabetes mellitus" still
+    matches the confusable pair {"type 1 diabetes", "type 2 diabetes"}.
+    """
     a_lower = title_a.lower().strip()
     b_lower = title_b.lower().strip()
-    return frozenset({a_lower, b_lower}) in _CONFUSABLE_PAIRS
+    for pair in _CONFUSABLE_PAIRS:
+        terms = list(pair)
+        # Check if each title contains a different term from the pair
+        for i in range(len(terms)):
+            other = 1 - i
+            if (terms[i] in a_lower and terms[other] in b_lower):
+                return True
+    return False
 
 
 class HypothesisTracker:

@@ -14,13 +14,25 @@ from typing import Any
 
 from healthbot.data.db import HealthDB
 from healthbot.normalize.lab_normalizer import get_loinc
+from healthbot.security.phi_firewall import PhiFirewall
 
 
 class FhirExporter:
-    """Export health data as FHIR R4 JSON Bundle."""
+    """Export health data as FHIR R4 JSON Bundle.
 
-    def __init__(self, db: HealthDB) -> None:
+    All text fields are validated through PhiFirewall.redact() before inclusion
+    in the FHIR bundle to prevent PII leakage from Tier 1 data.
+    """
+
+    def __init__(self, db: HealthDB, phi_firewall: PhiFirewall | None = None) -> None:
         self._db = db
+        self._fw = phi_firewall or PhiFirewall()
+
+    def _safe(self, value: str) -> str:
+        """Redact any PHI from a string value before export."""
+        if not value:
+            return value
+        return self._fw.redact(str(value))
 
     def export_bundle(
         self,
@@ -133,7 +145,7 @@ class FhirExporter:
 
         # LOINC code if available
         loinc = get_loinc(canonical)
-        test_name = lab.get("test_name", canonical)
+        test_name = self._safe(lab.get("test_name", canonical))
         if loinc:
             obs["code"] = {
                 "coding": [{
@@ -155,7 +167,7 @@ class FhirExporter:
                 "system": "http://unitsofmeasure.org",
             }
         except (ValueError, TypeError):
-            obs["valueString"] = str(value)
+            obs["valueString"] = self._safe(str(value))
 
         # Reference range
         ref_low = lab.get("reference_low")
@@ -184,7 +196,7 @@ class FhirExporter:
 
     def _med_to_medication_statement(self, med: dict) -> dict | None:
         """Map a decrypted medication to FHIR MedicationStatement."""
-        name = med.get("name", "")
+        name = self._safe(med.get("name", ""))
         if not name:
             return None
 
@@ -196,12 +208,12 @@ class FhirExporter:
             "medicationCodeableConcept": {"text": name},
         }
 
-        dose = med.get("dose", "")
-        freq = med.get("frequency", "")
+        dose = self._safe(med.get("dose", ""))
+        freq = self._safe(med.get("frequency", ""))
         if dose or freq:
             dosage: dict[str, Any] = {}
             if dose:
-                dosage["text"] = f"{dose} {med.get('unit', '')}".strip()
+                dosage["text"] = f"{dose} {self._safe(med.get('unit', ''))}".strip()
             if freq:
                 dosage["timing"] = {"code": {"text": freq}}
             stmt["dosage"] = [dosage]
@@ -217,7 +229,7 @@ class FhirExporter:
 
     def _vital_to_observation(self, vital: dict) -> dict | None:
         """Map a vital sign to FHIR Observation resource."""
-        vital_type = vital.get("type", vital.get("canonical_name", ""))
+        vital_type = self._safe(vital.get("type", vital.get("canonical_name", "")))
         value = vital.get("value")
         if not vital_type or value is None:
             return None
@@ -240,10 +252,10 @@ class FhirExporter:
             numeric = float(value)
             obs["valueQuantity"] = {
                 "value": numeric,
-                "unit": vital.get("unit", ""),
+                "unit": self._safe(vital.get("unit", "")),
             }
         except (ValueError, TypeError):
-            obs["valueString"] = str(value)
+            obs["valueString"] = self._safe(str(value))
 
         meta = vital.get("_meta", {})
         date_eff = meta.get("date_effective")
@@ -253,9 +265,15 @@ class FhirExporter:
         return obs
 
     def _event_to_observation(self, event: dict) -> dict | None:
-        """Map a user-logged symptom event to FHIR Observation."""
-        symptom = event.get("symptom_category", "")
-        text = event.get("cleaned_text", event.get("raw_text", ""))
+        """Map a user-logged symptom event to FHIR Observation.
+
+        Only ``cleaned_text`` is used — ``raw_text`` is never included in FHIR
+        output because it may contain the original user input with PII.
+        """
+        symptom = self._safe(event.get("symptom_category", ""))
+        # Never fall back to raw_text — it contains original user input and may
+        # include PII.  Only use cleaned_text which has already been sanitized.
+        text = self._safe(event.get("cleaned_text", ""))
         if not symptom and not text:
             return None
 
@@ -274,7 +292,7 @@ class FhirExporter:
             "valueString": text,
         }
 
-        severity = event.get("severity", "")
+        severity = self._safe(event.get("severity", ""))
         if severity:
             obs["interpretation"] = [{"text": severity}]
 
@@ -354,7 +372,7 @@ class FhirExporter:
 
     def _concern_to_condition(self, concern: dict) -> dict | None:
         """Map a health concern to FHIR Condition resource."""
-        title = concern.get("title", "")
+        title = self._safe(concern.get("title", ""))
         if not title:
             return None
 
@@ -389,7 +407,7 @@ class FhirExporter:
         if onset:
             condition["onsetDateTime"] = onset
 
-        notes = concern.get("notes", "")
+        notes = self._safe(concern.get("notes", ""))
         if notes:
             condition["note"] = [{"text": notes}]
 

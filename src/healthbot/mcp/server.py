@@ -355,7 +355,7 @@ def create_server(clean_db: CleanDB, phi_firewall: PhiFirewall):
             for s in skills:
                 status = "yes" if s["enabled"] else "no"
                 lines.append(f"| {s['name']} | {s['description']} | {status} |")
-            return "\n".join(lines)
+            return _safe_response("\n".join(lines))
         except Exception as exc:
             logger.error("MCP list_skills failed: %s", exc)
             return f"[Error listing skills: {type(exc).__name__}]"

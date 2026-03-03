@@ -268,21 +268,21 @@ All `/commands` are 100% deterministic (no LLM) except `/deep` (Claude CLI resea
 
 ```
 src/healthbot/                    # 15 packages
-  bot/        (18)  Telegram handlers (core + sub-handlers), auth, rate limiting, formatters, routing, middleware, OAuth
-  data/       (10)  SQLite + AES-256-GCM encryption, Clean DB (Tier 2), clean sync engine, models, schema, memory mixin
-  export/     (12)  PDF generator, AI export, chart generator, FHIR/CSV export, weekly/monthly reports, emergency card
-  importers/   (4)  WHOOP + Oura Ring OAuth v2 clients (httpx async)
-  ingest/     (12)  Lab PDF parser, clinical doc parser, Apple Health XML, MyChart CCDA/FHIR, OCR, genetic parser, PDF pipeline
-  llm/        (14)  Claude CLI (conversation + research), Ollama client (anonymization only), anonymizer (3-layer + hybrid), memory, proactive
-  mcp/         (4)  MCP server — exposes anonymized health data + skill tools via stdio transport
-  nlu/         (6)  Medical classifier, medication parser, date parser, spell check, onboarding, intents
-  normalize/   (2)  Lab name/unit normalization, vitals parsing
-  reasoning/ (50)  Trends, correlations, insights, overdue, triage, delta, health review, data quality, interactions, watcher, hypothesis, family risk, condition extractor, intelligence auditor, knowledge base, digest, genetic risk, pharmacogenomics, pathway analysis, derived markers, lab alerts
-  research/    (6)  Claude CLI research, PubMed REST, evidence store, knowledge base, query packets
-  retrieval/   (4)  TF-IDF/BM25 search, encrypted vector store, citations
-  security/  (13)  Key manager (+ HKDF clean key), keychain, vault, PHI firewall, log scrubber, PDF safety, NER layer, audit, PII alert, identity profile
-  skills/      (3)  OpenClaw-inspired skill system — Protocol, registry, 12 built-in skill adapters
-  vault_ops/   (6)  Encrypted backup, restore, schema migration, rekey, integrity check
+  bot/        (48)  Telegram handlers (core + sub-handlers), auth, rate limiting, formatters, routing, middleware, OAuth
+  data/       (29)  SQLite + AES-256-GCM encryption, Clean DB (Tier 2), clean sync engine, models, schema, memory mixin
+  export/     (14)  PDF generator, AI export, chart generator, FHIR/CSV export, weekly/monthly reports, emergency card
+  importers/   (3)  WHOOP + Oura Ring OAuth v2 clients (httpx async), Apple Health auto-import
+  ingest/     (22)  Lab PDF parser, clinical doc parser, Apple Health XML, MyChart CCDA/FHIR, OCR, genetic parser, PDF pipeline
+  llm/        (15)  Claude CLI (conversation + research), Ollama client (anonymization only), anonymizer (3-layer + hybrid), memory, proactive
+  mcp/         (3)  MCP server — exposes anonymized health data + skill tools via stdio transport
+  nlu/         (5)  Medical classifier, medication parser, date parser, embeddings, onboarding
+  normalize/   (1)  Lab name/unit normalization, vitals parsing
+  reasoning/ (53)  Trends, correlations, insights, overdue, triage, delta, health review, data quality, interactions, watcher, hypothesis, family risk, condition extractor, intelligence auditor, knowledge base, digest, genetic risk, pharmacogenomics, pathway analysis, derived markers, lab alerts
+  research/    (8)  Claude CLI research, PubMed REST, evidence store, knowledge base, query packets, schema evolution, substance researcher
+  retrieval/   (3)  TF-IDF/BM25 search, encrypted vector store, citations
+  security/  (12)  Key manager (+ HKDF clean key), keychain, vault, PHI firewall, log scrubber, PDF safety, NER layer, audit, PII alert, identity profile
+  skills/      (2)  OpenClaw-inspired skill system — Protocol, registry, 12 built-in skill adapters
+  vault_ops/   (5)  Encrypted backup, restore, schema migration, rekey, integrity check
 ```
 
 ## Data Flow (Two-Tier + Single-Lane Architecture)
@@ -353,7 +353,7 @@ Flags (defined in llm/claude_client.py, imported by research/claude_cli_client.p
   --tools WebSearch,WebFetch  Only web research tools (blocks Bash, Edit, Write, Read)
 
 Environment isolation:
-  env={"PATH": ..., "HOME": ...}  Only PATH and HOME passed (no secret leakage)
+  env={"PATH": ..., "HOME": ..., "USER": ...}  Only PATH + HOME + USER passed (no secret leakage)
 
 Data via stdin only:
   subprocess.run(cmd, input=full_input)  NEVER in command-line args (invisible to ps)
@@ -421,7 +421,7 @@ A field is "uncertain" when:
 10. Bot acts as a knowledgeable medical advisor. Give direct interpretations backed by evidence. No disclaimers.
 11. WHOOP: OAuth only. NEVER password scraping.
 12. Vault passphrase NEVER stored to disk (not in Keychain, not in config, not anywhere). Exception: MCP auto-unlock may use `HEALTHBOT_PASSPHRASE` env var set by the user for unattended startup (see `docs/OPENCLAW_SETUP.md`).
-13. Subprocess `env=` must be explicit (PATH + HOME only). No full environment inheritance.
+13. Subprocess `env=` must be explicit (PATH + HOME + USER only). No full environment inheritance.
 14. All outbound subprocess calls use `_PRIVACY_FLAGS` + `_TOOL_FLAGS` from `llm/claude_client.py`.
 15. NER layer is a detection AID, not a security gate replacement. Regex always runs as Layer 2.
 16. NER layer (GLiNER) runs 100% locally. NEVER send raw PII to cloud for stripping.
@@ -461,7 +461,7 @@ A field is "uncertain" when:
 2. Verify: `anonymizer.assert_safe(cleaned)` — raises `AnonymizationError` if PII remains
 3. If calling Claude CLI: use `_PRIVACY_FLAGS` + `_TOOL_FLAGS` from `llm/claude_client.py`
 4. Pass data via stdin, never args. Use `subprocess.run(timeout=...)`.
-5. Pass minimal `env={"PATH": ..., "HOME": ...}`
+5. Pass minimal `env={"PATH": ..., "HOME": ..., "USER": ...}`
 
 ### New safety/triage check
 1. MUST be deterministic (regex, keyword matching, threshold)
@@ -515,8 +515,8 @@ A field is "uncertain" when:
 | `security/key_manager.py` | Argon2id KDF, master key lifecycle, 30-min auto-lock, on_lock callback |
 | `security/vault.py` | Encrypted blob storage for PDFs and exports |
 | `security/log_scrubber.py` | PHI redaction filter for all log output |
-| `data/db.py` | Tier 1: Encrypted SQLite — all sensitive fields use `_encrypt/_decrypt` with AAD |
-| `data/clean_db.py` | Tier 2: Anonymized SQLite — zero PII, AI-accessible, HKDF key |
+| `data/db/` | Tier 1: Encrypted SQLite (package, 11 submodules) — all sensitive fields use `_encrypt/_decrypt` with AAD |
+| `data/clean_db/` | Tier 2: Anonymized SQLite (package, 11 submodules) — zero PII, AI-accessible, HKDF key |
 | `data/clean_sync.py` | Sync engine: raw vault → anonymize → Clean DB. Supports fast/hybrid/full/rebuild modes with uncertainty detection and selective Ollama review. |
 | `data/schema.py` | Schema definition + migration system |
 | `research/claude_cli_client.py` | Research via Claude CLI (imports privacy flags from llm/) |
@@ -526,9 +526,9 @@ A field is "uncertain" when:
 | `config.py` | All paths, constants, settings (no secrets) |
 | `bot/handlers.py` | Telegram command facade (delegates to sub-handler modules) |
 | `bot/handler_core.py` | Shared handler state, DB/LLM init, vault lock |
-| `bot/handlers_health.py` | Health analysis commands (insights, trend, ask, correlate, etc.) |
+| `bot/handlers_health/` | Health analysis commands (package, 8 submodules) (insights, trend, ask, correlate, etc.) |
 | `bot/handlers_medical.py` | Medical tracking commands (hypotheses, evidence, doctor prep) |
-| `bot/handlers_data.py` | Import/export/sync commands (WHOOP, Oura, Apple Health, FHIR) |
+| `bot/handlers_data/` | Import/export/sync commands (package, 8 submodules) (WHOOP, Oura, Apple Health, FHIR) |
 | `bot/handlers_onboard.py` | Interactive onboarding questionnaire flow |
 | `bot/handlers_reset.py` | Vault reset/wipe with confirmation |
 | `export/chart_generator.py` | In-memory matplotlib charts (trend lines, dashboard bars) |
@@ -548,9 +548,9 @@ A field is "uncertain" when:
 | `importers/oura_client.py` | Oura Ring OAuth v2 client (httpx async) |
 | `research/external_evidence_store.py` | Cached research with TTL, browse, cleanup |
 | `ingest/clinical_doc_parser.py` | Ollama-based clinical document extraction (doctor's notes, summaries, etc.) |
-| `ingest/telegram_pdf_ingest.py` | PDF ingestion pipeline: validate → encrypt → parse labs → clinical extraction → store |
-| `bot/message_router.py` | Routes messages: passphrase, documents (PDF/ZIP), photos, free text |
-| `bot/scheduler.py` | Background jobs: alerts, incoming folder poll, STM consolidation, backups |
+| `ingest/telegram_pdf_ingest/` | PDF ingestion pipeline (package, 7 submodules): validate → encrypt → parse labs → clinical extraction → store |
+| `bot/message_router/` | Routes messages (package, 7 submodules): passphrase, documents (PDF/ZIP), photos, free text |
+| `bot/scheduler/` | Background jobs (package, 10 submodules): alerts, incoming folder poll, STM consolidation, backups |
 | `mcp/server.py` | MCP server: 9 tools for anonymized health data + skill system |
 | `mcp/entry.py` | MCP server entry: passphrase handling, KeyManager init |
 | `security/pii_alert.py` | Real-time PII leak alerting — logs + Telegram push + stats |

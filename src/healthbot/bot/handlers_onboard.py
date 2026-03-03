@@ -94,6 +94,11 @@ class OnboardHandlers:
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
         """Handle inline keyboard callbacks for onboarding prompt."""
+        if not self._check_auth(update):
+            query = update.callback_query
+            await query.answer()
+            await query.edit_message_text("Unauthorized.")
+            return
         query = update.callback_query
         await query.answer()
         data = query.data

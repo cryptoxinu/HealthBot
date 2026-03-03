@@ -41,7 +41,7 @@ class ExportMixin:
                 from healthbot.export.fhir_export import FhirExporter
 
                 uid = update.effective_user.id
-                exporter = FhirExporter(db)
+                exporter = FhirExporter(db, phi_firewall=self._core._fw)
                 all_flag = "--all" in args or len(args) <= 1
                 json_str = exporter.export_json(
                     include_labs=all_flag or "--labs" in args,
@@ -74,8 +74,8 @@ class ExportMixin:
         db = self._core._get_db()
         uid = update.effective_user.id
         try:
-            labs_csv = export_labs_csv(db, uid)
-            meds_csv = export_medications_csv(db, uid)
+            labs_csv = export_labs_csv(db, uid, phi_firewall=self._core._fw)
+            meds_csv = export_medications_csv(db, uid, phi_firewall=self._core._fw)
 
             if labs_csv.count("\n") > 1:
                 doc = io.BytesIO(labs_csv.encode("utf-8"))

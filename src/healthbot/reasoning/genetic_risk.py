@@ -221,7 +221,11 @@ class GeneticRiskEngine:
             if not rule or not genotype:
                 continue
 
-            risk_level = rule["risk_genotypes"].get(genotype)
+            # Normalize genotype to uppercase for case-insensitive matching
+            # (e.g., "ag", "Ag", "AG" should all match)
+            genotype_upper = genotype.upper()
+            risk_genotypes_upper = {k.upper(): v for k, v in rule["risk_genotypes"].items()}
+            risk_level = risk_genotypes_upper.get(genotype_upper)
             if not risk_level:
                 continue  # Normal genotype for this SNP
 

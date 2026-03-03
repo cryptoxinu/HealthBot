@@ -91,6 +91,7 @@ class VaultBackup:
                     "memory_cost": 65536,
                     "time_cost": 3,
                     "parallelism": 4,
+                    "salt": os.urandom(16).hex(),
                 },
             }
             manifest_path.parent.mkdir(parents=True, exist_ok=True)

@@ -235,7 +235,28 @@ class LabAlertEngine:
 
             curr_val = self._to_float(curr_obs.get("value"))
             prev_val = self._to_float(prev_obs.get("value"))
-            if curr_val is None or prev_val is None or prev_val == 0:
+            if curr_val is None or prev_val is None:
+                continue
+
+            # When previous value is zero, percentage change is undefined.
+            # A jump from 0 to any positive value is clinically significant,
+            # so flag it using absolute delta instead.
+            if prev_val == 0:
+                if curr_val != 0:
+                    direction = "increased" if curr_val > 0 else "decreased"
+                    alerts.append(LabAlert(
+                        alert_type="rapid_change",
+                        severity=config["severity"],
+                        test_name=curr_obs.get("test_name", name),
+                        canonical_name=name,
+                        message=f"Rapid change: {name} {direction} from zero "
+                                f"(0 -> {curr_val}) — {config['concern']}",
+                        value=curr_val,
+                        unit=curr_obs.get("unit", ""),
+                        previous_value=prev_val,
+                        change_pct=None,
+                        date=curr_obs.get("date_effective", ""),
+                    ))
                 continue
 
             change_pct = abs((curr_val - prev_val) / prev_val * 100)

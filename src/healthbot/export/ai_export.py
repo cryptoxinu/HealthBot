@@ -141,6 +141,12 @@ class AiExporter:
             )
             path.write_bytes(nonce + ct)
         else:
+            # Plaintext fallback — run final PII gate before writing to disk
+            try:
+                self._anon.assert_safe(result.markdown)
+            except Exception as e:
+                logger.warning("PII detected in plaintext export, redacting: %s", e)
+                result.markdown = self._fw.redact(result.markdown)
             path = exports_dir / f"health_export_ai_{ts}.md"
             path.write_text(result.markdown, encoding="utf-8")
 

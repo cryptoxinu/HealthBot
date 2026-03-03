@@ -130,14 +130,16 @@ class ClinicalDocRouter:
 
         # Build prompt
         prompt_parts = []
-        if health_summary_excerpt:
-            prompt_parts.append(
-                f"Patient context (for cross-referencing):\n{health_summary_excerpt}\n\n"
-            )
         # Anonymize document text before sending to Claude CLI
         try:
             from healthbot.llm.anonymizer import Anonymizer
             anon = Anonymizer(phi_firewall=self._fw)
+            if health_summary_excerpt:
+                anonymized_excerpt, _ = anon.anonymize(health_summary_excerpt)
+                anon.assert_safe(anonymized_excerpt)
+                prompt_parts.append(
+                    f"Patient context (for cross-referencing):\n{anonymized_excerpt}\n\n"
+                )
             anonymized_text, _had_phi = anon.anonymize(text)
             anon.assert_safe(anonymized_text)
         except Exception as e:

@@ -382,9 +382,13 @@ class Anonymizer:
         # Heuristic name detection (when NER unavailable)
         if not self.has_ner:
             for name in self._heuristic_name_scan(text):
-                idx = text.find(name)
-                if idx >= 0:
+                start = 0
+                while True:
+                    idx = text.find(name, start)
+                    if idx < 0:
+                        break
                     spans.append((idx, idx + len(name), "heuristic_name"))
+                    start = idx + len(name)
 
         if not spans:
             self._cache_put(cache_key, (text, False))
@@ -473,8 +477,11 @@ class Anonymizer:
         # Heuristic name detection (when NER unavailable)
         if not self.has_ner:
             for name in self._heuristic_name_scan(text):
-                idx = text.find(name)
-                if idx >= 0:
+                start = 0
+                while True:
+                    idx = text.find(name, start)
+                    if idx < 0:
+                        break
                     text_hash = hashlib.sha256(
                         name.encode(),
                     ).hexdigest()[:12]
@@ -484,6 +491,7 @@ class Anonymizer:
                         layer="regex", confidence=0.7,
                         text_hash=text_hash,
                     ))
+                    start = idx + len(name)
 
         if not pii_spans:
             return text, []
@@ -543,8 +551,11 @@ class Anonymizer:
         # Heuristic name detection (when NER unavailable)
         if not self.has_ner:
             for name in self._heuristic_name_scan(text):
-                idx = text.find(name)
-                if idx >= 0:
+                start = 0
+                while True:
+                    idx = text.find(name, start)
+                    if idx < 0:
+                        break
                     text_hash = hashlib.sha256(
                         name.encode(),
                     ).hexdigest()[:12]
@@ -554,6 +565,7 @@ class Anonymizer:
                         layer="regex", confidence=0.7,
                         text_hash=text_hash,
                     ))
+                    start = idx + len(name)
 
         if not pii_spans:
             return text, [], []

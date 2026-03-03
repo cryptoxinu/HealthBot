@@ -13,6 +13,7 @@ from io import BytesIO
 from fpdf import FPDF
 
 from healthbot.data.db import HealthDB
+from healthbot.security.phi_firewall import PhiFirewall
 
 logger = logging.getLogger("healthbot")
 
@@ -39,10 +40,21 @@ class PdfReportData:
 
 
 class WeeklyPdfReportGenerator:
-    """Generate weekly/monthly PDF health reports in memory."""
+    """Generate weekly/monthly PDF health reports in memory.
 
-    def __init__(self, db: HealthDB) -> None:
+    All free-text fields are passed through PhiFirewall.redact() before
+    inclusion in the PDF to prevent PII leakage from Tier 1 data.
+    """
+
+    def __init__(self, db: HealthDB, phi_firewall: PhiFirewall | None = None) -> None:
         self._db = db
+        self._fw = phi_firewall or PhiFirewall()
+
+    def _safe(self, value: str) -> str:
+        """Redact any PHI from a string value before including in PDF."""
+        if not value:
+            return value
+        return self._fw.redact(str(value))
 
     def generate_weekly(
         self, user_id: int, days: int = 7,
@@ -53,7 +65,7 @@ class WeeklyPdfReportGenerator:
         start = end - timedelta(days=days)
         data = self._gather_data(user_id, "weekly", start, end)
         if memory_items:
-            data.memory_items = memory_items
+            data.memory_items = [self._safe(m) for m in memory_items]
         return self._render_pdf(data)
 
     def generate_monthly(
@@ -65,7 +77,7 @@ class WeeklyPdfReportGenerator:
         start = end - timedelta(days=days)
         data = self._gather_data(user_id, "monthly", start, end)
         if memory_items:
-            data.memory_items = memory_items
+            data.memory_items = [self._safe(m) for m in memory_items]
         return self._render_pdf(data)
 
     def _gather_data(
@@ -100,7 +112,7 @@ class WeeklyPdfReportGenerator:
                 labs = by_date[dt]
                 flagged = [r for r in labs if r.get("flag")]
                 if flagged:
-                    names = ", ".join(r.get("test_name", "?") for r in flagged[:5])
+                    names = ", ".join(self._safe(r.get("test_name", "?")) for r in flagged[:5])
                     data.lab_items.append(
                         f"{dt}: {len(labs)} tests, {len(flagged)} flagged ({names})"
                     )
@@ -150,7 +162,7 @@ class WeeklyPdfReportGenerator:
                 by_sport: dict[str, int] = {}
                 total_mins = 0.0
                 for w in workouts:
-                    sport = w.get("sport_type", w.get("_sport_type", "other"))
+                    sport = self._safe(w.get("sport_type", w.get("_sport_type", "other")))
                     by_sport[sport] = by_sport.get(sport, 0) + 1
                     total_mins += float(w.get("duration_minutes", 0) or 0)
 
@@ -167,9 +179,9 @@ class WeeklyPdfReportGenerator:
         try:
             meds = self._db.get_active_medications(user_id=user_id)
             for med in meds:
-                name = med.get("name", "")
-                dose = med.get("dose", "")
-                freq = med.get("frequency", "")
+                name = self._safe(med.get("name", ""))
+                dose = self._safe(med.get("dose", ""))
+                freq = self._safe(med.get("frequency", ""))
                 data.medication_items.append(f"{name} {dose} {freq}".strip())
         except Exception as e:
             logger.debug("PDF report meds: %s", e)
@@ -181,7 +193,7 @@ class WeeklyPdfReportGenerator:
             overdue = detector.check_overdue(user_id=user_id)
             for item in overdue[:5]:
                 data.action_items.append(
-                    f"Overdue: {item.test_name} ({item.days_overdue} days)"
+                    f"Overdue: {self._safe(item.test_name)} ({item.days_overdue} days)"
                 )
         except Exception as e:
             logger.debug("PDF report overdue: %s", e)
@@ -192,7 +204,7 @@ class WeeklyPdfReportGenerator:
             retests = rs.get_pending_retests(user_id=user_id)
             for rt in retests[:5]:
                 data.action_items.append(
-                    f"Retest: {rt.display_name} (due in {rt.days_until_due} days)"
+                    f"Retest: {self._safe(rt.display_name)} (due in {rt.days_until_due} days)"
                 )
         except Exception as e:
             logger.debug("PDF report retests: %s", e)
@@ -204,7 +216,7 @@ class WeeklyPdfReportGenerator:
             progress = gt.check_progress(user_id)
             for gp in progress:
                 icon = "+" if gp.status == "achieved" else "*"
-                data.goal_items.append(f"{icon} {gp.message}")
+                data.goal_items.append(f"{icon} {self._safe(gp.message)}")
         except Exception as e:
             logger.debug("PDF report goals: %s", e)
 

@@ -12,6 +12,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from healthbot.config import Config
+from healthbot.reasoning.triage import TriageEngine
 from healthbot.security.key_manager import KeyManager
 
 from .document_handler import DocumentMixin
@@ -159,6 +160,15 @@ class MessageRouter(
 
         # Any inbound message refreshes the session timeout
         self._km.touch()
+
+        # EMERGENCY TRIAGE — must run FIRST, before any other routing.
+        # Safety-critical: deterministic keyword check, no LLM.
+        if update.message.text:
+            triage = TriageEngine()
+            level, msg = triage.check_emergency_keywords(update.message.text)
+            if level:
+                await update.message.reply_text(f"EMERGENCY: {msg}")
+                return
 
         # Passphrase handling (two-step flow: /unlock then passphrase as next message)
         if user_id in self._awaiting_passphrase and update.message.text:

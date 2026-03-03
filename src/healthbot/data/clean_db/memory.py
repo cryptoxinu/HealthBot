@@ -86,7 +86,12 @@ class MemoryMixin:
         source_type: str = "",
         source_ref: str = "",
     ) -> None:
-        """Record a memory write event in the audit log."""
+        """PII-validated record of a memory write event in the audit log."""
+        self._validate_text_fields(
+            {"key": key, "old_value": old_value, "new_value": new_value,
+             "source_type": source_type, "source_ref": source_ref},
+            f"memory_audit_log.{key}",
+        )
         self.conn.execute(
             """INSERT INTO memory_audit_log
                (key, old_value, new_value, source_type, source_ref, changed_at)
@@ -206,7 +211,12 @@ class MemoryMixin:
         status: str,
         error_message: str = "",
     ) -> str:
-        """Record a schema evolution event. Returns the event ID."""
+        """PII-validated record of a schema evolution event. Returns the event ID."""
+        self._validate_text_fields(
+            {"data_type": data_type, "reason": reason,
+             "changes_summary": changes_summary, "error_message": error_message},
+            "schema_evolution_log",
+        )
         evo_id = uuid.uuid4().hex
         self.conn.execute(
             """INSERT INTO schema_evolution_log

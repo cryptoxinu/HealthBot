@@ -334,24 +334,18 @@ class VaultRekey:
     def _switch_key(self, new_key: bytes) -> None:
         """Replace the key manager's in-memory master key with the new key.
 
-        Directly updates KeyManager's internal state so subsequent
-        operations use the new key without requiring re-unlock.
+        Uses KeyManager.replace_master_key() which securely zeros the old
+        key and sets the new one with proper thread safety.
         """
-        if self._km._master_key is not None:
-            for i in range(len(self._km._master_key)):
-                self._km._master_key[i] = 0
-
-        self._km._master_key = bytearray(new_key)
-        self._km._last_activity = time.time()
+        self._km.replace_master_key(new_key)
 
     def _restore_old_key(self, old_key: bytes) -> None:
-        """Restore the old key in the key manager after a failed rotation."""
-        if self._km._master_key is not None:
-            for i in range(len(self._km._master_key)):
-                self._km._master_key[i] = 0
+        """Restore the old key in the key manager after a failed rotation.
 
-        self._km._master_key = bytearray(old_key)
-        self._km._last_activity = time.time()
+        Uses KeyManager.replace_master_key() which securely zeros the
+        current key and sets the old one with proper thread safety.
+        """
+        self._km.replace_master_key(old_key)
 
     def _verify_sample(self) -> None:
         """Verify the new key works by decrypting a sample row.

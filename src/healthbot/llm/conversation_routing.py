@@ -739,6 +739,42 @@ def handle_schema_evolve_block(mgr, block: dict) -> None:
             clean_db.close()
 
     if result and result.success:
+        # Validate DDL and generated code before running migrations
+        from healthbot.research.schema_evolution_validator import (
+            validate_ddl,
+            validate_generated_files,
+        )
+        validation_errors = validate_ddl(result.ddl_executed)
+        project_dir = cli_client._find_project_dir()
+        if project_dir:
+            validation_errors += validate_generated_files(
+                result.files_modified, str(project_dir),
+            )
+        if validation_errors:
+            logger.error(
+                "Schema evolution validation failed: %s",
+                "; ".join(validation_errors),
+            )
+            # Log the validation failure but do NOT run migrations
+            clean_db3 = get_clean_db(mgr)
+            if clean_db3:
+                try:
+                    clean_db3.log_schema_evolution(
+                        data_type=data_type,
+                        reason=reason,
+                        changes_summary="Validation failed: " + "; ".join(validation_errors),
+                        files_modified=result.files_modified,
+                        ddl_executed=result.ddl_executed,
+                        migration_version=result.migration_version,
+                        status="validation_failed",
+                        error_message="; ".join(validation_errors),
+                    )
+                except Exception as exc:
+                    logger.warning("Failed to log validation failure: %s", exc)
+                finally:
+                    clean_db3.close()
+            return
+
         # Run migrations on both DBs
         if mgr._db and hasattr(mgr._db, "run_migrations"):
             try:

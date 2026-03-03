@@ -860,6 +860,7 @@ class CleanSyncEngine:
                     "clean_health_goals", "clean_med_reminders",
                     "clean_providers", "clean_appointments",
                     "clean_health_records_ext",
+                    "clean_substance_knowledge",
                 ]:
                     self._clean.conn.execute(f'DELETE FROM "{table}"')
                 # Clear anonymization cache too (rebuild = re-anonymize all)

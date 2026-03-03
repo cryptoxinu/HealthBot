@@ -563,6 +563,9 @@ class CleanDBCore:
         "clean_med_reminders", "clean_providers", "clean_appointments",
         "clean_health_records_ext", "clean_anon_cache",
         "clean_system_improvements", "clean_demographics",
+        "clean_meta", "clean_user_memory", "clean_corrections",
+        "clean_substance_knowledge", "clean_analysis_rules",
+        "memory_audit_log", "schema_evolution_log",
     }
     _VALID_ID_COLUMNS: set[str] = {
         "id", "obs_id", "med_id", "hyp_id", "ctx_id", "goal_id",
@@ -613,7 +616,12 @@ class CleanDBCore:
         return deleted
 
     def count_rows(self, table: str) -> int:
-        """Count rows in a clean DB table."""
+        """Count rows in a clean DB table.
+
+        Validates the table name against an allowlist to prevent SQL injection.
+        """
+        if table not in self._VALID_TABLES:
+            raise ValueError(f"Invalid table name: {table}")
         try:
             row = self.conn.execute(
                 f"SELECT COUNT(*) as cnt FROM {table}",  # noqa: S608

@@ -61,6 +61,14 @@ _FIX_TOOL_FLAGS: list[str] = [
     "--allowedTools", "Bash,Read,Write,Edit,Glob,Grep,WebSearch,WebFetch",
 ]
 
+# Schema evolution tools — no Bash (prevents shell escapes, exfiltration,
+# and reading encrypted vault files). Schema evolution only needs to
+# create/edit .py files and SQL — no shell access required.
+_EVOLUTION_TOOL_FLAGS: list[str] = [
+    "--tools", "Read,Write,Edit,Glob,Grep",
+    "--allowedTools", "Read,Write,Edit,Glob,Grep",
+]
+
 
 def _build_subprocess_env(api_key: str | None = None) -> dict[str, str]:
     """Build minimal subprocess env — PATH + HOME + USER + optional API key.

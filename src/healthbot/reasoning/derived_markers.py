@@ -106,6 +106,21 @@ class DerivedMarkerEngine:
 
         return latest
 
+    def _get_observation_unit(self, canonical_name: str) -> str | None:
+        """Get the unit for the most recent observation of a test.
+
+        Returns the unit string, or None if unavailable.
+        """
+        obs = self._db.query_observations(
+            record_type="lab_result",
+            canonical_name=canonical_name,
+            limit=1,
+            user_id=self._current_user_id,
+        )
+        if not obs:
+            return None
+        return obs[0].get("unit") or None
+
     def _homa_ir(self, labs: dict[str, float]) -> DerivedMarker | None:
         """HOMA-IR = (fasting glucose mg/dL * fasting insulin uIU/mL) / 405.
 
@@ -119,6 +134,20 @@ class DerivedMarkerEngine:
             return None
         if insulin <= 0 or glucose <= 0:
             return None
+
+        # Validate glucose units — formula requires mg/dL.
+        # If glucose is in mmol/L, convert (1 mmol/L = 18.0182 mg/dL).
+        glucose_unit = self._get_observation_unit("glucose")
+        if glucose_unit:
+            unit_lower = glucose_unit.lower().strip()
+            if unit_lower in ("mmol/l", "mmol/l", "mmol"):
+                glucose = glucose * 18.0182
+                logger.debug("HOMA-IR: converted glucose from mmol/L to mg/dL")
+            elif unit_lower not in ("mg/dl", "mg/dl", ""):
+                logger.warning(
+                    "HOMA-IR: unexpected glucose unit '%s' — result may be inaccurate",
+                    glucose_unit,
+                )
 
         # Check fasting status from the glucose observation metadata
         is_fasting = self._check_fasting_status("glucose")

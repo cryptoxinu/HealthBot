@@ -59,6 +59,7 @@ class PharmacogenomicsReport:
 _DEFAULT_STATUS_MAP = {
     "elevated": MetabolizerStatus.POOR,
     "moderate": MetabolizerStatus.INTERMEDIATE,
+    "carrier": MetabolizerStatus.INTERMEDIATE,
 }
 _ENZYME_DEFS: list[dict] = [
     {

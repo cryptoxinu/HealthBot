@@ -428,8 +428,10 @@ class TelegramPdfIngest(
         # On failure, everything rolls back -- no orphaned records.
         try:
             self._db.conn.execute("BEGIN IMMEDIATE")
-        except Exception:
-            pass  # Already in a transaction or autocommit
+        except Exception as e:
+            logger.error("BEGIN IMMEDIATE failed, aborting ingestion transaction: %s", e)
+            result.warnings.append(f"Transaction start failed: {e}")
+            return result
 
         try:
             # 4. Record document (inside transaction for new uploads)

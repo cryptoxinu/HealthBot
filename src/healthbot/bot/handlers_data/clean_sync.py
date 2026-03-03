@@ -88,6 +88,11 @@ class CleanSyncMixin:
         self, update: Update, context: ContextTypes.DEFAULT_TYPE,
     ) -> None:
         """Handle inline keyboard button press for /cleansync mode selection."""
+        if not self._check_auth(update):
+            query = update.callback_query
+            await query.answer()
+            await query.edit_message_text("Unauthorized.")
+            return
         query = update.callback_query
         await query.answer()
 

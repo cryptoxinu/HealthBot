@@ -25,10 +25,13 @@ class BackupJobsMixin:
         except Exception as e:
             logger.warning("Daily backup failed: %s", e)
             # Notify user via Telegram so backup failures are not silently lost
+            # Scrub exception message to avoid leaking file paths or PII
             try:
+                from healthbot.security.phi_firewall import PhiFirewall
+                scrubbed_msg = PhiFirewall().redact(str(e))
                 await self._tracked_send(
                     context.bot,
-                    f"Daily backup failed: {e}. Check logs for details.",
+                    f"Daily backup failed: {scrubbed_msg}. Check logs for details.",
                 )
             except Exception:
                 pass  # Notification is best-effort
