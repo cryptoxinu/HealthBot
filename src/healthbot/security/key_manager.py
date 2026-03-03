@@ -83,37 +83,40 @@ class KeyManager:
         """First-time vault setup. Generate salt, store manifest."""
         salt = os.urandom(self._config.argon2_salt_len)
         key = self.derive_key(passphrase, salt)
+        try:
+            # Create a verification tag: encrypt a known plaintext
+            from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-        # Create a verification tag: encrypt a known plaintext
-        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+            nonce = os.urandom(12)
+            aesgcm = AESGCM(key)
+            verify_ct = aesgcm.encrypt(nonce, b"HEALTHBOT_VERIFY", b"verify")
 
-        nonce = os.urandom(12)
-        aesgcm = AESGCM(key)
-        verify_ct = aesgcm.encrypt(nonce, b"HEALTHBOT_VERIFY", b"verify")
+            manifest = {
+                "schema_version": 1,
+                "vault_version": "0.1.0",
+                "kdf": {
+                    "type": "argon2id",
+                    "time_cost": self._config.argon2_time_cost,
+                    "memory_cost": self._config.argon2_memory_cost,
+                    "parallelism": self._config.argon2_parallelism,
+                    "hash_len": self._config.argon2_hash_len,
+                    "salt": salt.hex(),
+                },
+                "cipher": "AES-256-GCM",
+                "verify_nonce": nonce.hex(),
+                "verify_ct": verify_ct.hex(),
+                "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            }
 
-        manifest = {
-            "schema_version": 1,
-            "vault_version": "0.1.0",
-            "kdf": {
-                "type": "argon2id",
-                "time_cost": self._config.argon2_time_cost,
-                "memory_cost": self._config.argon2_memory_cost,
-                "parallelism": self._config.argon2_parallelism,
-                "hash_len": self._config.argon2_hash_len,
-                "salt": salt.hex(),
-            },
-            "cipher": "AES-256-GCM",
-            "verify_nonce": nonce.hex(),
-            "verify_ct": verify_ct.hex(),
-            "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        }
+            self._config.ensure_dirs()
+            self._config.manifest_path.write_text(json.dumps(manifest, indent=2))
 
-        self._config.ensure_dirs()
-        self._config.manifest_path.write_text(json.dumps(manifest, indent=2))
-
-        with self._lock:
-            self._master_key = bytearray(key)
-            self._last_activity = time.time()
+            with self._lock:
+                self._master_key = bytearray(key)
+                self._last_activity = time.time()
+        finally:
+            # Zero the local derived key buffer
+            self._zero_bytearray(key)
 
     def unlock(self, passphrase: str) -> bool:
         """Unlock the vault. Returns True on success."""
@@ -126,24 +129,32 @@ class KeyManager:
         salt = bytes.fromhex(kdf["salt"])
 
         key = self.derive_key(passphrase, salt)
-
-        # Verify the key against stored verification tag
-        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-
-        nonce = bytes.fromhex(manifest["verify_nonce"])
-        verify_ct = bytes.fromhex(manifest["verify_ct"])
-        aesgcm = AESGCM(key)
         try:
-            plaintext = aesgcm.decrypt(nonce, verify_ct, b"verify")
-            if plaintext != b"HEALTHBOT_VERIFY":
-                return False
-        except Exception:
-            return False
+            # Verify the key against stored verification tag
+            from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-        with self._lock:
-            self._master_key = bytearray(key)
-            self._last_activity = time.time()
-        return True
+            nonce = bytes.fromhex(manifest["verify_nonce"])
+            verify_ct = bytes.fromhex(manifest["verify_ct"])
+            aesgcm = AESGCM(key)
+            try:
+                plaintext = aesgcm.decrypt(nonce, verify_ct, b"verify")
+                if plaintext != b"HEALTHBOT_VERIFY":
+                    return False
+            except (ValueError, TypeError, OSError):
+                # InvalidTag (wrong passphrase) is a subclass of Exception
+                # in cryptography; catch common verification failures
+                return False
+            except Exception:
+                return False
+
+            with self._lock:
+                # bytearray(key) makes a copy; local key is zeroed in finally
+                self._master_key = bytearray(key)
+                self._last_activity = time.time()
+            return True
+        finally:
+            # Zero the local derived key buffer on both success and failure
+            self._zero_bytearray(key)
 
     def verify_passphrase(self, passphrase: str) -> bool:
         """Verify a passphrase against the vault manifest without changing state.

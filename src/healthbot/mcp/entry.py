@@ -72,16 +72,18 @@ def main() -> None:
         from healthbot.data.db import HealthDB
         from healthbot.security.identity_profile import IdentityProfile
 
-        raw_db = HealthDB(config.db_path, km)
+        raw_db = HealthDB(config, km)
         raw_db.open()
         profile = IdentityProfile(db=raw_db)
-        extra_patterns = profile.compile_phi_patterns(user_id=0)
+        extra_patterns = profile.compile_phi_patterns(
+            user_id=config.allowed_user_ids[0] if config.allowed_user_ids else 0,
+        )
         if extra_patterns:
             fw.add_patterns(extra_patterns)
         raw_db.close()
-    except Exception:
+    except (OSError, ValueError) as exc:
         logger.warning("Failed to load identity profile for PhiFirewall — MCP "
-                       "server will run without identity-aware PII detection")
+                       "server will run without identity-aware PII detection: %s", exc)
 
     # Start MCP server
     from healthbot.mcp.server import create_server

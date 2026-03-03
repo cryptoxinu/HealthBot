@@ -236,11 +236,11 @@ class Config:
             if self._validate_type(v, str, "monthly_report_time"):
                 self.monthly_report_time = v
             self._wearable_state = data.get("wearable_state", {})
-            self._privacy_mode = data.get("privacy_mode", "relaxed")
+            self._privacy_mode = data.get("privacy_mode", "strict")
             self._send_redacted_pdf = data.get("send_redacted_pdf", False)
         else:
             self._wearable_state = {}
-            self._privacy_mode = "relaxed"
+            self._privacy_mode = "strict"
             self._send_redacted_pdf = False
 
         # Load research client settings
@@ -280,7 +280,7 @@ class Config:
     @property
     def privacy_mode(self) -> str:
         """Get PDF extraction privacy mode ('relaxed' or 'strict')."""
-        return getattr(self, "_privacy_mode", "relaxed")
+        return getattr(self, "_privacy_mode", "strict")
 
     def set_privacy_mode(self, mode: str) -> None:
         """Set PDF extraction privacy mode and persist to app.json."""

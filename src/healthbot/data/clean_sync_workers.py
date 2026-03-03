@@ -34,16 +34,18 @@ _LAB_BRAND_MAP: dict[str, str] = {
 
 
 def _normalize_lab_brand(raw_name: str) -> str:
-    """Normalize a raw lab name to a canonical brand."""
+    """Normalize a raw lab name to a canonical brand.
+
+    Unknown labs get blank source_lab in the clean DB to prevent
+    leaking identifying lab names. The raw vault keeps the full data.
+    """
     if not raw_name:
         return ""
     key = raw_name.strip().lower()
-    if key in _LAB_BRAND_MAP:
-        return _LAB_BRAND_MAP[key]
     for prefix, brand in _LAB_BRAND_MAP.items():
-        if key.startswith(prefix):
+        if key == prefix or key.startswith(prefix):
             return brand
-    return raw_name.strip()
+    return ""
 
 
 @dataclass
@@ -103,7 +105,7 @@ def _record_pii_alert(category: str) -> None:
         PiiAlertService.get_instance().record(
             category=category, destination="clean_db",
         )
-    except Exception:
+    except (ImportError, OSError, RuntimeError):
         pass
 
 
@@ -133,6 +135,7 @@ def sync_observations(
             unit = rec.get("unit", "")
             ref_text = rec.get("reference_text", "")
             source_lab = _normalize_lab_brand(rec.get("lab_name", ""))
+            source_lab = anonymize(source_lab)
 
             test_name = anonymize(test_name)
             ref_text = anonymize(ref_text)

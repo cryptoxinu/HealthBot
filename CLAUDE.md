@@ -638,7 +638,10 @@ Keychain is OS-level encrypted storage with biometric unlock. `.env` files are p
 
 - Python 3.13+ (tested on 3.14), use `str | None` union syntax
 - Type hints on all functions
-- Max 400 lines per file
+- Max 400 lines per file (soft cap: 900 LOC for generated/data-heavy modules)
 - No hardcoded secrets
 - All tests mock LLM calls (no real Ollama or Claude subprocess in tests)
 - Linting: `ruff check src/ tests/`
+- New/changed functions should have cyclomatic complexity <= 12
+- Security paths (`security/`, `data/`, `ingest/`) must use typed exceptions — no bare `except Exception: pass` where swallowed errors could mask PII leaks or data corruption
+- Startup self-check (`startup_checks.py`) runs on vault unlock — logs privacy mode, identity patterns, clean sync status, migration status

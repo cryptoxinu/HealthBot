@@ -334,6 +334,21 @@ class HandlerCore:
             # Store bot reference for proactive wipe
             self._bot = bot
 
+            # Runtime startup self-check
+            try:
+                from healthbot.startup_checks import run_startup_checks
+
+                ep = getattr(self._fw, "_extra_patterns", [])
+                identity_count = len(ep)
+                run_startup_checks(
+                    self._config,
+                    identity_pattern_count=identity_count,
+                    clean_sync_ok=self._config.clean_db_path.exists(),
+                    migration_current=True,
+                )
+            except Exception as e:
+                logger.warning("Startup self-check failed: %s", e)
+
             # Scheduler integration (only if available)
             if self._scheduler is not None:
                 self._scheduler._chat_id = chat_id

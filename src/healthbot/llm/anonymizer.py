@@ -498,7 +498,7 @@ class Anonymizer:
                 svc = PiiAlertService.get_instance()
                 for issue in issues:
                     svc.record(category=issue, destination="outbound")
-            except Exception:
+            except (ImportError, OSError, RuntimeError):
                 pass  # Alert is best-effort; never block the security gate
 
             raise AnonymizationError(
