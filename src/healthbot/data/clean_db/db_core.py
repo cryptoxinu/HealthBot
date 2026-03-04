@@ -458,30 +458,40 @@ class CleanDBCore:
 
     # ── PII validation ──────────────────────────────────
 
-    @staticmethod
-    def _is_medical_false_positive(text: str, match) -> bool:
+    # Medical compound terms where a component word may match an identity pattern
+    # (e.g., last name "White" matching in "white blood cells").
+    # Check if the matched span itself is part of one of these terms.
+    _MEDICAL_COMPOUNDS: frozenset[str] = frozenset({
+        "white blood", "blood cells", "red blood", "blood cell",
+        "blood count", "blood pressure", "blood sugar", "blood type",
+        "blood work", "heart rate", "heart failure", "heart disease",
+        "fisher exact", "fisher test", "bone marrow", "stem cell",
+        "t cell", "b cell", "cell count", "gene expression",
+        "growth factor", "nerve growth", "tumor marker",
+        "glucose level", "insulin level", "cortisol level",
+        "thyroid panel", "liver panel", "renal panel",
+        "drug level", "serum level", "plasma level",
+    })
+
+    @classmethod
+    def _is_medical_false_positive(cls, text: str, match) -> bool:
         """Check if an id_* match is a medical false positive.
 
-        Returns True (safe to skip) when the matched text appears in a
-        medical context — e.g. "white blood cells", "fisher exact test".
-        Looks at ~50 chars of surrounding context for medical indicators.
+        Returns True (safe to skip) only when the matched text ITSELF is
+        part of a known medical compound term — e.g., "White" in "white
+        blood cells". Does NOT suppress based on surrounding context, as
+        real names commonly appear near medical terms.
         """
-        # Medical/lab indicators in surrounding context
-        medical_indicators = (
-            "mg", "ml", "dl", "mmol", "cells", "count", "blood",
-            "serum", "plasma", "urine", "level", "range", "test",
-            "result", "lab", "panel", "ratio", "index", "score",
-            "enzyme", "protein", "marker", "vitamin", "hormone",
-            "supplement", "dose", "dosage", "mg/dl", "iu/l",
-            "nmol", "pmol", "mcg", "\u00b5g", "ng", "pg",
-        )
-        start = max(0, match.start - 50)
-        end = min(len(text), match.end + 50)
-        context = text[start:end].lower()
-        # Context-based medical false positive check: if surrounded by
-        # medical terms, it's likely a medical term, not PII.
-        for indicator in medical_indicators:
-            if indicator in context:
+        matched_text = text[match.start:match.end].lower()
+
+        # Check if the matched span is part of a known medical compound
+        # by looking at the immediate context (matched text + adjacent words)
+        start = max(0, match.start - 15)
+        end = min(len(text), match.end + 15)
+        local = text[start:end].lower()
+
+        for compound in cls._MEDICAL_COMPOUNDS:
+            if compound in local and matched_text in compound.split():
                 return True
         return False
 

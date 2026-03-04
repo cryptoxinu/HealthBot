@@ -228,6 +228,11 @@ class VaultAuditor:
                             problem_found = True
                     except UnicodeDecodeError:
                         pass  # Binary blob -- expected for encrypted data.
+
+            # Check for plaintext residue in legacy columns
+            findings.extend(
+                self._check_plaintext_residue(conn),
+            )
         finally:
             conn.close()
 
@@ -238,6 +243,59 @@ class VaultAuditor:
                 details=f"All sampled DB fields appear properly encrypted "
                         f"({len(tables)} tables checked)",
             ))
+        return findings
+
+    @staticmethod
+    def _check_plaintext_residue(conn: sqlite3.Connection) -> list[AuditFinding]:
+        """Check for plaintext residue in legacy columns.
+
+        Flags search_index.text_for_search and documents.filename if they
+        still contain non-empty plaintext data that should have been cleared
+        by migrations.
+        """
+        findings: list[AuditFinding] = []
+
+        # search_index.text_for_search
+        try:
+            row = conn.execute(
+                "SELECT COUNT(*) FROM search_index "
+                "WHERE text_for_search IS NOT NULL AND text_for_search != ''",
+            ).fetchone()
+            count = row[0] if row else 0
+            if count > 0:
+                findings.append(AuditFinding(
+                    check_name="plaintext_residue",
+                    status="FAIL",
+                    details=f"search_index: {count} rows with plaintext "
+                            f"text_for_search (should be empty after migration)",
+                ))
+        except sqlite3.OperationalError:
+            pass  # Table may not exist
+
+        # documents.filename
+        try:
+            row = conn.execute(
+                "SELECT COUNT(*) FROM documents "
+                "WHERE filename IS NOT NULL AND filename != ''",
+            ).fetchone()
+            count = row[0] if row else 0
+            if count > 0:
+                findings.append(AuditFinding(
+                    check_name="plaintext_residue",
+                    status="FAIL",
+                    details=f"documents: {count} rows with plaintext filename "
+                            f"(should be empty after migration)",
+                ))
+        except sqlite3.OperationalError:
+            pass  # Table may not exist
+
+        if not findings:
+            findings.append(AuditFinding(
+                check_name="plaintext_residue",
+                status="PASS",
+                details="No plaintext residue in legacy columns",
+            ))
+
         return findings
 
     # ------------------------------------------------------------------

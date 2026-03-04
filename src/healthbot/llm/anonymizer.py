@@ -80,17 +80,30 @@ class Anonymizer:
         "Ménière", "Meniere", "Tourette", "Addisonian", "Down",
         "Ehlers", "Danlos", "Guillain", "Barré", "Barre",
         "Conn", "Klinefelter", "Whipple",
+        # Additional medical surnames in condition names
+        "Bright", "Hodgkins", "Perthes", "Legg", "Calve",
+        "Charcot", "Marie", "Tooth", "Tay", "Sachs",
+        "Wernicke", "Korsakoff", "Mallory", "Weiss",
+        "Osler", "Weber", "Rendu", "Henoch", "Schonlein",
+        "Takayasu", "Bechet", "Bowen", "Ewing", "Wilms",
+        "Hirschsprung", "Meckel", "Zenker",
+        "Bartter", "Gitelman", "Liddle", "Fanconi",
+        "Goodpasture", "Fabry", "Gaucher",
+        "Niemann", "Pick", "Pompe", "Krabbe",
     })
 
-    # Medical context words — if near a Title Case pair, it's likely medical
-    _MEDICAL_CONTEXT: re.Pattern[str] = re.compile(
-        r"\b(?:disease|syndrome|disorder|sign|test|score|index|scale|"
-        r"classification|criteria|maneuver|procedure|method|technique|"
-        r"law|rule|reflex|phenomenon|palsy|mg|mL|mcg|mmol|"
-        r"diagnosis|diagnosed|treatment|therapy|symptom|patient|"
-        r"clinical|pathology|lesion|tumor|carcinoma|biopsy)\b",
-        re.IGNORECASE,
-    )
+    # Two-word medical terms that look like person names in Title Case
+    _MEDICAL_TERM_PAIRS: frozenset[str] = frozenset({
+        "Diabetes Mellitus", "Chronic Fatigue", "Blood Pressure",
+        "Heart Rate", "Heart Failure", "Lung Cancer",
+        "Breast Cancer", "Liver Disease", "Kidney Disease",
+        "Celiac Disease", "Multiple Sclerosis", "Cystic Fibrosis",
+        "Sickle Cell", "Rheumatoid Arthritis", "Atrial Fibrillation",
+        "Pulmonary Embolism", "Aortic Stenosis", "Mitral Valve",
+        "Bone Marrow", "Stem Cell", "White Blood",
+        "Red Blood", "Spinal Cord", "Nerve Growth",
+        "Insulin Resistance", "Glucose Tolerance",
+    })
 
     # Matches two consecutive Title Case words (potential name)
     _CAPITALIZED_PAIR: re.Pattern[str] = re.compile(
@@ -138,6 +151,20 @@ class Anonymizer:
         "Step", "Steps", "Calories", "Distance", "Duration",
         "Variability", "Resting", "Deep", "Light", "Cycle",
         "Peak", "Zone", "Baseline", "Target", "Range",
+        # Medical context words — prevents false positives on medical terms
+        "Disease", "Syndrome", "Disorder", "Therapy",
+        "Receptor", "Enzyme", "Pathway",
+        "Deficiency", "Tolerance",
+        "Assay", "Diagnosis", "Symptom",
+        "Pathology", "Lesion", "Tumor", "Carcinoma", "Biopsy",
+        "Chronic", "Acute", "Benign", "Malignant",
+        "Serum", "Plasma", "Platelet", "Hemoglobin",
+        "Insulin", "Glucose", "Cortisol", "Thyroid",
+        "Renal", "Hepatic", "Cardiac", "Pulmonary",
+        "Arterial", "Venous", "Lymph", "Neural",
+        # Lab company/service words
+        "Quest", "Diagnostics", "Laboratory", "Laboratories",
+        "National", "Reference", "Services", "Healthcare",
     })
 
     def __init__(
@@ -241,7 +268,8 @@ class Anonymizer:
         - Medical eponyms (Graves, Hashimoto, etc.)
         - Known medical terms (from ner_layer.MEDICAL_TERMS)
         - Known ignore texts (from ner_layer.IGNORE_TEXTS)
-        - Pairs near medical context words (within 50-char window)
+        - Known two-word medical term pairs (e.g., "Diabetes Mellitus")
+        - Pairs where BOTH words are common title/medical words
 
         Returns list of suspected name strings.
         """
@@ -277,11 +305,13 @@ class Anonymizer:
             if first in ignore_texts or second in ignore_texts or full in ignore_texts:
                 continue
 
-            # Skip if near medical context words (50-char window)
-            start = max(0, m.start() - 50)
-            end = min(len(text), m.end() + 50)
-            window = text[start:end]
-            if cls._MEDICAL_CONTEXT.search(window):
+            # Skip known two-word medical term pairs
+            if full in cls._MEDICAL_TERM_PAIRS:
+                continue
+
+            # Skip if BOTH words are common title/medical words
+            if (first in cls._COMMON_TITLE_WORDS
+                    and second in cls._COMMON_TITLE_WORDS):
                 continue
 
             suspects.append(full)

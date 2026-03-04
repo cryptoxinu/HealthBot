@@ -93,7 +93,7 @@ This walks you through:
 2. **Telegram bot token** → stored in macOS Keychain (never on disk), verified via API
 3. **Claude CLI check** → verifies installation
 4. **Local AI setup** → Ollama + GLiNER NER (recommended, RAM-aware model selection)
-5. **Vault passphrase** → NEVER stored anywhere. Argon2id derives the encryption key.
+5. **Vault passphrase** → NEVER stored in plaintext. Argon2id derives the encryption key. Optional: Keychain storage for MCP auto-unlock (opt-in during setup).
 6. **Identity profile** → name/email/DOB/family for enhanced PII detection (recommended)
 7. **MCP setup** → auto-detects Claude Code, configures OpenClaw if selected
 8. **Validation** → verifies all components are configured
@@ -420,7 +420,7 @@ A field is "uncertain" when:
 9. **No plaintext PHI on disk. Ever.** All DB fields encrypted with per-field AAD.
 10. Bot acts as a knowledgeable medical advisor. Give direct interpretations backed by evidence. No disclaimers.
 11. WHOOP: OAuth only. NEVER password scraping.
-12. Vault passphrase NEVER stored to disk (not in Keychain, not in config, not anywhere). Exception: MCP auto-unlock may use `HEALTHBOT_PASSPHRASE` env var set by the user for unattended startup (see `docs/OPENCLAW_SETUP.md`).
+12. Vault passphrase NEVER stored to disk in plaintext (not in config files, not anywhere). Exceptions: (a) MCP auto-unlock may use `HEALTHBOT_PASSPHRASE` env var set by the user for unattended startup (see `docs/OPENCLAW_SETUP.md`); (b) `--setup` optionally stores passphrase in macOS Keychain (`healthbot_mcp_passphrase`) for MCP auto-unlock — user must explicitly opt in.
 13. Subprocess `env=` must be explicit (PATH + HOME + USER only). No full environment inheritance.
 14. All outbound subprocess calls use `_PRIVACY_FLAGS` + `_TOOL_FLAGS` from `llm/claude_client.py`.
 15. NER layer is a detection AID, not a security gate replacement. Regex always runs as Layer 2.

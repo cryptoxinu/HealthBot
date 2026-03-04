@@ -184,7 +184,7 @@ class SubstanceResearcher:
             logger.warning("Claude CLI research failed for %s: %s", name, e)
             return {}
 
-    def _pubmed_search(self, name: str) -> list[dict]:
+    def _pubmed_search(self, name: str) -> list:
         """Search PubMed for peer-reviewed evidence."""
         try:
             import asyncio
@@ -203,7 +203,7 @@ class SubstanceResearcher:
         self,
         name: str,
         cli_data: dict,
-        pubmed_results: list[dict],
+        pubmed_results: list,
     ) -> SubstanceProfile:
         """Combine research sources into a SubstanceProfile."""
         profile = SubstanceProfile(name=name.lower())
@@ -224,9 +224,9 @@ class SubstanceResearcher:
             profile.drug_interactions = cli_data.get("drug_interactions", [])
             profile.research_sources = cli_data.get("research_sources", [])
 
-        # Add PubMed PMIDs
+        # Add PubMed PMIDs (PubMedResult dataclass — use attribute access)
         for article in pubmed_results:
-            pmid = article.get("pmid", "")
+            pmid = getattr(article, "pmid", "") or ""
             if pmid and f"PMID:{pmid}" not in profile.research_sources:
                 profile.research_sources.append(f"PMID:{pmid}")
 

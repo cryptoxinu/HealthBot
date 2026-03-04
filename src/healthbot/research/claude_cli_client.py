@@ -399,7 +399,7 @@ class ClaudeCLIResearchClient:
         if version_match:
             migration_version = int(version_match.group(1))
 
-        success = bool(files_modified) or "success" in response.lower()
+        success = bool(files_modified)
         summary_lines = response.strip().split("\n")
         summary = summary_lines[-1][:200] if summary_lines else "No output"
 

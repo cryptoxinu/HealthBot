@@ -14,6 +14,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 from healthbot.config import Config
 from healthbot.data.db import HealthDB
+from healthbot.llm.anonymizer import Anonymizer
 from healthbot.security.key_manager import KeyManager
 from healthbot.security.phi_firewall import PhiFirewall
 
@@ -238,12 +239,27 @@ class KnowledgeExporter:
             ]
         return redacted
 
+    @staticmethod
+    def _redact_names(text: str) -> str:
+        """Replace heuristic-detected names with [NAME].
+
+        Catches unlabeled person names that PhiFirewall.redact() misses
+        (it only handles labeled PII like SSN, MRN, DOB, etc.).
+        """
+        names = Anonymizer._heuristic_name_scan(text)
+        if not names:
+            return text
+        result = text
+        for name in sorted(names, key=len, reverse=True):
+            result = result.replace(name, "[NAME]")
+        return result
+
     def _redact_record(self, record: dict) -> dict:
         """Redact all string fields in a single record (recursive)."""
         out = {}
         for key, value in record.items():
             if isinstance(value, str):
-                out[key] = self._fw.redact(value)
+                out[key] = self._redact_names(self._fw.redact(value))
             elif isinstance(value, dict):
                 out[key] = self._redact_record(value)
             elif isinstance(value, list):
@@ -255,7 +271,7 @@ class KnowledgeExporter:
     def _redact_list_item(self, item):
         """Redact a single list item (str or nested dict)."""
         if isinstance(item, str):
-            return self._fw.redact(item)
+            return self._redact_names(self._fw.redact(item))
         if isinstance(item, dict):
             return self._redact_record(item)
         return item

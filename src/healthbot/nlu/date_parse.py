@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import calendar
 import re
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, timedelta
 from typing import TypedDict
 
 # Weekday name -> weekday number (Monday=0 ... Sunday=6)
@@ -131,7 +131,7 @@ def parse_date(text: str) -> date | None:
         return None
 
     stripped = text.strip().lower()
-    today = datetime.now(tz=UTC).date()
+    today = date.today()
 
     # --- Simple relative words (search within text) ---
     # "day before yesterday" must be checked before "yesterday"
@@ -281,7 +281,7 @@ def resolve_temporal(query: str) -> TemporalRange | None:
         return None
 
     text = query.strip().lower()
-    today = datetime.now(tz=UTC).date()
+    today = date.today()
 
     # --- "last/past N days/weeks/months/years" ---
     m = _LAST_N_RE.search(text)

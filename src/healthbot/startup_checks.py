@@ -6,10 +6,91 @@ status. Emits fail-closed warnings for critical configuration issues.
 from __future__ import annotations
 
 import logging
+import sqlite3
+from pathlib import Path
 
 from healthbot.config import Config
 
 logger = logging.getLogger("healthbot")
+
+
+def _check_plaintext_residue(db_path: Path) -> list[str]:
+    """Check for plaintext residue in legacy columns.
+
+    Returns warnings if search_index.text_for_search or documents.filename
+    still contain plaintext data (should have been cleared by migrations).
+    """
+    warnings: list[str] = []
+    if not db_path.exists():
+        return warnings
+
+    try:
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    except sqlite3.OperationalError:
+        return warnings
+
+    try:
+        # Check search_index plaintext residue
+        try:
+            row = conn.execute(
+                "SELECT COUNT(*) FROM search_index "
+                "WHERE text_for_search IS NOT NULL AND text_for_search != ''",
+            ).fetchone()
+            search_count = row[0] if row else 0
+        except sqlite3.OperationalError:
+            search_count = 0
+
+        # Check documents filename residue
+        try:
+            row = conn.execute(
+                "SELECT COUNT(*) FROM documents "
+                "WHERE filename IS NOT NULL AND filename != ''",
+            ).fetchone()
+            doc_count = row[0] if row else 0
+        except sqlite3.OperationalError:
+            doc_count = 0
+
+        if search_count > 0:
+            warnings.append(
+                f"Plaintext residue: search_index has {search_count} rows "
+                f"with non-empty text_for_search. Run migrations to clear."
+            )
+            logger.warning(
+                "Startup check: search_index plaintext residue: %d rows",
+                search_count,
+            )
+
+        if doc_count > 0:
+            warnings.append(
+                f"Plaintext residue: documents has {doc_count} rows "
+                f"with non-empty filename. Run migrations to clear."
+            )
+            logger.warning(
+                "Startup check: documents plaintext residue: %d rows",
+                doc_count,
+            )
+
+        if search_count > 0 or doc_count > 0:
+            logger.warning(
+                "Plaintext residue detected — triggering migration to clear."
+            )
+            try:
+                from healthbot.data.schema import run_migrations
+                conn.close()
+                # Re-open writable for migration
+                rw_conn = sqlite3.connect(str(db_path))
+                run_migrations(rw_conn)
+                rw_conn.close()
+                logger.info("Post-residue migration completed.")
+            except Exception as e:
+                logger.warning("Failed to run residue cleanup migration: %s", e)
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+    return warnings
 
 
 def run_startup_checks(
@@ -68,6 +149,9 @@ def run_startup_checks(
             "No allowed_user_ids configured — bot will reject all messages. "
             "Run --setup or add user IDs to app.json."
         )
+
+    # 6. Plaintext residue check (P0-001, P0-002)
+    warnings.extend(_check_plaintext_residue(config.db_path))
 
     # Summary
     if warnings:
