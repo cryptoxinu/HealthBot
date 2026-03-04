@@ -370,14 +370,23 @@ class SearchEngine:
             if scores[idx] <= 0:
                 break
             doc_id = self._doc_ids[idx]
-            # Get record metadata
+            # Get record metadata with decryption fallback
             row = self._db.conn.execute(
-                "SELECT record_type, date_effective, text_for_search "
+                "SELECT record_type, date_effective, text_for_search, encrypted_text "
                 "FROM search_index WHERE doc_id = ?",
                 (doc_id,),
             ).fetchone()
             if row:
-                snippet = (row["text_for_search"] or "")[:200]
+                enc_blob = row["encrypted_text"]
+                if enc_blob:
+                    aad = f"search_index.encrypted_text.{doc_id}"
+                    try:
+                        text = self._db._decrypt(enc_blob, aad)
+                        snippet = (text if isinstance(text, str) else str(text))[:200]
+                    except Exception:
+                        snippet = (row["text_for_search"] or "")[:200]
+                else:
+                    snippet = (row["text_for_search"] or "")[:200]
                 results.append(SearchResult(
                     record_id=doc_id,
                     score=float(scores[idx]),

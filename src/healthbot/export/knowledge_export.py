@@ -55,6 +55,9 @@ class KnowledgeExporter:
             (file_bytes, counts) — raw JSON bytes or encrypted bytes, plus
             per-store record counts.
         """
+        if mode == "encrypted" and not password:
+            raise ValueError("Encrypted export requires a password")
+
         stores = {
             "ltm_facts": self._export_ltm(user_id),
             "hypotheses": self._export_hypotheses(user_id),
@@ -236,16 +239,23 @@ class KnowledgeExporter:
         return redacted
 
     def _redact_record(self, record: dict) -> dict:
-        """Redact all string fields in a single record."""
+        """Redact all string fields in a single record (recursive)."""
         out = {}
         for key, value in record.items():
             if isinstance(value, str):
                 out[key] = self._fw.redact(value)
+            elif isinstance(value, dict):
+                out[key] = self._redact_record(value)
             elif isinstance(value, list):
-                out[key] = [
-                    self._fw.redact(item) if isinstance(item, str) else item
-                    for item in value
-                ]
+                out[key] = [self._redact_list_item(item) for item in value]
             else:
                 out[key] = value
         return out
+
+    def _redact_list_item(self, item):
+        """Redact a single list item (str or nested dict)."""
+        if isinstance(item, str):
+            return self._fw.redact(item)
+        if isinstance(item, dict):
+            return self._redact_record(item)
+        return item

@@ -54,6 +54,7 @@ class TestBuildAndSearch:
                         "text_for_search": t,
                         "record_type": r,
                         "date_effective": "2025-06-15",
+                        "encrypted_text": None,
                     }[k]
                     result = MagicMock()
                     result.fetchone.return_value = mock_row

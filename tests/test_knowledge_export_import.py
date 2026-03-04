@@ -498,6 +498,100 @@ class TestIsKnowledgeExport:
         assert is_knowledge_export(b"\x00\x01\x02\x03") is False
 
 
+class TestNestedDictRedaction:
+    """Fix 1: _redact_record must handle nested dicts and mixed lists."""
+
+    def test_plain_export_redacts_nested_dict(self, db, config, key_manager):
+        """Nested dict values (e.g. result_json) must be redacted."""
+        fw = PhiFirewall()
+        exporter = KnowledgeExporter(db, config, key_manager, fw)
+
+        # Directly test _redact_record with nested dict containing PHI
+        record = {
+            "source": "pubmed",
+            "result": {
+                "title": "Call 555-123-4567 for results",
+                "authors": "Normal text",
+            },
+        }
+        redacted = exporter._redact_record(record)
+        # Phone number in nested dict should be redacted
+        assert "555-123-4567" not in redacted["result"]["title"]
+
+    def test_redact_list_of_dicts(self, db, config, key_manager):
+        """Lists containing dicts should have their dicts redacted."""
+        fw = PhiFirewall()
+        exporter = KnowledgeExporter(db, config, key_manager, fw)
+
+        record = {
+            "items": [
+                {"note": "SSN is 123-45-6789"},
+                "Call 555-123-4567",
+                42,
+            ],
+        }
+        redacted = exporter._redact_record(record)
+        assert "123-45-6789" not in redacted["items"][0]["note"]
+        assert "555-123-4567" not in redacted["items"][1]
+        assert redacted["items"][2] == 42
+
+
+class TestEncryptedExportWithoutPassword:
+    """Fix 2: export_all(mode='encrypted', password=None) must raise."""
+
+    def test_encrypted_no_password_raises(self, exporter):
+        with pytest.raises(ValueError, match="Encrypted export requires a password"):
+            exporter.export_all(TEST_USER_ID, mode="encrypted", password=None)
+
+    def test_encrypted_empty_password_raises(self, exporter):
+        with pytest.raises(ValueError, match="Encrypted export requires a password"):
+            exporter.export_all(TEST_USER_ID, mode="encrypted", password="")
+
+
+class TestExportPasswordDeletion:
+    """Fix 3: /export_knowledge password X should delete the message."""
+
+    @pytest.mark.asyncio
+    async def test_password_message_deleted(self, config, key_manager, phi_firewall):
+        from healthbot.bot.handler_core import HandlerCore
+        from healthbot.bot.handlers_data.export import ExportMixin
+
+        core = MagicMock(spec=HandlerCore)
+        core._config = config
+        core._km = key_manager
+        core._fw = phi_firewall
+        mock_db = MagicMock()
+        mock_db.get_ltm_by_user.return_value = []
+        mock_db.get_all_hypotheses.return_value = []
+        mock_db.query_journal.return_value = []
+        mock_db.conn = MagicMock()
+        mock_db.conn.execute.return_value.fetchall.return_value = []
+        core._get_db.return_value = mock_db
+
+        mixin = ExportMixin()
+        mixin._core = core
+        mixin._km = key_manager
+        mixin._check_auth = lambda u: True
+
+        update = MagicMock()
+        update.effective_user.id = TEST_USER_ID
+        update.effective_chat = AsyncMock()
+        update.message.reply_text = AsyncMock()
+        update.message.reply_document = AsyncMock()
+        update.message.delete = AsyncMock()
+
+        context = MagicMock()
+        context.args = ["password", "secret123"]
+
+        with patch("healthbot.bot.handlers_data.export.TypingIndicator") as mock_typing:
+            mock_typing.return_value.__aenter__ = AsyncMock()
+            mock_typing.return_value.__aexit__ = AsyncMock()
+            await mixin.export_knowledge(update, context)
+
+        # The message containing the password should have been deleted
+        update.message.delete.assert_called_once()
+
+
 class TestImportReport:
     def test_summary_with_data(self):
         report = ImportReport(

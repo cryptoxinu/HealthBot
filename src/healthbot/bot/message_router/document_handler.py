@@ -94,6 +94,12 @@ class DocumentMixin:
 
         # Knowledge import: .json or .enc files
         if doc.file_name and doc.file_name.lower().endswith((".json", ".enc")):
+            max_knowledge = 50 * 1024 * 1024  # 50 MB
+            if doc.file_size and doc.file_size > max_knowledge:
+                await update.message.reply_text(
+                    f"Knowledge file too large ({doc.file_size // 1024 // 1024} MB). Max 50 MB."
+                )
+                return
             await self._handle_knowledge_import(update, context, user_id)
             return
 

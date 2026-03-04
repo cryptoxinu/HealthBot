@@ -167,6 +167,10 @@ class ExportMixin:
         if len(args) >= 2 and args[0].lower() == "password":
             password = " ".join(args[1:])
             mode = "encrypted"
+            try:
+                await update.message.delete()
+            except Exception:
+                pass
 
         await update.message.reply_text("Exporting knowledge stores...")
         try:
