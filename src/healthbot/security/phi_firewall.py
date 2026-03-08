@@ -163,6 +163,7 @@ class PhiFirewall:
     def __init__(self, extra_patterns: dict[str, re.Pattern[str]] | None = None) -> None:
         self._lock = threading.Lock()
         self._patterns = dict(PHI_PATTERNS)
+        self._pattern_version: int = 0
         if extra_patterns:
             self._patterns.update(extra_patterns)
 
@@ -176,6 +177,7 @@ class PhiFirewall:
         """
         with self._lock:
             self._patterns.update(extra_patterns)
+            self._pattern_version += 1
 
     def clear_identity_patterns(self) -> None:
         """Remove identity-profile patterns added at vault unlock.
@@ -187,6 +189,7 @@ class PhiFirewall:
         with self._lock:
             self._patterns = {k: v for k, v in list(self._patterns.items())
                               if not k.startswith("id_")}
+            self._pattern_version += 1
 
     def scan(self, text: str) -> list[PhiMatch]:
         """Return all PHI matches found in text."""

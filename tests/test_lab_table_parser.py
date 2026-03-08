@@ -156,7 +156,8 @@ class TestParseTableDirect:
         assert len(results) == 1
         assert results[0].value == 95.0
 
-    def test_non_numeric_skipped(self) -> None:
+    def test_non_numeric_kept_as_qualitative(self) -> None:
+        """Non-numeric values (e.g. 'Non-Reactive') are kept as strings."""
         rows = [
             ["TESTS", "RESULT", "UNITS"],
             ["HIV Status", "Non-Reactive", ""],
@@ -164,7 +165,10 @@ class TestParseTableDirect:
         ]
         col_map = identify_columns(rows[0])
         results = parse_table_direct(rows, col_map, page_num=1)
-        assert len(results) == 1
+        assert len(results) == 2
+        hiv = [r for r in results if r.test_name == "HIV Status"]
+        assert len(hiv) == 1
+        assert hiv[0].value == "Non-Reactive"
 
     def test_header_row_1(self) -> None:
         """Title row at index 0, real headers at index 1."""

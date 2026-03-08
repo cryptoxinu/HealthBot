@@ -6,7 +6,7 @@ import logging
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from healthbot.bot.middleware import require_unlocked
+from healthbot.bot.middleware import rate_limited, require_unlocked
 from healthbot.bot.typing_helper import TypingIndicator
 
 logger = logging.getLogger("healthbot")
@@ -15,6 +15,7 @@ logger = logging.getLogger("healthbot")
 class ExportMixin:
     """Handlers for /export, /ai_export, and /docs commands."""
 
+    @rate_limited(max_per_minute=5)
     @require_unlocked
     async def export_fhir(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -97,6 +98,7 @@ class ExportMixin:
             logger.error("CSV export error: %s", e)
             await update.message.reply_text(f"CSV export failed: {type(e).__name__}")
 
+    @rate_limited(max_per_minute=5)
     @require_unlocked
     async def ai_export(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -110,10 +112,8 @@ class ExportMixin:
                 from healthbot.export.ai_export import AiExporter
                 from healthbot.llm.anonymizer import Anonymizer
                 from healthbot.llm.ollama_client import OllamaClient
-                from healthbot.security.phi_firewall import PhiFirewall
-
                 db = self._core._get_db()
-                fw = PhiFirewall()
+                fw = self._core._fw  # Shared instance with identity patterns
                 anon = Anonymizer(phi_firewall=fw, use_ner=True)
                 ollama = OllamaClient(
                     model=self._core._config.ollama_model,
@@ -150,6 +150,7 @@ class ExportMixin:
 
     # ── Knowledge export ───────────────────────────────────────────
 
+    @rate_limited(max_per_minute=5)
     @require_unlocked
     async def export_knowledge(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE,
@@ -226,6 +227,7 @@ class ExportMixin:
 
     # ── Document retrieval ──────────────────────────────────────────
 
+    @rate_limited(max_per_minute=5)
     @require_unlocked
     async def docs(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE,

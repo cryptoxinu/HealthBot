@@ -7,7 +7,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from healthbot.bot.formatters import paginate
-from healthbot.bot.middleware import require_unlocked
+from healthbot.bot.middleware import rate_limited, require_unlocked
 from healthbot.bot.typing_helper import TypingIndicator
 
 logger = logging.getLogger("healthbot")
@@ -16,6 +16,7 @@ logger = logging.getLogger("healthbot")
 class MedicalQAMixin:
     """Mixin for medical Q&A and recommendation commands."""
 
+    @rate_limited(max_per_minute=10)
     @require_unlocked
     async def ask(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle /ask <question> command."""
@@ -56,6 +57,7 @@ class MedicalQAMixin:
         for page in paginate("\n".join(lines)):
             await update.message.reply_text(page)
 
+    @rate_limited(max_per_minute=10)
     @require_unlocked
     async def overdue(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle /overdue command."""
@@ -67,6 +69,7 @@ class MedicalQAMixin:
             items = detector.check_overdue(user_id=uid)
         await update.message.reply_text(detector.format_reminders(items))
 
+    @rate_limited(max_per_minute=10)
     @require_unlocked
     async def analyze(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE,
@@ -102,6 +105,7 @@ class MedicalQAMixin:
             else:
                 await update.message.reply_text("No data to analyze yet.")
 
+    @rate_limited(max_per_minute=10)
     @require_unlocked
     async def symptoms(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle /symptoms [category] — symptom frequency and analytics."""
@@ -128,6 +132,7 @@ class MedicalQAMixin:
         for page in paginate(text):
             await update.message.reply_text(page)
 
+    @rate_limited(max_per_minute=10)
     @require_unlocked
     async def recommend(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE,
@@ -145,6 +150,7 @@ class MedicalQAMixin:
         for page in paginate(text):
             await update.message.reply_text(page)
 
+    @rate_limited(max_per_minute=10)
     @require_unlocked
     async def sleeprec(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE,
@@ -164,6 +170,7 @@ class MedicalQAMixin:
         for page in paginate(text):
             await update.message.reply_text(page)
 
+    @rate_limited(max_per_minute=10)
     @require_unlocked
     async def stress(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE,
@@ -183,6 +190,7 @@ class MedicalQAMixin:
         for page in paginate(text):
             await update.message.reply_text(page)
 
+    @rate_limited(max_per_minute=10)
     @require_unlocked
     async def screenings(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE,

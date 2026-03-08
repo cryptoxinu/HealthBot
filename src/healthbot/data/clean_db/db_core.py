@@ -8,6 +8,7 @@ from __future__ import annotations
 import logging
 import os
 import sqlite3
+import threading
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -321,6 +322,7 @@ class CleanDBCore:
         self._conn: sqlite3.Connection | None = None
         self._clean_key: bytearray | None = None
         self._in_transaction: bool = False
+        self._tx_lock = threading.Lock()
 
     def open(self, clean_key: bytes | None = None) -> None:
         """Open the clean database and create schema if needed."""
@@ -402,6 +404,7 @@ class CleanDBCore:
 
     def begin_transaction(self) -> None:
         """Begin an explicit transaction. Defers commits until commit()."""
+        self._tx_lock.acquire()
         self.conn.execute("BEGIN IMMEDIATE")
         self._in_transaction = True
 
@@ -409,11 +412,13 @@ class CleanDBCore:
         """Commit the current transaction."""
         self.conn.commit()
         self._in_transaction = False
+        self._tx_lock.release()
 
     def rollback(self) -> None:
         """Rollback the current transaction."""
         self.conn.rollback()
         self._in_transaction = False
+        self._tx_lock.release()
 
     def _auto_commit(self) -> None:
         """Commit unless inside an explicit transaction."""
@@ -550,7 +555,10 @@ class CleanDBCore:
     def _decrypt(self, blob: bytes, aad: str) -> str:
         """Decrypt a text field with the clean key."""
         if not self._clean_key:
-            return blob.decode("utf-8")
+            raise EncryptionError(
+                "Cannot decrypt: clean key not available. "
+                "Call open(clean_key=...) first."
+            )
         # AES-GCM needs 12-byte nonce + at least 16-byte auth tag
         if len(blob) < 28:
             raise ValueError(f"Corrupt encrypted blob ({len(blob)} bytes < 28 minimum)")

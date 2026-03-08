@@ -7,7 +7,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from healthbot.bot.formatters import format_score_bar
-from healthbot.bot.middleware import require_unlocked
+from healthbot.bot.middleware import rate_limited, require_unlocked
 from healthbot.bot.typing_helper import TypingIndicator
 
 logger = logging.getLogger("healthbot")
@@ -16,6 +16,7 @@ logger = logging.getLogger("healthbot")
 class ChartingMixin:
     """Mixin for chart and visualization commands."""
 
+    @rate_limited(max_per_minute=10)
     @require_unlocked
     async def trends_chart(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE,
@@ -57,6 +58,7 @@ class ChartingMixin:
         else:
             await update.message.reply_text("Not enough data for trends chart.")
 
+    @rate_limited(max_per_minute=10)
     @require_unlocked
     async def lab_heatmap(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE,
@@ -109,6 +111,7 @@ class ChartingMixin:
         else:
             await update.message.reply_text("Could not generate lab heatmap.")
 
+    @rate_limited(max_per_minute=10)
     @require_unlocked
     async def scatter(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE,
@@ -189,6 +192,7 @@ class ChartingMixin:
         else:
             await update.message.reply_text("Could not generate scatter plot.")
 
+    @rate_limited(max_per_minute=10)
     @require_unlocked
     async def sleep_chart(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE,
@@ -227,6 +231,7 @@ class ChartingMixin:
         else:
             await update.message.reply_text("Not enough sleep data for chart.")
 
+    @rate_limited(max_per_minute=10)
     @require_unlocked
     async def wearable_chart(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE,
@@ -265,6 +270,7 @@ class ChartingMixin:
         else:
             await update.message.reply_text("Not enough wearable data for chart.")
 
+    @rate_limited(max_per_minute=10)
     @require_unlocked
     async def score(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE,

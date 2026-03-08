@@ -7,7 +7,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from healthbot.bot.formatters import paginate
-from healthbot.bot.middleware import require_unlocked
+from healthbot.bot.middleware import rate_limited, require_unlocked
 from healthbot.bot.typing_helper import TypingIndicator
 
 logger = logging.getLogger("healthbot")
@@ -16,6 +16,7 @@ logger = logging.getLogger("healthbot")
 class AnalysisMixin:
     """Mixin for health analysis and trend commands."""
 
+    @rate_limited(max_per_minute=10)
     @require_unlocked
     async def insights(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle /insights command."""
@@ -41,6 +42,7 @@ class AnalysisMixin:
         except Exception as e:
             logger.debug("Dashboard chart skipped: %s", e)
 
+    @rate_limited(max_per_minute=10)
     @require_unlocked
     async def summary(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle /summary — concise health status snapshot."""
@@ -56,6 +58,7 @@ class AnalysisMixin:
                 "No health data yet. Upload a lab PDF or use /sync to get started."
             )
 
+    @rate_limited(max_per_minute=10)
     @require_unlocked
     async def trend(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle /trend <test_name> command."""
@@ -171,6 +174,7 @@ class AnalysisMixin:
         except Exception as e:
             logger.warning("Wearable chart generation skipped: %s", e)
 
+    @rate_limited(max_per_minute=10)
     @require_unlocked
     async def healthreview(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle /healthreview command."""
@@ -188,6 +192,7 @@ class AnalysisMixin:
         for page in paginate(engine.format_review(packet)):
             await update.message.reply_text(page)
 
+    @rate_limited(max_per_minute=10)
     @require_unlocked
     async def correlate(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle /correlate command."""
@@ -199,6 +204,7 @@ class AnalysisMixin:
             corrs = engine.auto_discover(user_id=uid)
         await update.message.reply_text(engine.format_correlations(corrs))
 
+    @rate_limited(max_per_minute=10)
     @require_unlocked
     async def gaps(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle /gaps command -- detect lab panel gaps."""

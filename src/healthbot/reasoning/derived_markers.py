@@ -138,16 +138,27 @@ class DerivedMarkerEngine:
         # Validate glucose units — formula requires mg/dL.
         # If glucose is in mmol/L, convert (1 mmol/L = 18.0182 mg/dL).
         glucose_unit = self._get_observation_unit("glucose")
+        unit_caveat = ""
         if glucose_unit:
             unit_lower = glucose_unit.lower().strip()
-            if unit_lower in ("mmol/l", "mmol/l", "mmol"):
+            if unit_lower in ("mmol/l", "mmol"):
                 glucose = glucose * 18.0182
                 logger.debug("HOMA-IR: converted glucose from mmol/L to mg/dL")
-            elif unit_lower not in ("mg/dl", "mg/dl", ""):
+            elif unit_lower not in ("mg/dl", ""):
                 logger.warning(
                     "HOMA-IR: unexpected glucose unit '%s' — result may be inaccurate",
                     glucose_unit,
                 )
+                unit_caveat = f" (WARNING: glucose unit '{glucose_unit}' unrecognized)"
+        else:
+            # No unit recorded — heuristic: fasting glucose < 30 is likely mmol/L
+            if glucose < 30:
+                glucose = glucose * 18.0182
+                unit_caveat = " (glucose assumed mmol/L — no unit recorded)"
+                logger.warning("HOMA-IR: glucose < 30 with no unit — assuming mmol/L")
+            else:
+                unit_caveat = " (WARNING: glucose unit unknown — assuming mg/dL)"
+                logger.warning("HOMA-IR: no glucose unit — assuming mg/dL")
 
         # Check fasting status from the glucose observation metadata
         is_fasting = self._check_fasting_status("glucose")
@@ -173,7 +184,7 @@ class DerivedMarkerEngine:
             interp = "high"
             note = "Severe insulin resistance — evaluate for metabolic syndrome"
 
-        note += non_fasting_warning
+        note += non_fasting_warning + unit_caveat
 
         return DerivedMarker(
             name="HOMA-IR",

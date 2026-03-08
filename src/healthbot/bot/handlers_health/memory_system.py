@@ -7,7 +7,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from healthbot.bot.formatters import paginate
-from healthbot.bot.middleware import require_unlocked
+from healthbot.bot.middleware import rate_limited, require_unlocked
 from healthbot.bot.typing_helper import TypingIndicator
 
 logger = logging.getLogger("healthbot")
@@ -16,6 +16,7 @@ logger = logging.getLogger("healthbot")
 class MemorySystemMixin:
     """Mixin for memory, corrections, improvements, and audit commands."""
 
+    @rate_limited(max_per_minute=10)
     @require_unlocked
     async def memory(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle /memory command — view or manage user memories.

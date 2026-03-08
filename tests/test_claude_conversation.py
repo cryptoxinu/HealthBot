@@ -545,6 +545,7 @@ class TestStructuredBlocks:
         orig = kb_mod.KnowledgeBase
         try:
             mock_kb = MagicMock()
+            mock_kb.find_similar.return_value = False  # No existing dups
             kb_mod.KnowledgeBase = lambda db: mock_kb
             mgr.handle_message("Vitamin D levels?")
             mock_kb.store_finding.assert_called_once()
@@ -581,6 +582,7 @@ class TestStructuredBlocks:
         orig = kb_mod.KnowledgeBase
         try:
             mock_kb = MagicMock()
+            mock_kb.find_similar.return_value = False  # No existing dups
             kb_mod.KnowledgeBase = lambda db: mock_kb
             mgr.handle_message("Thyroid status?")
             mock_kb.store_finding.assert_called_once()

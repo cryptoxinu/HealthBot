@@ -8,7 +8,7 @@ from telegram import Update
 from telegram.constants import ChatAction
 from telegram.ext import ContextTypes
 
-from healthbot.bot.middleware import require_unlocked
+from healthbot.bot.middleware import rate_limited, require_unlocked
 from healthbot.bot.typing_helper import TypingIndicator
 
 from ._helpers import _DEVELOPER_URLS
@@ -121,6 +121,7 @@ class WearableSyncMixin:
         except Exception as e:
             logger.warning("Post-%s sync analysis failed: %s", provider, e)
 
+    @rate_limited(max_per_minute=5)
     @require_unlocked
     async def whoop_auth(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -133,6 +134,7 @@ class WearableSyncMixin:
             WhoopClient, "/sync", "/whoop_auth",
         )
 
+    @rate_limited(max_per_minute=5)
     @require_unlocked
     async def sync_whoop(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -205,6 +207,7 @@ class WearableSyncMixin:
             logger.error("WHOOP sync error: %s", e)
             await update.message.reply_text(f"WHOOP sync failed: {type(e).__name__}")
 
+    @rate_limited(max_per_minute=5)
     @require_unlocked
     async def oura_auth(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -217,6 +220,7 @@ class WearableSyncMixin:
             OuraClient, "/oura", "/oura_auth",
         )
 
+    @rate_limited(max_per_minute=5)
     @require_unlocked
     async def sync_oura(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -329,6 +333,7 @@ class WearableSyncMixin:
             pass
         return ""
 
+    @rate_limited(max_per_minute=5)
     @require_unlocked
     async def sync_all(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE,
@@ -781,6 +786,7 @@ class WearableSyncMixin:
                 f"Send me your {name} Client ID:"
             )
 
+    @rate_limited(max_per_minute=5)
     @require_unlocked
     async def wearable_status(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE,

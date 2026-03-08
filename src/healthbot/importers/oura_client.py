@@ -203,11 +203,20 @@ class OuraClient:
                         dur = int((dt_end - dt_start).total_seconds() / 60)
                 except (ValueError, TypeError):
                     dur = None
+            # Use actual physiological values, not contributor scores (0-100).
+            # Oura API provides actual minutes in total_rem_sleep_duration etc.
+            rem_sec = s.get("rem_sleep_duration") or s.get("total_rem_sleep_duration")
+            deep_sec = s.get("deep_sleep_duration") or s.get("total_deep_sleep_duration")
+            light_sec = s.get("light_sleep_duration") or s.get("total_light_sleep_duration")
             sleep_by_date[d] = {
                 "sleep_score": s.get("score"),
                 "sleep_duration_min": dur,
-                "rem_score": contributors.get("rem_sleep"),
-                "deep_score": contributors.get("deep_sleep"),
+                "rem_min": _sec_to_min(rem_sec) if rem_sec else None,
+                "deep_min": _sec_to_min(deep_sec) if deep_sec else None,
+                "light_min": _sec_to_min(light_sec) if light_sec else None,
+                "lowest_rhr": s.get("lowest_heart_rate"),
+                "avg_hrv": s.get("average_hrv"),  # actual HRV in ms
+                "avg_resp_rate": s.get("average_breath"),
             }
 
         activity_by_date: dict[str, dict] = {}
@@ -220,25 +229,30 @@ class OuraClient:
 
         count = 0
         for item in readiness_data:
-            d = item.get("day", end)
+            d = item.get("day") or end
+            try:
+                parsed_date = date.fromisoformat(d)
+            except (ValueError, TypeError):
+                logger.warning("Oura: skipping record with invalid date: %s", d)
+                continue
             contributors = item.get("contributors", {})
             sleep = sleep_by_date.get(d, {})
             activity = activity_by_date.get(d, {})
 
             wd = WhoopDaily(
                 id=hashlib.sha256(f"oura-{d}".encode()).hexdigest(),
-                date=date.fromisoformat(d),
+                date=parsed_date,
                 recovery_score=item.get("score"),
-                rhr=contributors.get("resting_heart_rate"),
-                hrv=contributors.get("hrv_balance"),
+                rhr=sleep.get("lowest_rhr"),  # actual BPM, not contributor score
+                hrv=sleep.get("avg_hrv"),  # actual ms, not contributor score
                 spo2=None,
                 skin_temp=contributors.get("body_temperature"),
                 sleep_score=sleep.get("sleep_score"),
                 sleep_duration_min=sleep.get("sleep_duration_min"),
-                rem_min=sleep.get("rem_score"),
-                deep_min=sleep.get("deep_score"),
-                light_min=None,
-                resp_rate=None,
+                rem_min=sleep.get("rem_min"),  # actual minutes, not score
+                deep_min=sleep.get("deep_min"),  # actual minutes, not score
+                light_min=sleep.get("light_min"),
+                resp_rate=sleep.get("avg_resp_rate"),
                 strain=None,
                 calories=activity.get("calories"),
                 provider="oura",

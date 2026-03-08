@@ -15,6 +15,11 @@ _rate_limits: dict[int, list[float]] = {}
 _MAX_TRACKED_USERS = 100
 
 
+def clear_rate_limits() -> None:
+    """Clear all rate limit state. Used by tests."""
+    _rate_limits.clear()
+
+
 def require_unlocked(func: Callable) -> Callable:
     """Decorator: check vault is unlocked before handler runs."""
     @functools.wraps(func)

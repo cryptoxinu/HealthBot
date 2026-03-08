@@ -431,8 +431,8 @@ class MemoryMixin:
     def get_active_hypotheses(
         self, user_id: int, since: str | None = None,
     ) -> list[dict]:
-        """Get all active hypotheses for a user."""
-        sql = "SELECT * FROM hypotheses WHERE user_id = ? AND status = 'active'"
+        """Get all active/investigating hypotheses for a user."""
+        sql = "SELECT * FROM hypotheses WHERE user_id = ? AND status IN ('active', 'investigating')"
         params: list = [user_id]
         if since:
             sql += " AND updated_at > ?"

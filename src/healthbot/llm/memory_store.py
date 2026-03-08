@@ -10,6 +10,7 @@ structured INSIGHT/CONDITION blocks routed through the Knowledge Base.
 from __future__ import annotations
 
 import logging
+import re
 from difflib import SequenceMatcher
 
 from healthbot.data.db import HealthDB
@@ -221,6 +222,37 @@ class MemoryStore:
                 )
             except Exception as e:
                 logger.debug("Journal archive failed: %s", e)
+
+            # Extract key medical facts for LTM storage
+            self._extract_ltm_from_message(user_id, content, category)
+
+    _FACT_PATTERNS = [
+        re.compile(r"(?:diagnosed|diagnosis|condition)[:\s]+(.{5,80})", re.I),
+        re.compile(r"(?:allerg(?:y|ic) to|allergies)[:\s]+(.{3,60})", re.I),
+        re.compile(r"(?:taking|started|prescribed|medication)[:\s]+(.{3,60})", re.I),
+        re.compile(r"(?:A1c|HbA1c|hemoglobin a1c)\s*(?:is|was|=|:)\s*([\d.]+)", re.I),
+        re.compile(r"(?:blood pressure|BP)\s*(?:is|was|=|:)\s*(\d{2,3}/\d{2,3})", re.I),
+    ]
+
+    def _extract_ltm_from_message(
+        self, user_id: int, content: str, category: str,
+    ) -> None:
+        """Extract key medical facts from a message and store as LTM."""
+        for pattern in self._FACT_PATTERNS:
+            for match in pattern.finditer(content):
+                fact = match.group(0).strip()
+                if len(fact) < 5:
+                    continue
+                try:
+                    facts = [{"fact": fact, "category": category}]
+                    validated = self._validate_facts(facts, user_id)
+                    for f in validated:
+                        self._db.insert_ltm(
+                            user_id, f["category"],
+                            f["fact"], "stm_extraction",
+                        )
+                except Exception as e:
+                    logger.debug("LTM extraction failed: %s", e)
 
     def cleanup(self, days: int = 7) -> int:
         """Clean up old consolidated STM entries."""

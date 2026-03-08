@@ -57,8 +57,8 @@ _TOOL_FLAGS: list[str] = [
 # Used by debug/troubleshoot to self-heal the bot when APIs change or bugs occur.
 # Health data is still safe: all PHI lives in AES-256-GCM encrypted DB, not in source.
 _FIX_TOOL_FLAGS: list[str] = [
-    "--tools", "Bash,Read,Write,Edit,Glob,Grep,WebSearch,WebFetch",
-    "--allowedTools", "Bash,Read,Write,Edit,Glob,Grep,WebSearch,WebFetch",
+    "--tools", "Read,Glob,Grep,WebSearch,WebFetch",
+    "--allowedTools", "Read,Glob,Grep,WebSearch,WebFetch",
 ]
 
 # Schema evolution tools — no Bash (prevents shell escapes, exfiltration,

@@ -83,6 +83,7 @@ class HandlerCore:
         # Active query tracking for safe vault lock (M9)
         self._active_queries: int = 0
         self._query_lock = threading.Lock()
+        self._db_closing: bool = False  # Prevents re-opening DB during lock
 
         self._router = MessageRouter(
             config=config,
@@ -335,6 +336,8 @@ class HandlerCore:
         """Register the vault-unlock callback. Always called (no job queue dependency)."""
 
         async def _on_unlock(bot: object, chat_id: int) -> None:
+            # Reset DB closing flag so new queries can proceed
+            self._db_closing = False
             # Always register lock callback on unlock (not lazy)
             self._km.set_on_lock(self._on_vault_lock)
             # Store bot reference for proactive wipe
@@ -466,6 +469,8 @@ class HandlerCore:
         self._router._connected_sources_cb = self._get_connected_sources_summary
 
     def _get_db(self) -> HealthDB:
+        if self._db_closing:
+            raise RuntimeError("Vault is locking — DB access denied")
         if self._db is None or self._db._conn is None:
             self._db = HealthDB(self._config, self._km)
             self._db.open()
@@ -808,15 +813,20 @@ class HandlerCore:
         self._upload_count = 0
         self._router.upload_mode = False
         self._router._upload_count_cb = None
-        # Wait for active queries to finish before closing DB
+        # Prevent new DB access and wait for active queries to finish
+        self._db_closing = True
         import time
-        deadline = time.monotonic() + 5.0  # 5-second timeout
-        while self._active_queries > 0 and time.monotonic() < deadline:
-            time.sleep(0.05)
-        if self._active_queries > 0:
+        deadline = time.monotonic() + 30.0  # 30-second timeout (Claude CLI can take 180s)
+        while True:
+            with self._query_lock:
+                active = self._active_queries
+            if active <= 0 or time.monotonic() >= deadline:
+                break
+            time.sleep(0.1)
+        if active > 0:
             logger.warning(
                 "Vault lock: %d queries still active after timeout, closing DB anyway",
-                self._active_queries,
+                active,
             )
         # Close handler's DB connection (matches explicit /lock behavior)
         if self._db:
@@ -851,9 +861,15 @@ class HandlerCore:
             pass
 
     def _check_auth(self, update: Update) -> bool:
-        """Check user is allowed."""
+        """Check user is allowed.
+
+        Fail-open when no allowlist is configured (dev/test convenience).
+        When an allowlist IS configured, only listed user IDs are accepted.
+        """
         user_id = update.effective_user.id if update.effective_user else 0
-        return not self._config.allowed_user_ids or user_id in self._config.allowed_user_ids
+        if not self._config.allowed_user_ids:
+            return True  # No allowlist → allow all (startup warning covers this)
+        return user_id in self._config.allowed_user_ids
 
     def _get_claude_conversation(self):
         """Lazy-init ClaudeConversationManager."""
@@ -884,6 +900,17 @@ class HandlerCore:
                 phi_firewall=self._fw,
                 key_manager=self._km,
             )
+            # Wire up research client for SCHEMA_EVOLVE blocks
+            try:
+                from healthbot.research.claude_cli_client import (
+                    ClaudeCLIResearchClient,
+                )
+                self._claude_conversation._research_client = (
+                    ClaudeCLIResearchClient(self._config, self._fw)
+                )
+            except Exception as exc:
+                logger.debug("Research client init failed: %s", exc)
+
             self._claude_conversation.load()
             return self._claude_conversation
         except Exception as e:

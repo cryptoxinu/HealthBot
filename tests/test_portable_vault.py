@@ -33,6 +33,7 @@ class TestPortableVaultRoundtrip:
         vault = Vault(config_a.blobs_dir, km_a)
         db_a = HealthDB(config_a, km_a)
         db_a.open()
+        db_a.run_migrations()
 
         # Insert a lab result
         lab = LabResult(

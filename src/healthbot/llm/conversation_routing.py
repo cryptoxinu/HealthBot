@@ -82,35 +82,39 @@ def route_block(mgr, block_type: str, block: dict) -> None:
     elif block_type == "RESEARCH" and mgr._db and block.get("finding"):
         from healthbot.research.knowledge_base import KnowledgeBase
         kb = KnowledgeBase(mgr._db)
-        kb.store_finding(
-            topic=block.get("topic", "general"),
-            finding=block["finding"],
-            source=block.get("source", "claude_research"),
-            relevance_score=0.9,
-        )
+        topic = block.get("topic", "general")
+        finding = block["finding"]
+        source = block.get("source", "claude_research")
+        if not kb.find_similar(topic, finding, source):
+            kb.store_finding(
+                topic=topic, finding=finding,
+                source=source, relevance_score=0.9,
+            )
 
     elif block_type == "INSIGHT" and mgr._db and block.get("fact"):
         from healthbot.research.knowledge_base import KnowledgeBase
         kb = KnowledgeBase(mgr._db)
-        kb.store_finding(
-            topic=block.get("category", "general"),
-            finding=block["fact"],
-            source="claude_insight",
-            relevance_score=0.8,
-        )
+        topic = block.get("category", "general")
+        finding = block["fact"]
+        if not kb.find_similar(topic, finding, "claude_insight"):
+            kb.store_finding(
+                topic=topic, finding=finding,
+                source="claude_insight", relevance_score=0.8,
+            )
 
     elif block_type == "CONDITION" and mgr._db and block.get("name"):
         from healthbot.research.knowledge_base import KnowledgeBase
         kb = KnowledgeBase(mgr._db)
-        kb.store_finding(
-            topic=block["name"],
-            finding=(
-                f"Status: {block.get('status', 'unknown')}. "
-                f"Evidence: {block.get('evidence', '')}"
-            ),
-            source="claude_diagnosis",
-            relevance_score=1.0,
+        topic = block["name"]
+        finding = (
+            f"Status: {block.get('status', 'unknown')}. "
+            f"Evidence: {block.get('evidence', '')}"
         )
+        if not kb.find_similar(topic, finding, "claude_diagnosis"):
+            kb.store_finding(
+                topic=topic, finding=finding,
+                source="claude_diagnosis", relevance_score=1.0,
+            )
 
     elif block_type == "ACTION" and mgr._db:
         test = block.get("test", "").strip()
@@ -774,6 +778,15 @@ def handle_schema_evolve_block(mgr, block: dict) -> None:
                 finally:
                     clean_db3.close()
             return
+
+        # Reload schema module so new migrations are visible
+        try:
+            import importlib
+
+            from healthbot.data import schema as _schema_mod
+            importlib.reload(_schema_mod)
+        except Exception as exc:
+            logger.debug("Schema module reload failed: %s", exc)
 
         # Run migrations on both DBs
         if mgr._db and hasattr(mgr._db, "run_migrations"):

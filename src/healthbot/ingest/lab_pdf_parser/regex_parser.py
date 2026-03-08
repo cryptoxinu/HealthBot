@@ -22,37 +22,37 @@ _RESULT_PATTERNS = [
     # e.g. "WBC 8.2 x10E3/uL 3.4 - 10.8 01"
     re.compile(
         r"^([A-Za-z][A-Za-z0-9 ,()/-]{1,44}?)\s+"
-        r"([\d.,]+)\s+"
-        r"([\w/%·E]+(?:/[\w]+)?)\s+"              # unit (x10E3/uL, mg/dL, etc.)
-        r"(\d[\d.]*\s*[-–]\s*\d[\d.]*)"           # reference range
-        r"(?:\s+\d{1,2})?\s*$",                   # optional trailing specimen ID
+        r"([<>]=?\s*[\d.,]+|[\d.,]+)\s+"           # value (supports < 0.5, >= 200)
+        r"([\w/%·E]+(?:/[\w]+)?)\s+"               # unit (x10E3/uL, mg/dL, etc.)
+        r"(\d[\d.]*\s*[-–]\s*\d[\d.]*)"            # reference range
+        r"(?:\s+\d{1,2})?\s*$",                    # optional trailing specimen ID
         re.MULTILINE,
     ),
     # Pattern 2: Name Value Flag Unit RefRange [SpecimenNum]
     # e.g. "Creatinine 0.67 Low mg/dL 0.76 - 1.27 01"
     re.compile(
         r"^([A-Za-z][A-Za-z0-9 ,()/-]{1,44}?)\s+"
-        r"([\d.,]+)\s+"
-        r"([HLhl*]+|Low|High|low|high)\s+"         # flag
-        r"([\w/%·E]+(?:/[\w]+)?)\s+"               # unit
-        r"(\d[\d.]*\s*[-–]\s*\d[\d.]*)"            # reference range
+        r"([<>]=?\s*[\d.,]+|[\d.,]+)\s+"           # value (supports inequalities)
+        r"([HLhl*]+|Low|High|low|high)\s+"          # flag
+        r"([\w/%·E]+(?:/[\w]+)?)\s+"                # unit
+        r"(\d[\d.]*\s*[-–]\s*\d[\d.]*)"             # reference range
         r"(?:\s+\d{1,2})?\s*$",
         re.MULTILINE,
     ),
     # Pattern 3: Wide-spaced columns (2+ spaces between name and value)
     re.compile(
         r"^([A-Za-z][A-Za-z0-9 ,()/-]{2,44}?)\s{2,}"
-        r"([\d.,]+)\s+"
+        r"([<>]=?\s*[\d.,]+|[\d.,]+)\s+"           # value (supports inequalities)
         r"([\w/%·E]+(?:/[\w]+)?)\s+"
-        r"(.+?)$",
+        r"(\d[\d.]*\s*[-–]\s*[\d.]+(?:\s+\d{1,2})?|[HLhl*]+|Low|High)\s*$",
         re.MULTILINE,
     ),
     # Pattern 4: Name Value Unit [SpecimenNum] (no ref range — e.g. "Neutrophils 55 % 01")
     re.compile(
         r"^([A-Za-z][A-Za-z0-9 ,()/-]{1,44}?)\s+"
-        r"([\d.,]+)\s+"
+        r"([<>]=?\s*[\d.,]+|[\d.,]+)\s+"           # value (supports inequalities)
         r"([\w/%·E]+(?:/[\w]+)?)"
-        r"(?:\s+\d{1,2})?\s*$",                   # optional trailing specimen ID
+        r"(?:\s+\d{1,2})?\s*$",                    # optional trailing specimen ID
         re.MULTILINE,
     ),
 ]
@@ -154,9 +154,13 @@ class RegexParserMixin:
                 if not _VALID_UNIT.search(unit):
                     continue
 
-                # Parse value
+                # Parse value — strip inequality prefix for numeric, keep as string
+                numeric_str = re.sub(r"^[<>]=?\s*", "", value_str)
                 try:
-                    value: float | str = float(value_str)
+                    value: float | str = float(numeric_str)
+                    # Preserve inequality prefix in string form if present
+                    if numeric_str != value_str:
+                        value = value_str
                 except ValueError:
                     value = value_str
 

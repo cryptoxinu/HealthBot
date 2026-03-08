@@ -253,7 +253,7 @@ class MiscMixin:
         log_id = str(uuid.uuid4())
         ts = datetime.now(UTC).isoformat()
         data = json.dumps(entries, ensure_ascii=False)
-        encrypted = self._encrypt(data, f"redaction_log.data.{log_id}")
+        encrypted = self._encrypt(data, f"redaction_log.encrypted_data.{log_id}")
 
         try:
             self.conn.execute(

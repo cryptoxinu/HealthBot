@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from healthbot.bot.middleware import clear_rate_limits
 from healthbot.config import Config
 from healthbot.data.db import HealthDB
 from healthbot.security.key_manager import KeyManager
@@ -30,6 +31,14 @@ def _fast_kdf_defaults():
     yield
     Config.argon2_time_cost = orig_time
     Config.argon2_memory_cost = orig_mem
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limits():
+    """Clear rate limit state before each test."""
+    clear_rate_limits()
+    yield
+    clear_rate_limits()
 
 
 # ── Per-test fixtures ────────────────────────────────────────────────

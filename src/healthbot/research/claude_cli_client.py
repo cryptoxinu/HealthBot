@@ -31,12 +31,6 @@ from healthbot.security.phi_firewall import PhiFirewall
 
 logger = logging.getLogger("healthbot")
 
-# Read-only tools for debug/diagnosis — no Write, Edit, or Bash to prevent
-# accidental modifications when invoked from the research client.
-_READ_ONLY_TOOL_FLAGS: list[str] = [
-    "--tools", "Read,Glob,Grep,WebSearch,WebFetch",
-    "--allowedTools", "Read,Glob,Grep,WebSearch,WebFetch",
-]
 
 
 class ClaudeCLIResearchClient:
@@ -148,11 +142,17 @@ class ClaudeCLIResearchClient:
         if not self._cli_path:
             return "Claude CLI not found or not authenticated. Debug unavailable."
 
-        # Safety: ensure no PHI leaked into debug context
+        # Safety: hard-block if PHI detected in debug context
+        # Matches research packet policy: reject entirely, don't redact-and-send
         if self._firewall.contains_phi(question):
-            question = self._firewall.redact(question)
+            logger.warning("PHI detected in debug question — hard-blocked")
+            return "Debug blocked: PHI detected in question. Remove personal health info and retry."
         if self._firewall.contains_phi(error_context):
-            error_context = self._firewall.redact(error_context)
+            logger.warning("PHI detected in debug error_context — hard-blocked")
+            return (
+                "Debug blocked: PHI detected in error context. "
+                "Remove personal health info and retry."
+            )
 
         prompt = self._build_debug_prompt(question, error_context)
 

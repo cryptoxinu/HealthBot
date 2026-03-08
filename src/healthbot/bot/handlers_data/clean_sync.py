@@ -7,7 +7,7 @@ import threading
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from healthbot.bot.middleware import require_unlocked
+from healthbot.bot.middleware import rate_limited, require_unlocked
 
 from ._helpers import _fmt_duration, _format_estimate, _format_final, _format_progress
 
@@ -17,6 +17,7 @@ logger = logging.getLogger("healthbot")
 class CleanSyncMixin:
     """Handlers for /cleansync and its inline keyboard callback."""
 
+    @rate_limited(max_per_minute=5)
     @require_unlocked
     async def cleansync(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE,

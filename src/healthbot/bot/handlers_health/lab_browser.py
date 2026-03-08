@@ -7,7 +7,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from healthbot.bot.formatters import format_score_bar, paginate
-from healthbot.bot.middleware import require_unlocked
+from healthbot.bot.middleware import rate_limited, require_unlocked
 from healthbot.bot.typing_helper import TypingIndicator
 
 logger = logging.getLogger("healthbot")
@@ -16,6 +16,7 @@ logger = logging.getLogger("healthbot")
 class LabBrowserMixin:
     """Mixin for labs and profile browsing commands."""
 
+    @rate_limited(max_per_minute=10)
     @require_unlocked
     async def labs(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE,
@@ -152,6 +153,7 @@ class LabBrowserMixin:
         if send_pdf and source_doc:
             await self._send_source_pdf(update, source_doc)
 
+    @rate_limited(max_per_minute=10)
     @require_unlocked
     async def profile(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE

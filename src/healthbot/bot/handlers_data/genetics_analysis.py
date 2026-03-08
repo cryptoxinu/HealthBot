@@ -6,12 +6,15 @@ import logging
 from telegram import Update
 from telegram.ext import ContextTypes
 
+from healthbot.bot.middleware import rate_limited
+
 logger = logging.getLogger("healthbot")
 
 
 class GeneticsAnalysisMixin:
     """Handlers for /genetics and its sub-commands."""
 
+    @rate_limited(max_per_minute=5)
     async def genetics(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE,
     ) -> None:

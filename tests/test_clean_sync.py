@@ -432,6 +432,7 @@ class TestOllamaLayer3Wiring:
             core._km = km
             core._fw = fw
             core._db = MagicMock()
+            core._db_closing = False
 
             core._trigger_clean_sync()
 

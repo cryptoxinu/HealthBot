@@ -7,7 +7,7 @@ from pathlib import Path
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from healthbot.bot.middleware import require_unlocked
+from healthbot.bot.middleware import rate_limited, require_unlocked
 from healthbot.bot.typing_helper import TypingIndicator
 
 logger = logging.getLogger("healthbot")
@@ -16,6 +16,7 @@ logger = logging.getLogger("healthbot")
 class AppleSyncMixin:
     """Apple Health sync handler."""
 
+    @rate_limited(max_per_minute=5)
     @require_unlocked
     async def apple_sync(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE,

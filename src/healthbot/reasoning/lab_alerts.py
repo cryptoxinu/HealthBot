@@ -67,7 +67,7 @@ CRITICAL_THRESHOLDS: dict[str, dict[str, float]] = {
     "wbc": {"critical_low": 1.0, "critical_high": 50.0},
     "calcium": {"critical_low": 6.0, "critical_high": 14.0},
     "inr": {"critical_high": 5.0},
-    "troponin": {"critical_high": 0.04},
+    "troponin": {"critical_high": 0.04},  # ng/mL conventional; see unit check below
     "creatinine": {"critical_high": 10.0},
     "hba1c": {"critical_high": 14.0},
     "bilirubin": {"critical_high": 15.0},
@@ -193,7 +193,18 @@ class LabAlertEngine:
             if val is None:
                 continue
 
-            thresholds = CRITICAL_THRESHOLDS[name]
+            thresholds = dict(CRITICAL_THRESHOLDS[name])
+            unit = (obs.get("unit") or "").lower().strip()
+
+            # Unit-aware troponin: hs-troponin uses ng/L (threshold 52)
+            if name == "troponin" and unit in ("ng/l", "pg/ml"):
+                thresholds = {"critical_high": 52}
+
+            # Sanity check: if value is wildly out of range for the unit,
+            # skip the alert (likely a unit mismatch)
+            if name == "glucose" and unit in ("mmol/l", "mmol"):
+                val = val * 18.0182  # Convert to mg/dL for comparison
+
             if "critical_low" in thresholds and val <= thresholds["critical_low"]:
                 alerts.append(LabAlert(
                     alert_type="critical",

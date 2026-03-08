@@ -27,6 +27,9 @@ from healthbot.security.key_manager import KeyManager
 
 logger = logging.getLogger("healthbot")
 
+# Protects concurrent migration execution from multiple threads.
+_migration_lock = threading.Lock()
+
 
 def _serialize(obj: Any) -> str:
     """JSON-serialize with date/datetime support."""
@@ -92,9 +95,10 @@ class HealthDBCore(MemoryMixin):
                 self._local.conn = self._make_conn()
                 self._local.migrations_checked = False
             if not getattr(self._local, "migrations_checked", False):
-                self._local.migrations_checked = True
-                self._local.conn.executescript(CREATE_TABLES)
-                self.run_migrations()
+                with _migration_lock:
+                    self._local.migrations_checked = True
+                    self._local.conn.executescript(CREATE_TABLES)
+                    self.run_migrations()
             return self._local.conn
         return self._conn
 

@@ -181,7 +181,8 @@ TEST_NAME_MAP: dict[str, str] = {
     "prostate specific antigen": "psa",
     "uric acid": "uric_acid",
     "magnesium": "magnesium",
-    "mg": "magnesium",
+    # "mg" removed — collides with milligram unit; handled by case-sensitive
+    # logic in normalize_test_name() (capitalized "Mg" → magnesium).
     "phosphorus": "phosphorus",
     "zinc": "zinc",
     "serum zinc": "zinc",

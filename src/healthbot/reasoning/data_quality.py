@@ -36,8 +36,9 @@ class DataQualityIssue:
 class DataQualityEngine:
     """Deterministic data quality checks for lab results."""
 
-    def __init__(self, db: HealthDB) -> None:
+    def __init__(self, db: HealthDB, user_id: int = 0) -> None:
         self._db = db
+        self._user_id = user_id
 
     def check_batch(
         self,
@@ -90,6 +91,7 @@ class DataQualityEngine:
             record_type="lab_result",
             canonical_name=lab.canonical_name,
             limit=5,
+            user_id=self._user_id or None,
         )
         if not rows:
             return None
@@ -146,6 +148,7 @@ class DataQualityEngine:
             start_date=date_str,
             end_date=date_str,
             limit=5,
+            user_id=self._user_id or None,
         )
 
         if not rows:

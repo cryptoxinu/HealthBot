@@ -209,28 +209,16 @@ class VaultBackup:
                                 # Load into in-memory SQLite via backup API
                                 # to avoid leaving decrypted DB on disk.
                                 db_bytes = f.read()
-                                tmp_path = None
+                                # Verify in-memory — never write plaintext to disk
+                                mem_conn = sqlite3.connect(":memory:")
                                 try:
-                                    # Write to temp file briefly for SQLite to open
-                                    fd, tmp_path = tempfile.mkstemp(suffix=".db")
-                                    os.write(fd, db_bytes)
-                                    os.close(fd)
-                                    conn = sqlite3.connect(tmp_path)
-                                    result = conn.execute(
+                                    mem_conn.deserialize(db_bytes)
+                                    result = mem_conn.execute(
                                         "PRAGMA integrity_check",
                                     ).fetchone()
-                                    conn.close()
                                     db_ok = result[0] if result else "unknown"
                                 finally:
-                                    # Overwrite temp file before deletion
-                                    if tmp_path:
-                                        try:
-                                            size = os.path.getsize(tmp_path)
-                                            with open(tmp_path, "wb") as wf:
-                                                wf.write(b"\x00" * size)
-                                            os.unlink(tmp_path)
-                                        except OSError:
-                                            pass
+                                    mem_conn.close()
                             break
             except Exception as e:
                 db_ok = f"check failed: {e}"

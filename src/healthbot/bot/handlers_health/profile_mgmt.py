@@ -7,7 +7,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from healthbot.bot.formatters import paginate
-from healthbot.bot.middleware import require_unlocked
+from healthbot.bot.middleware import rate_limited, require_unlocked
 from healthbot.bot.typing_helper import TypingIndicator
 
 logger = logging.getLogger("healthbot")
@@ -16,6 +16,7 @@ logger = logging.getLogger("healthbot")
 class ProfileMgmtMixin:
     """Mixin for profile management, timeline, goals, and workout commands."""
 
+    @rate_limited(max_per_minute=10)
     @require_unlocked
     async def aboutme(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE,
@@ -293,6 +294,7 @@ class ProfileMgmtMixin:
             source="aboutme:summary",
         )
 
+    @rate_limited(max_per_minute=10)
     @require_unlocked
     async def timeline(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE,
@@ -350,6 +352,7 @@ class ProfileMgmtMixin:
         for page in paginate(text):
             await update.message.reply_text(page)
 
+    @rate_limited(max_per_minute=10)
     @require_unlocked
     async def goals(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE,
@@ -418,6 +421,7 @@ class ProfileMgmtMixin:
         for page in paginate(text):
             await update.message.reply_text(page)
 
+    @rate_limited(max_per_minute=10)
     @require_unlocked
     async def workouts(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE,

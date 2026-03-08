@@ -20,7 +20,7 @@ class WearablesMixin:
         aad = f"wearable_daily.encrypted_data.{wd_id}"
         enc_data = self._encrypt(wd, aad)
         self.conn.execute(
-            """INSERT OR REPLACE INTO wearable_daily (id, date, provider,
+            """INSERT OR IGNORE INTO wearable_daily (id, date, provider,
                created_at, encrypted_data, user_id)
                VALUES (?, ?, ?, ?, ?, ?)""",
             (wd_id, wd.date.isoformat(), wd.provider, self._now(), enc_data, user_id),

@@ -329,12 +329,12 @@ def parse_table_direct(
             if test_name.strip().lower() not in _COMMA_TEST_NAMES:
                 continue
 
-        # Parse numeric value
+        # Parse value — numeric preferred, qualitative stored as string
         value_str = value_str.replace(",", "")
         try:
             value: float | str = float(value_str)
         except ValueError:
-            continue  # Skip non-numeric (e.g., "Non-Reactive")
+            value = value_str  # Keep qualitative (e.g., "Non-Reactive", "Detected")
 
         unit = _cell(row, "unit")
         flag = _normalize_flag(_cell(row, "flag"))

@@ -438,19 +438,40 @@ class TrendAnalyzer:
         observed_per_decade = trend.pct_change / decades
         threshold = expected.get("concern_threshold_pct_decade")
 
+        # Tests where higher is better vs lower is better
+        higher_is_better = {
+            "hdl", "egfr", "vitamin_d", "albumin",
+        }
+        lower_is_better = {
+            "ldl", "cholesterol_total", "triglycerides", "hba1c",
+            "glucose", "creatinine", "homocysteine",
+        }
+
         if threshold is not None:
             expected_dir = expected.get("direction", "")
+            test_name = trend.canonical_name.lower()
+
             if expected_dir == "decreasing":
                 if observed_per_decade < threshold:
                     return f"faster decline than expected ({expected['note']})"
                 if observed_per_decade > 0:
-                    return "improving (better than expected)"
+                    # Only call "improving" if higher is actually better
+                    if test_name in higher_is_better:
+                        return "improving (better than expected)"
+                    if test_name in lower_is_better:
+                        return "rising (opposite of age trend)"
+                    return "changing (opposite of age trend)"
                 return "expected for age"
             if expected_dir == "increasing":
                 if observed_per_decade > threshold:
                     return f"faster rise than expected ({expected['note']})"
                 if observed_per_decade < 0:
-                    return "improving (better than expected)"
+                    # Only call "improving" if lower is actually better
+                    if test_name in lower_is_better:
+                        return "improving (better than expected)"
+                    if test_name in higher_is_better:
+                        return "declining (opposite of age trend)"
+                    return "changing (opposite of age trend)"
                 return "expected for age"
 
         return ""

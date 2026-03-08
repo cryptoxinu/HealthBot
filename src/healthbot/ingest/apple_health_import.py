@@ -882,6 +882,28 @@ class AppleHealthImporter:
             flag=flag,
             date_collected=date_collected,
         )
+        # Dedup: skip if same test/date/value already exists
+        if lab.date_collected and lab.canonical_name:
+            existing = self._db.query_observations(
+                record_type="lab_result",
+                canonical_name=lab.canonical_name,
+                start_date=lab.date_collected.isoformat(),
+                end_date=lab.date_collected.isoformat(),
+                limit=1,
+                user_id=user_id,
+            )
+            if existing:
+                for e in existing:
+                    try:
+                        if abs(float(e.get("value", "")) - float(lab.value)) < 0.001:
+                            logger.debug(
+                                "Apple Health dedup: skipping %s on %s",
+                                lab.canonical_name, lab.date_collected,
+                            )
+                            return False
+                    except (ValueError, TypeError):
+                        pass
+
         self._db.insert_observation(lab, user_id=user_id)
         return True
 

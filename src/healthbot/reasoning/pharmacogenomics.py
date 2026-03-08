@@ -60,6 +60,9 @@ _DEFAULT_STATUS_MAP = {
     "elevated": MetabolizerStatus.POOR,
     "moderate": MetabolizerStatus.INTERMEDIATE,
     "carrier": MetabolizerStatus.INTERMEDIATE,
+    "enhanced": MetabolizerStatus.ULTRA_RAPID,
+    "increased": MetabolizerStatus.ULTRA_RAPID,
+    "ultrarapid": MetabolizerStatus.ULTRA_RAPID,
 }
 _ENZYME_DEFS: list[dict] = [
     {
@@ -213,6 +216,17 @@ _CLINICAL_NOTES: dict[tuple[str, str], str] = {
     ("TPMT", MetabolizerStatus.INTERMEDIATE): (
         "TPMT intermediate — reduce thiopurine dose by 30-50%. "
         "Monitor CBC closely for myelosuppression."
+    ),
+    # Ultra-rapid metabolizer entries
+    ("CYP2D6", MetabolizerStatus.ULTRA_RAPID): (
+        "CYP2D6 ultra-rapid metabolizer — codeine/tramadol converted to "
+        "active metabolite too rapidly, risk of morphine/opioid toxicity. "
+        "AVOID codeine. Many antidepressants may be subtherapeutic."
+    ),
+    ("CYP2C19", MetabolizerStatus.ULTRA_RAPID): (
+        "CYP2C19 ultra-rapid metabolizer — increased clopidogrel activation "
+        "(may increase bleeding risk). PPIs metabolized faster (reduced efficacy). "
+        "Voriconazole may be subtherapeutic."
     ),
 }
 

@@ -163,10 +163,12 @@ class HelpersMixin:
             for match in pattern.finditer(text):
                 date_str = match.group(1).strip().rstrip(",")
 
-                # Check if this date is near a DOB label (within 30 chars)
+                # Check if this date is near a DOB label (within 30 chars
+                # before OR after the match)
                 start = max(0, match.start() - 30)
-                context = text[start:match.start()]
-                if _DOB_LABELS.search(context):
+                before_ctx = text[start:match.start()]
+                after_ctx = text[match.end():match.end() + 30]
+                if _DOB_LABELS.search(before_ctx) or _DOB_LABELS.search(after_ctx):
                     logger.debug(
                         "Skipping date %s — near DOB label", date_str,
                     )

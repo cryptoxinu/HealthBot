@@ -6,7 +6,7 @@ import logging
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from healthbot.bot.middleware import require_unlocked
+from healthbot.bot.middleware import rate_limited, require_unlocked
 from healthbot.bot.typing_helper import TypingIndicator
 
 logger = logging.getLogger("healthbot")
@@ -15,6 +15,7 @@ logger = logging.getLogger("healthbot")
 class HealthImportMixin:
     """Handlers for /import, /mychart, and /fasten commands."""
 
+    @rate_limited(max_per_minute=5)
     @require_unlocked
     async def import_health(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -153,6 +154,7 @@ class HealthImportMixin:
                 f"Import complete: {total_imported} total records imported."
             )
 
+    @rate_limited(max_per_minute=5)
     @require_unlocked
     async def import_mychart(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -211,6 +213,7 @@ class HealthImportMixin:
                 f"MyChart import complete: {total_labs} labs, {total_meds} medications."
             )
 
+    @rate_limited(max_per_minute=5)
     @require_unlocked
     async def import_fasten(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE,

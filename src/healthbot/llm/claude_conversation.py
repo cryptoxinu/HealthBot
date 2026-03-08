@@ -62,12 +62,22 @@ from healthbot.security.phi_firewall import PhiFirewall
 
 logger = logging.getLogger("healthbot")
 
-# Pattern for all structured medical blocks.
-# Matches block type labels followed by a JSON object with up to 2 levels
-# of brace nesting (e.g. {"key": {"nested": "value"}}).
-_BLOCK_PATTERN = re.compile(
-    r"(HYPOTHESIS|ACTION|RESEARCH|INSIGHT|CONDITION|DATA_QUALITY|MEMORY|CORRECTION|SYSTEM_IMPROVEMENT|HEALTH_DATA|ANALYSIS_RULE|CHART|CITATION|CHECK_INTERACTION|SCHEMA_EVOLVE):\s*(\{[^{}]*(?:\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}[^{}]*)*\})",
+# Pattern for block type labels followed by JSON.
+# Captures the label and the start of JSON; actual JSON is extracted via
+# json.JSONDecoder().raw_decode() for arbitrary nesting depth.
+_BLOCK_LABEL_PATTERN = re.compile(
+    r"(HYPOTHESIS|ACTION|RESEARCH|INSIGHT|CONDITION|DATA_QUALITY|MEMORY|"
+    r"CORRECTION|SYSTEM_IMPROVEMENT|HEALTH_DATA|ANALYSIS_RULE|CHART|"
+    r"CITATION|CHECK_INTERACTION|SCHEMA_EVOLVE):\s*(?=\{)",
 )
+# Legacy regex fallback for simple (<=2 nesting levels) blocks
+_BLOCK_PATTERN = re.compile(
+    r"(HYPOTHESIS|ACTION|RESEARCH|INSIGHT|CONDITION|DATA_QUALITY|MEMORY|"
+    r"CORRECTION|SYSTEM_IMPROVEMENT|HEALTH_DATA|ANALYSIS_RULE|CHART|"
+    r"CITATION|CHECK_INTERACTION|SCHEMA_EVOLVE):\s*"
+    r"(\{[^{}]*(?:\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}[^{}]*)*\})",
+)
+_JSON_DECODER = json.JSONDecoder()
 
 
 class ClaudeConversationManager:
@@ -422,26 +432,57 @@ class ClaudeConversationManager:
     # ── Insight extraction + routing ──────────────────────────────
 
     def _extract_insights(self, response: str) -> tuple[str, list[dict]]:
-        """Parse all structured medical blocks from response."""
+        """Parse all structured medical blocks from response.
+
+        Uses json.JSONDecoder().raw_decode() for arbitrary JSON nesting,
+        falling back to the legacy fixed-depth regex for edge cases.
+        """
         blocks: list[dict] = []
-        for match in _BLOCK_PATTERN.finditer(response):
+        matched_spans: list[tuple[int, int]] = []
+
+        # Primary: use raw_decode for proper JSON extraction
+        for match in _BLOCK_LABEL_PATTERN.finditer(response):
             block_type = match.group(1)
+            json_start = match.end()
             try:
-                data = json.loads(match.group(2))
-                data["_type"] = block_type
-                blocks.append(data)
-            except (json.JSONDecodeError, ValueError) as exc:
-                # Fallback: try json.loads on the raw text (handles double
-                # curly braces and other edge cases the regex may mangle)
-                raw_text = match.group(2)
-                try:
-                    data = json.loads(raw_text.replace("{{", "{").replace("}}", "}"))
+                data, end_offset = _JSON_DECODER.raw_decode(
+                    response, json_start,
+                )
+                if isinstance(data, dict):
                     data["_type"] = block_type
                     blocks.append(data)
+                    matched_spans.append((match.start(), json_start + end_offset))
                     continue
-                except (json.JSONDecodeError, ValueError):
-                    pass
-                raw_block = raw_text[:200]
+            except (json.JSONDecodeError, ValueError):
+                pass
+
+            # Fallback: try legacy regex from this position
+            try:
+                legacy = _BLOCK_PATTERN.match(response, match.start())
+                if legacy:
+                    raw_text = legacy.group(2)
+                    data = json.loads(raw_text)
+                    data["_type"] = block_type
+                    blocks.append(data)
+                    matched_spans.append((legacy.start(), legacy.end()))
+                    continue
+            except (json.JSONDecodeError, ValueError):
+                pass
+
+            # Final fallback: double-brace cleanup
+            try:
+                legacy = _BLOCK_PATTERN.match(response, match.start())
+                if legacy:
+                    raw_text = legacy.group(2)
+                    data = json.loads(
+                        raw_text.replace("{{", "{").replace("}}", "}"),
+                    )
+                    data["_type"] = block_type
+                    blocks.append(data)
+                    matched_spans.append((legacy.start(), legacy.end()))
+                    continue
+            except (json.JSONDecodeError, ValueError) as exc:
+                raw_block = response[json_start:json_start + 200]
                 logger.warning(
                     "Malformed %s block (skipped): %s — %s",
                     block_type, exc, raw_block,
@@ -450,9 +491,8 @@ class ClaudeConversationManager:
                     self._memory_feedback.append(
                         f"[Failed to parse MEMORY block: {exc}]",
                     )
-                continue
 
-        # Strip all structured blocks from user-visible response
+        # Strip all matched blocks from user-visible response
         cleaned = _BLOCK_PATTERN.sub("", response)
         cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
         return cleaned.strip(), blocks
@@ -528,6 +568,9 @@ class ClaudeConversationManager:
             "category": block.get("category", block_type.lower()),
             "timestamp": datetime.now(UTC).isoformat(),
         })
+        # Evict oldest entries if memory exceeds limit
+        if len(self._memory) > 500:
+            self._memory = self._memory[-500:]
 
     def _run_fallback_interaction_scan(self, user_text: str) -> None:
         """Fallback: scan user text for substance mentions if no CHECK_INTERACTION."""

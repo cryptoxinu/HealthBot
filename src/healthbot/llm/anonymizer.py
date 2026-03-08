@@ -18,6 +18,7 @@ import hashlib
 import logging
 import re
 import threading
+import unicodedata
 from dataclasses import dataclass
 
 from healthbot.security.phi_firewall import PhiFirewall
@@ -106,8 +107,10 @@ class Anonymizer:
     })
 
     # Matches two consecutive Title Case words (potential name)
+    # Supports: "John Smith", "Mary-Jane Watson", "O'Brien Smith"
     _CAPITALIZED_PAIR: re.Pattern[str] = re.compile(
-        r"\b([A-Z][a-z]{2,})\s+([A-Z][a-z]{2,})\b",
+        r"\b([A-Z][a-z]+(?:[-'][A-Z]?[a-z]+)?)\s+"
+        r"([A-Z][a-z]+(?:[-'][A-Z]?[a-z]+)?)\b",
     )
 
     # Common English words that appear Title Case in headers/sentences but aren't names.
@@ -181,10 +184,13 @@ class Anonymizer:
         # Bounded dict with FIFO eviction. Never stores original text.
         self._cache: dict[str, tuple[str, bool]] = {}
         self._cache_lock = threading.Lock()
+        # Track PhiFirewall pattern version for cache invalidation
+        self._last_pattern_version: int = getattr(self._fw, "_pattern_version", 0)
 
         # NER circuit breaker state
         self._ner_was_available: bool = False
         self._ner_failure_count: int = 0
+        self._ner_tripped_at: float = 0.0  # monotonic time when breaker tripped
 
         if use_ner:
             self._ner = self._try_init_ner()
@@ -224,15 +230,31 @@ class Anonymizer:
         """Whether NER layer is active."""
         return self._ner is not None
 
+    _NER_RECOVERY_SECONDS: float = 300.0  # 5 minutes
+
     def _ner_call_safe(self, text: str) -> list:
         """Call NER with circuit breaker — disable after repeated failures.
 
         Returns detected entities or empty list on failure. After
         _NER_CIRCUIT_BREAKER_THRESHOLD consecutive failures, NER is
-        disabled and a CRITICAL alert is logged.
+        disabled and a CRITICAL alert is logged. Automatically retries
+        after _NER_RECOVERY_SECONDS.
         """
         if not self._ner:
-            return []
+            # Try recovery if NER was previously available
+            if self._ner_was_available and self._ner_tripped_at:
+                import time
+                elapsed = time.monotonic() - self._ner_tripped_at
+                if elapsed >= self._NER_RECOVERY_SECONDS:
+                    self._ner = self._try_init_ner()
+                    if self._ner:
+                        self._ner_failure_count = 0
+                        self._ner_tripped_at = 0.0
+                        logger.info("NER circuit breaker recovered")
+                    else:
+                        # Reset timer for next retry
+                        self._ner_tripped_at = time.monotonic()
+            return [] if not self._ner else self._ner_call_safe(text)
         try:
             result = self._ner.detect(text)
             self._ner_failure_count = 0  # Reset on success
@@ -243,12 +265,16 @@ class Anonymizer:
                            self._ner_failure_count,
                            _NER_CIRCUIT_BREAKER_THRESHOLD, e)
             if self._ner_failure_count >= _NER_CIRCUIT_BREAKER_THRESHOLD:
+                import time
                 logger.critical(
                     "NER circuit breaker tripped — disabling NER after %d "
-                    "consecutive failures. Falling back to regex + heuristic.",
+                    "consecutive failures. Falling back to regex + heuristic. "
+                    "Will retry in %ds.",
                     self._ner_failure_count,
+                    int(self._NER_RECOVERY_SECONDS),
                 )
                 self._ner = None
+                self._ner_tripped_at = time.monotonic()
                 try:
                     from healthbot.security.pii_alert import PiiAlertService
                     svc = PiiAlertService.get_instance()
@@ -380,8 +406,18 @@ class Anonymizer:
         if not text:
             return text, False
 
+        # Normalize Unicode so NER + regex operate on consistent text
+        text = unicodedata.normalize("NFC", text)
+
         # One-time canary verification
         self._verify_canary()
+
+        # Invalidate cache if identity patterns changed
+        current_version = getattr(self._fw, "_pattern_version", 0)
+        if current_version != self._last_pattern_version:
+            with self._cache_lock:
+                self._cache.clear()
+            self._last_pattern_version = current_version
 
         # Cache lookup
         cache_key = hashlib.sha256(text.encode()).hexdigest()
@@ -721,14 +757,11 @@ class Anonymizer:
                     f"heuristic_name: {', '.join(suspects[:5])}"
                 )
 
-        # Check regex — skip identity-specific patterns (id_* prefix).
-        # The anonymize() step already handled identity patterns; re-checking
-        # them here causes false positives on medical text (e.g., user's
-        # last name matching a medical term like "White" in "white blood cells").
+        # Check regex — including identity patterns (id_* prefix).
+        # Identity patterns are the most important PII to catch in the final gate.
         matches = self._fw.scan(stripped)
-        base_matches = [m for m in matches if not m.category.startswith("id_")]
-        if base_matches:
-            categories = {m.category for m in base_matches}
+        if matches:
+            categories = {m.category for m in matches}
             issues.append(f"regex: {', '.join(categories)}")
 
         # Layer 3: Ollama LLM (optional, same pattern as anonymize())

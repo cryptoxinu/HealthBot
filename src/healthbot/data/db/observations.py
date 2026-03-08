@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import sqlite3
 import uuid
 from typing import Any
 
@@ -110,28 +111,17 @@ class ObservationsMixin:
                  source_doc, source_page, source_section, self._now(), enc_data,
                  user_id, age_at_collection, source_lab),
             )
-        except Exception:
+        except sqlite3.OperationalError:
             # Fallback for pre-migration schema without age_at_collection
-            try:
-                self.conn.execute(
-                    """INSERT INTO observations (obs_id, record_type, canonical_name,
-                       date_effective, triage_level, flag, source_doc_id, source_page,
-                       source_section, created_at, encrypted_data, user_id)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (obs_id, record_type, canonical_name, date_eff, triage, flag,
-                     source_doc, source_page, source_section, self._now(), enc_data,
-                     user_id),
-                )
-            except Exception:
-                # Fallback for pre-migration schema without user_id column
-                self.conn.execute(
-                    """INSERT INTO observations (obs_id, record_type, canonical_name,
-                       date_effective, triage_level, flag, source_doc_id, source_page,
-                       source_section, created_at, encrypted_data)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (obs_id, record_type, canonical_name, date_eff, triage, flag,
-                     source_doc, source_page, source_section, self._now(), enc_data),
-                )
+            self.conn.execute(
+                """INSERT INTO observations (obs_id, record_type, canonical_name,
+                   date_effective, triage_level, flag, source_doc_id, source_page,
+                   source_section, created_at, encrypted_data, user_id)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (obs_id, record_type, canonical_name, date_eff, triage, flag,
+                 source_doc, source_page, source_section, self._now(), enc_data,
+                 user_id),
+            )
         if commit:
             self.conn.commit()
         return obs_id

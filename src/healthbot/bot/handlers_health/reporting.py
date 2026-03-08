@@ -7,7 +7,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from healthbot.bot.formatters import paginate
-from healthbot.bot.middleware import require_unlocked
+from healthbot.bot.middleware import rate_limited, require_unlocked
 from healthbot.bot.typing_helper import TypingIndicator
 
 logger = logging.getLogger("healthbot")
@@ -16,6 +16,7 @@ logger = logging.getLogger("healthbot")
 class ReportingMixin:
     """Mixin for report generation and emergency card commands."""
 
+    @rate_limited(max_per_minute=10)
     @require_unlocked
     async def report(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE,
@@ -49,6 +50,7 @@ class ReportingMixin:
         for page in paginate(text):
             await update.message.reply_text(page)
 
+    @rate_limited(max_per_minute=10)
     @require_unlocked
     async def emergency(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE,
@@ -70,6 +72,7 @@ class ReportingMixin:
         for page in paginate(text):
             await update.message.reply_text(page)
 
+    @rate_limited(max_per_minute=10)
     @require_unlocked
     async def weeklyreport(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE,
@@ -125,6 +128,7 @@ class ReportingMixin:
                 "Ensure you have health data imported."
             )
 
+    @rate_limited(max_per_minute=10)
     @require_unlocked
     async def monthlyreport(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE,

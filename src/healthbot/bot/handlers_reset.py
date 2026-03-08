@@ -11,6 +11,7 @@ import time
 from telegram import Update
 from telegram.ext import ContextTypes
 
+from healthbot.bot.middleware import rate_limited
 from healthbot.config import Config
 from healthbot.data.bulk_ops import CATEGORY_TABLE, BulkOps
 from healthbot.security.key_manager import KeyManager
@@ -70,15 +71,24 @@ class ResetHandlers:
 
         Returns True if the message was consumed (caller should stop routing).
         """
+        if not self._check_auth(update):
+            return False
         user_id = update.effective_user.id if update.effective_user else 0
         pending = self._pending.pop(user_id, None)
         if pending is None:
             return False
 
+        # Verify vault is still unlocked before destructive action
+        if not self._km.is_unlocked:
+            await update.message.reply_text("Vault is locked. Cancelled.")
+            return True
+
         text = (update.message.text or "").strip().upper()
         if text != "YES":
             await update.message.reply_text("Cancelled.")
             return True
+
+        self._km.touch()
 
         # Execute the confirmed action
         if pending["action"] == "reset":
@@ -92,6 +102,7 @@ class ResetHandlers:
 
         return True
 
+    @rate_limited(max_per_minute=3)
     async def reset(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
@@ -130,6 +141,7 @@ class ResetHandlers:
         }
         await update.message.reply_text("\n".join(lines))
 
+    @rate_limited(max_per_minute=3)
     async def delete(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
@@ -181,6 +193,7 @@ class ResetHandlers:
             f"Type YES to confirm (expires in {CONFIRM_TIMEOUT}s)."
         )
 
+    @rate_limited(max_per_minute=3)
     async def delete_labs(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:
@@ -225,6 +238,7 @@ class ResetHandlers:
         }
         await update.message.reply_text("\n".join(lines))
 
+    @rate_limited(max_per_minute=3)
     async def delete_doc(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:

@@ -11,6 +11,7 @@ import logging
 from telegram import Update
 from telegram.ext import ContextTypes
 
+from healthbot.bot.middleware import rate_limited
 from healthbot.config import Config
 from healthbot.reasoning.triage import TriageEngine
 from healthbot.security.key_manager import KeyManager
@@ -149,6 +150,7 @@ class MessageRouter(
         except Exception as e:
             logger.debug("Fallback clean sync failed: %s", e)
 
+    @rate_limited(max_per_minute=15)
     async def handle_message(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
     ) -> None:

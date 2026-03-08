@@ -7,7 +7,7 @@ from pathlib import Path
 from telegram import Update
 from telegram.ext import ContextTypes
 
-from healthbot.bot.middleware import require_unlocked
+from healthbot.bot.middleware import rate_limited, require_unlocked
 from healthbot.bot.typing_helper import TypingIndicator
 
 logger = logging.getLogger("healthbot")
@@ -16,6 +16,7 @@ logger = logging.getLogger("healthbot")
 class ConnectorsMixin:
     """Handlers for /connectors, /debug, /scrub_pii, and /rescan commands."""
 
+    @rate_limited(max_per_minute=5)
     @require_unlocked
     async def connectors(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE,
@@ -81,6 +82,7 @@ class ConnectorsMixin:
 
         await update.message.reply_text("\n".join(lines))
 
+    @rate_limited(max_per_minute=5)
     @require_unlocked
     async def scrub_pii(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE,
@@ -124,6 +126,7 @@ class ConnectorsMixin:
                     + "\n".join(result.errors[:5])
                 )
 
+    @rate_limited(max_per_minute=5)
     @require_unlocked
     async def debug(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE
@@ -152,6 +155,7 @@ class ConnectorsMixin:
         # Route to troubleshoot handler (same as natural language path)
         await self._core._router._handle_troubleshoot(update, topic)
 
+    @rate_limited(max_per_minute=5)
     @require_unlocked
     async def rescan(
         self, update: Update, context: ContextTypes.DEFAULT_TYPE,

@@ -256,9 +256,12 @@ class TestVaultRestore:
         """Restore should handle uncompressed backups when zstd not available."""
         config, km = backup_env
 
-        # Create backup without zstd
+        # Create backup without zstd (also block subprocess to prevent
+        # the `or "zstd"` fallback from finding a system-installed zstd)
         vb = VaultBackup(config, km)
-        with patch("healthbot.vault_ops.backup.shutil.which", return_value=None):
+        with patch("healthbot.vault_ops.backup.shutil.which", return_value=None), \
+             patch("healthbot.vault_ops.backup.subprocess.run",
+                   side_effect=FileNotFoundError("zstd")):
             backup_path = vb.create_backup()
 
         # Wipe and restore without zstd

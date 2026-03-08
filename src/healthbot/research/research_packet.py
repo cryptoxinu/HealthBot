@@ -6,11 +6,14 @@ PHI is hard-blocked (not sanitized-and-sent).
 from __future__ import annotations
 
 import hashlib
+import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from healthbot.security.phi_firewall import PhiFirewall
+
+logger = logging.getLogger("healthbot")
 
 
 @dataclass
@@ -74,6 +77,11 @@ def build_research_packet(
     If demographics provided, appends anonymized patient context
     (age decade, sex, ethnicity, BMI category — no identifiers).
     """
+    if firewall is None:
+        logger.warning(
+            "build_research_packet called without shared firewall "
+            "— identity patterns may be missing"
+        )
     fw = firewall or PhiFirewall()
     now = datetime.now(UTC).isoformat()
     query_hash = hashlib.sha256(raw_query.encode()).hexdigest()[:16]

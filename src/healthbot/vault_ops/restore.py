@@ -77,21 +77,31 @@ class VaultRestore:
             raise RestoreError(f"Decryption failed (wrong passphrase?): {e}") from e
 
         # Decompress
-        try:
-            _env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin")}
-            result = subprocess.run(
-                [shutil.which("zstd") or "zstd", "--decompress", "-"],
-                input=compressed,
-                capture_output=True,
-                timeout=300,
-                env=_env,
-            )
-            if result.returncode == 0:
-                tar_bytes = result.stdout
-            else:
-                tar_bytes = compressed  # Fallback: wasn't compressed
-        except (FileNotFoundError, subprocess.TimeoutExpired):
-            tar_bytes = compressed
+        zstd_bin = shutil.which("zstd")
+        if zstd_bin:
+            try:
+                _env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin")}
+                result = subprocess.run(
+                    [zstd_bin, "--decompress", "-"],
+                    input=compressed,
+                    capture_output=True,
+                    timeout=300,
+                    env=_env,
+                )
+                if result.returncode == 0:
+                    tar_bytes = result.stdout
+                else:
+                    tar_bytes = compressed  # Fallback: wasn't compressed
+            except subprocess.TimeoutExpired:
+                tar_bytes = compressed
+        else:
+            # Try treating as uncompressed tar; if it fails, zstd is needed
+            if compressed[:4] == b"\x28\xb5\x2f\xfd":  # zstd magic bytes
+                raise RestoreError(
+                    "Backup is zstd-compressed but zstd is not installed. "
+                    "Install: brew install zstd"
+                )
+            tar_bytes = compressed  # Not zstd-compressed
 
         # Extract to staging directory, then atomic swap (prevents
         # inconsistent vault state if extraction fails midway)

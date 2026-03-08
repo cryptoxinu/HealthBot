@@ -22,6 +22,18 @@ from healthbot.security.vault import Vault
 
 logger = logging.getLogger("healthbot")
 
+
+def _try_float(value: str) -> float | str:
+    """Try to parse a numeric value (handles negatives, scientific notation).
+
+    Returns float if parseable, otherwise the original string.
+    """
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return value
+
+
 # CCDA XML namespaces
 CCDA_NS = {
     "cda": "urn:hl7-org:v3",
@@ -184,7 +196,7 @@ class MyChartImporter:
                 id=uuid.uuid4().hex,
                 test_name=test_name,
                 canonical_name=normalize_test_name(test_name),
-                value=float(value) if value.replace(".", "").isdigit() else value,
+                value=_try_float(value),
                 unit=unit,
                 reference_low=ref_low,
                 reference_high=ref_high,
@@ -392,6 +404,27 @@ class MyChartImporter:
             flag=flag,
             source_blob_id=blob_id,
         )
+        # Dedup: skip if same test/date/value already exists
+        if lab.date_collected and lab.canonical_name:
+            existing = self._db.query_observations(
+                record_type="lab_result",
+                canonical_name=lab.canonical_name,
+                start_date=lab.date_collected.isoformat(),
+                end_date=lab.date_collected.isoformat(),
+                limit=1,
+            )
+            if existing:
+                for e in existing:
+                    try:
+                        if abs(float(e.get("value", "")) - float(lab.value)) < 0.001:
+                            logger.debug(
+                                "MyChart FHIR dedup: skipping %s on %s",
+                                lab.canonical_name, lab.date_collected,
+                            )
+                            return False
+                    except (ValueError, TypeError):
+                        pass
+
         self._db.insert_observation(lab)
         return True
 
